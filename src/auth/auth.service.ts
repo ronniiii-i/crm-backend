@@ -66,7 +66,7 @@ export class AuthService {
       success: true,
       message: 'Login successful!',
       user: { email, name: user.name },
-      access_token: token, // Send this token to frontend
+      accessToken: token, // Send this token to frontend
     };
   }
 }

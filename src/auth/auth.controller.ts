@@ -28,4 +28,13 @@ export class AuthController {
   ) {
     return { message: 'Protected route accessed!', user: req.user };
   }
+
+  @UseGuards(JwtAuthGuard)
+  @Get('verify')
+  verifyToken(@Req() req: { user: { id: string; email: string } }) {
+    return {
+      success: true,
+      user: req.user,
+    };
+  }
 }
