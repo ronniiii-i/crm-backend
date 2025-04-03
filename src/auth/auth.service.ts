@@ -12,12 +12,12 @@ export class AuthService {
     private prisma: PrismaService, // Inject Prisma
   ) {}
 
-  async validateUser(
-    password: string,
-    hashedPassword: string,
-  ): Promise<boolean> {
-    return bcrypt.compare(password, hashedPassword);
-  }
+  // async validateUser(
+  //   password: string,
+  //   hashedPassword: string,
+  // ): Promise<boolean> {
+  //   return bcrypt.compare(password, hashedPassword);
+  // }
 
   async signup(email: string, password: string, name: string) {
     const hashedPassword = await bcrypt.hash(password, 10);
@@ -53,13 +53,13 @@ export class AuthService {
       where: { email },
     });
     if (!user) {
-      throw new UnauthorizedException('Invalid credentials');
+      throw new UnauthorizedException('Invalid Email');
     }
 
     // Validate password
     const isMatch = await bcrypt.compare(password, user.password);
     if (!isMatch) {
-      throw new UnauthorizedException('Invalid credentials');
+      throw new UnauthorizedException('Invalid Password');
     }
 
     // Generate JWT token (unchanged)
@@ -69,7 +69,7 @@ export class AuthService {
     return {
       success: true,
       message: 'Login successful!',
-      user: { email: user.email, name: user.name },
+      user: { email: user.email, name: user.name, role: user.role },
       accessToken: token,
     };
   }

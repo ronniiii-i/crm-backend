@@ -42,4 +42,12 @@ export class AuthController {
       user: req.user,
     };
   }
+
+  // src/users/users.controller.ts
+  // @Get('profile')
+  // @UseGuards(JwtAuthGuard)
+  // async getProfile(@Req() req: Request) {
+  //   const userId = req.user.sub; // From JWT
+  //   return this.usersService.findById(userId);
+  // }
 }
