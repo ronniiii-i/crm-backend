@@ -1,6 +1,7 @@
 import { Controller, Get, Post, Body, UseGuards, Req } from '@nestjs/common';
 import { AuthService } from './auth.service';
 import { SignupDto } from './dto/signup.dto';
+import { LoginDto } from './dto/login.dto';
 import { JwtAuthGuard } from './jwt-auth.guard';
 
 @Controller('auth')
@@ -14,10 +15,14 @@ export class AuthController {
     const { email, password, name } = signupDto;
     return await this.authService.signup(email, password, name);
   }
+
   @Post('login')
-  async login(
-    @Body() body: { email: string; password: string },
-  ): Promise<{ success: boolean; message: string }> {
+  async login(@Body() body: LoginDto): Promise<{
+    success: boolean;
+    message: string;
+    user: { email: string; name: string };
+    accessToken: string;
+  }> {
     return this.authService.login(body.email, body.password);
   }
 
