@@ -79,7 +79,11 @@ export class AuthService {
 
   async requestPasswordReset(email: string) {
     const user = await this.prisma.user.findUnique({ where: { email } });
-    if (!user) return; // Don't reveal if user exists
+    if (!user)
+      return {
+        success: true,
+        message: 'If an account exists, you will receive an email',
+      };
 
     const resetToken = this.mailService.generateToken();
 
@@ -105,6 +109,14 @@ export class AuthService {
 
     if (!user) throw new UnauthorizedException('Invalid or expired token');
 
+    await this.prisma.user.updateMany({
+      where: { email: user.email },
+      data: {
+        resetToken: null,
+        resetExpires: null,
+      },
+    });
+
     const hashedPassword = await bcrypt.hash(newPassword, 10);
 
     await this.prisma.user.update({
@@ -127,6 +139,7 @@ export class AuthService {
     if (!user) {
       throw new UnauthorizedException('Invalid Email');
     }
+    if (!user.isVerified) throw new UnauthorizedException('Email not verified');
 
     // Validate password
     const isMatch = await bcrypt.compare(password, user.password);
