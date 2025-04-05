@@ -26,6 +26,11 @@ model User {
   lastLoginAt DateTime?
   createdAt   DateTime  @default(now())
   updatedAt   DateTime  @updatedAt
+  isVerified   Boolean   @default(false)
+  verifyToken  String?
+  verifyExpires DateTime?
+  resetToken   String?
+  resetExpires  DateTime?
 
   // Relations
   contacts           Contact[]
