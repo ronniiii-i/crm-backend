@@ -9,6 +9,7 @@ Robust CRM backend built with NestJS, TypeScript, and PostgreSQL.
 ## ✨ Features
 
 ### Core Modules
+
 - ✅ Authentication (JWT)
 - ✅ User Management
 - ✅ Role-based Authorization
@@ -16,6 +17,7 @@ Robust CRM backend built with NestJS, TypeScript, and PostgreSQL.
 - ✅ Database (Prisma + PostgreSQL)
 
 ### API Features
+
 - RESTful endpoints
 - Rate limiting
 - Request validation
@@ -25,12 +27,14 @@ Robust CRM backend built with NestJS, TypeScript, and PostgreSQL.
 ## 🚀 Getting Started
 
 ### Prerequisites
+
 - Node.js 18+
 - npm 9+ or yarn
 - PostgreSQL 15+
 - Redis (for rate limiting)
 
 ### Installation
+
 ```bash
 git clone https://github.com/your-username/crm-backend.git
 cd crm-backend
@@ -68,7 +72,7 @@ npm run start:prod
 
 ## 📂 Project Structure
 
-```
+```tree
 crm-backend/
 ├── src/
 │   ├── auth/              # Authentication logic
