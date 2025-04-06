@@ -46,7 +46,7 @@ export class AuthService {
       },
     });
     // Send verification email
-    await this.mailService.sendVerificationEmail(email, verifyToken);
+    await this.mailService.sendVerificationEmail(email, name, verifyToken);
 
     return {
       success: true,
@@ -95,7 +95,7 @@ export class AuthService {
       },
     });
 
-    await this.mailService.sendPasswordResetEmail(email, resetToken);
+    await this.mailService.sendPasswordResetEmail(email, user.name, resetToken);
     return { success: true, message: 'Password reset email sent' };
   }
 
