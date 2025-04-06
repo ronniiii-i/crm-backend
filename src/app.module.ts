@@ -8,6 +8,7 @@ import { AuthModule } from './auth/auth.module';
 import { PrismaService } from './prisma/prisma.service';
 import { PrismaModule } from './prisma/prisma.module';
 import { MailService } from './mail/mail.service';
+import { SuspicionDetectorService } from './security/suspicion-detector.service';
 
 @Module({
   imports: [
@@ -29,6 +30,7 @@ import { MailService } from './mail/mail.service';
     AppService,
     PrismaService,
     MailService,
+    SuspicionDetectorService,
   ],
 })
 export class AppModule {}

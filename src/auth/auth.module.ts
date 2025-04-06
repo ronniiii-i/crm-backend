@@ -6,6 +6,8 @@ import { MailService } from '../mail/mail.service';
 import { AuthController } from './auth.controller';
 // import { UsersModule } from '../users/users.module';
 import { JwtStrategy } from './jwt.strategy';
+import { RecaptchaService } from '../security/recaptcha.service';
+import { SuspicionDetectorService } from '../security/suspicion-detector.service';
 
 @Module({
   imports: [
@@ -16,7 +18,13 @@ import { JwtStrategy } from './jwt.strategy';
       signOptions: { expiresIn: '1h' },
     }),
   ],
-  providers: [AuthService, JwtStrategy, MailService],
+  providers: [
+    AuthService,
+    JwtStrategy,
+    MailService,
+    RecaptchaService,
+    SuspicionDetectorService,
+  ],
   controllers: [AuthController],
 })
 export class AuthModule {}
