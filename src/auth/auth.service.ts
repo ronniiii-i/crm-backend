@@ -139,7 +139,7 @@ export class AuthService {
     if (!user) {
       throw new UnauthorizedException('Invalid Email');
     }
-    if (!user.isVerified) throw new UnauthorizedException('Email not verified');
+    // if (!user.isVerified) throw new UnauthorizedException('Email not verified');
 
     // Validate password
     const isMatch = await bcrypt.compare(password, user.password);
@@ -147,14 +147,23 @@ export class AuthService {
       throw new UnauthorizedException('Invalid Password');
     }
 
-    // Generate JWT token (unchanged)
-    const payload = { sub: user.id, email: user.email, role: user.role };
+    const payload = {
+      sub: user.id,
+      email: user.email,
+      role: user.role,
+      verified: user.isVerified,
+    };
     const token = this.jwtService.sign(payload);
 
     return {
       success: true,
       message: 'Login successful!',
-      user: { email: user.email, name: user.name, role: user.role },
+      user: {
+        email: user.email,
+        name: user.name,
+        role: user.role,
+        isVerified: user.isVerified,
+      },
       accessToken: token,
     };
   }
