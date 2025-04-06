@@ -8,7 +8,7 @@ import { AuthModule } from './auth/auth.module';
 import { PrismaService } from './prisma/prisma.service';
 import { PrismaModule } from './prisma/prisma.module';
 import { MailService } from './mail/mail.service';
-import { SuspicionDetectorService } from './security/suspicion-detector.service';
+// import { SuspicionDetectorService } from './security/suspicion-detector.service';
 
 @Module({
   imports: [
@@ -30,7 +30,7 @@ import { SuspicionDetectorService } from './security/suspicion-detector.service'
     AppService,
     PrismaService,
     MailService,
-    SuspicionDetectorService,
+    // SuspicionDetectorService,
   ],
 })
 export class AppModule {}

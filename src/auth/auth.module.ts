@@ -6,8 +6,8 @@ import { MailService } from '../mail/mail.service';
 import { AuthController } from './auth.controller';
 // import { UsersModule } from '../users/users.module';
 import { JwtStrategy } from './jwt.strategy';
-import { RecaptchaService } from '../security/recaptcha.service';
-import { SuspicionDetectorService } from '../security/suspicion-detector.service';
+// import { RecaptchaService } from '../security/recaptcha.service';
+// import { SuspicionDetectorService } from '../security/suspicion-detector.service';
 
 @Module({
   imports: [
@@ -22,8 +22,8 @@ import { SuspicionDetectorService } from '../security/suspicion-detector.service
     AuthService,
     JwtStrategy,
     MailService,
-    RecaptchaService,
-    SuspicionDetectorService,
+    // RecaptchaService,
+    // SuspicionDetectorService,
   ],
   controllers: [AuthController],
 })
