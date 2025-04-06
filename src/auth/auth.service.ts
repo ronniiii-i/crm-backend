@@ -46,7 +46,7 @@ export class AuthService {
       },
     });
     // Send verification email
-    await this.mailService.sendVerificationEmail(email, verifyToken);
+    await this.mailService.sendVerificationEmail(email, name, verifyToken);
 
     return {
       success: true,
