@@ -1,34 +1,69 @@
 <!-- src/emails/templates/verification-email.hbs -->
-<div style="display:none;font-size:1px;color:#fff;line-height:1px;">
-  {{ randomCode }} <!-- Hidden anti-spam text -->
-</div>
-<!DOCTYPE html>
 <html>
-<head>
-  <style>
-    body { font-family: Arial, sans-serif; line-height: 1.6; }
-    .container { max-width: 600px; margin: 0 auto; padding: 20px; }
-    .button { 
-      display: inline-block; padding: 10px 20px; 
-      background: #2563eb; color: white; text-decoration: none; 
-      border-radius: 5px; font-weight: bold;
-    }
-    .footer { margin-top: 30px; font-size: 12px; color: #666; }
-  </style>
-</head>
-<body>
-  <div class="container">
-    <h1>Verify Your Email</h1>
-    <p>Hello {{name}},</p>
-    <p>Please verify your email address by clicking the button below:</p>
-    
-    <a href="{{verificationLink}}" class="button">Verify Email</a>
-    
-    <p>If you didn't request this, please ignore this email.</p>
-    
-    <div class="footer">
-      © {{currentYear}} {{appName}}
+  <head>
+    <style>
+      body {
+        font-family: Arial, sans-serif;
+        line-height: 1.6;
+      }
+      .container {
+        max-width: 600px;
+        margin: 0 auto;
+        padding: 20px;
+      }
+      .button {
+        display: inline-block;
+        padding: 10px 20px;
+        background: #2563eb;
+        color: white;
+        text-decoration: none;
+        border-radius: 5px;
+        font-weight: bold;
+      }
+      .button:hover {
+        background: #1d4ed8;
+      }
+      .button:active {
+        background: #1e40af;
+      }
+      .button:focus {
+        outline: none;
+        box-shadow: 0 0 0 2px rgba(37, 99, 235, 0.5);
+      }
+      .button:disabled {
+        background: #9ca3af;
+        cursor: not-allowed;
+      }
+      .button:visited {
+        color: white;
+      }
+      .footer {
+        margin-top: 30px;
+        font-size: 12px;
+        color: #666;
+      }
+    </style>
+  </head>
+  <body>
+    <div class='container'>
+      <h1>Verify Your Email</h1>
+      <p>Hello {{name}},</p>
+      <p>Please verify your email address by clicking the button below:</p>
+
+      <a href='{{verificationLink}}' class='button'>Verify Email</a>
+
+      <p>If you didn't request this, please ignore this email.</p>
+
+      <div class='footer'>
+        ©
+        {{currentYear}}
+        {{appName}}
+      </div>
     </div>
+  </body>
+  <div style='display:none;font-size:1px;color:#fff;line-height:1px;'>
+    {{randomCode}}
+    <!-- Hidden anti-spam text -->
   </div>
-</body>
+
 </html>

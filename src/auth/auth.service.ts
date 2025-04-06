@@ -95,7 +95,7 @@ export class AuthService {
       },
     });
 
-    await this.mailService.sendPasswordResetEmail(email, resetToken);
+    await this.mailService.sendPasswordResetEmail(email, user.name, resetToken);
     return { success: true, message: 'Password reset email sent' };
   }
 

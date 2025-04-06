@@ -67,6 +67,12 @@ export class MailService {
         to: email,
         subject: `Verify Your Email for ${process.env.APP_NAME}`,
         html,
+        headers: {
+          'List-Unsubscribe': `<mailto:unsubscribe@yourdomain.com?subject=Unsubscribe>`,
+          'X-Mailer': 'NestJS Mailer',
+          'X-Priority': '1',
+          Precedence: 'bulk',
+        },
       });
       console.log(`Verification email sent to ${email}`);
     } catch (error) {
@@ -75,15 +81,41 @@ export class MailService {
     }
   }
 
-  async sendPasswordResetEmail(email: string, token: string) {
-    const resetUrl = `${process.env.FRONTEND_URL}/reset-password?token=${token}`;
+  async sendPasswordResetEmail(email: string, name: string, token: string) {
+    // const resetUrl = `${process.env.FRONTEND_URL}/reset-password?token=${token}`;
+    const template = this.loadTemplate('reset-password');
 
-    await this.transporter.sendMail({
-      from: `"CRM Team" <${process.env.EMAIL_USER}>`,
-      to: email,
-      subject: 'Password Reset Request',
-      html: `<p>Click <a href="${resetUrl}">here</a> to reset your password.</p>`,
+    const html = compile(template)({
+      name,
+      resetLink: `${process.env.FRONTEND_URL}/reset-password?token=${token}`,
+      randomCode: Math.random().toString(36).substring(2, 8),
+      date: new Date().toISOString(),
+      appName: process.env.APP_NAME,
+      year: new Date().getFullYear(),
+      supportLink: `${process.env.FRONTEND_URL}/contact`,
+      privacyLink: `${process.env.FRONTEND_URL}/privacy`,
+      // unsubscribeLink: `${process.env.FRONTEND_URL}/unsubscribe`,
     });
+
+    // await this.transporter.sendMail({
+    //   from: `"CRM Team" <${process.env.EMAIL_USER}>`,
+    //   to: email,
+    //   subject: 'Password Reset Request',
+    //   html: `<p>Click <a href="${resetUrl}">here</a> to reset your password.</p>`,
+    // });
+
+    try {
+      await this.transporter.sendMail({
+        from: `"${process.env.APP_NAME}" <${process.env.EMAIL_FROM}>`,
+        to: email,
+        subject: `Reset Your Password for ${process.env.APP_NAME}`,
+        html,
+      });
+      console.log(`Password reset email sent to ${email}`);
+    } catch (error) {
+      console.error('Error sending password reset email:', error);
+      throw new Error('Failed to send password reset email');
+    }
   }
 
   generateToken() {
