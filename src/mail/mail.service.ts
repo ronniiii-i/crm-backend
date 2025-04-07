@@ -1,5 +1,6 @@
 // src/mail/mail.service.ts
 import { Injectable } from '@nestjs/common';
+import { Resend } from 'resend';
 import * as nodemailer from 'nodemailer';
 import * as crypto from 'crypto-js';
 import { readFileSync } from 'fs';
