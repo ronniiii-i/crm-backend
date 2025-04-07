@@ -1,7 +1,7 @@
 // src/mail/mail.service.ts
 import { Injectable } from '@nestjs/common';
 import { Resend } from 'resend';
-import * as nodemailer from 'nodemailer';
+// import * as nodemailer from 'nodemailer';
 import * as crypto from 'crypto-js';
 import { readFileSync } from 'fs';
 import { join } from 'path';
@@ -9,13 +9,29 @@ import { compile } from 'handlebars';
 
 @Injectable()
 export class MailService {
-  private transporter = nodemailer.createTransport({
-    service: process.env.EMAIL_SERVICE || 'Gmail',
-    auth: {
-      user: process.env.EMAIL_USER,
-      pass: process.env.EMAIL_PASSWORD,
-    },
-  });
+  private readonly resend: Resend;
+
+  constructor() {
+    const apiKey = process.env.RESEND_API_KEY;
+
+    // Ensure apiKey is set in environment variables
+    if (!apiKey) {
+      throw new Error(
+        'RESEND_API_KEY is not defined in the environment variables.',
+      );
+    }
+
+    // Now safely create the Resend instance
+    this.resend = new Resend(apiKey);
+  }
+
+  // private transporter = nodemailer.createTransport({
+  //   service: process.env.EMAIL_SERVICE || 'Gmail',
+  //   auth: {
+  //     user: process.env.EMAIL_USER,
+  //     pass: process.env.EMAIL_PASSWORD,
+  //   },
+  // });
   randomCode = Math.random().toString(36).substring(2, 8);
 
   private readonly templateDir = join(__dirname, '../../email-templates');
@@ -62,18 +78,32 @@ export class MailService {
       randomCode,
     });
 
+    // try {
+    //   await this.transporter.sendMail({
+    //     from: `"${process.env.APP_NAME}" <${process.env.RESEND_FROM_EMAIL}>`,
+    //     to: email,
+    //     subject: `Verify Your Email for ${process.env.APP_NAME}`,
+    //     html,
+    //     headers: {
+    //       'List-Unsubscribe': `<mailto:unsubscribe@yourdomain.com?subject=Unsubscribe>`,
+    //       'X-Mailer': 'NestJS Mailer',
+    //       'X-Priority': '1',
+    //       Precedence: 'bulk',
+    //     },
+    //   });
+    //   console.log(`Verification email sent to ${email}`);
+    // } catch (error) {
+    //   console.error('Error sending verification email:', error);
+    //   throw new Error('Failed to send verification email');
+    // }
+
     try {
-      await this.transporter.sendMail({
-        from: `"${process.env.APP_NAME}" <${process.env.EMAIL_FROM}>`,
+      await this.resend.emails.send({
+        from: `"${process.env.APP_NAME}" <${process.env.RESEND_FROM_EMAIL}>`,
         to: email,
         subject: `Verify Your Email for ${process.env.APP_NAME}`,
         html,
-        headers: {
-          'List-Unsubscribe': `<mailto:unsubscribe@yourdomain.com?subject=Unsubscribe>`,
-          'X-Mailer': 'NestJS Mailer',
-          'X-Priority': '1',
-          Precedence: 'bulk',
-        },
+        text: `Hi ${name}, verify your email here: ${process.env.FRONTEND_URL}/verify-email?token=${token}`,
       });
       console.log(`Verification email sent to ${email}`);
     } catch (error) {
@@ -105,12 +135,26 @@ export class MailService {
     //   html: `<p>Click <a href="${resetUrl}">here</a> to reset your password.</p>`,
     // });
 
+    // try {
+    //   await this.transporter.sendMail({
+    //     from: `"${process.env.APP_NAME}" <${process.env.RESEND_FROM_EMAIL}>`,
+    //     to: email,
+    //     subject: `Reset Your Password for ${process.env.APP_NAME}`,
+    //     html,
+    //   });
+    //   console.log(`Password reset email sent to ${email}`);
+    // } catch (error) {
+    //   console.error('Error sending password reset email:', error);
+    //   throw new Error('Failed to send password reset email');
+    // }
+
     try {
-      await this.transporter.sendMail({
-        from: `"${process.env.APP_NAME}" <${process.env.EMAIL_FROM}>`,
+      await this.resend.emails.send({
+        from: `"${process.env.APP_NAME}" <${process.env.RESEND_FROM_EMAIL}>`,
         to: email,
         subject: `Reset Your Password for ${process.env.APP_NAME}`,
         html,
+        text: `Hi ${name}, reset your password here: ${process.env.FRONTEND_URL}/reset-password?token=${token}`,
       });
       console.log(`Password reset email sent to ${email}`);
     } catch (error) {
