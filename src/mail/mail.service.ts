@@ -68,10 +68,9 @@ export class MailService {
         subject: `Verify Your Email for ${process.env.APP_NAME}`,
         html,
         headers: {
-          'List-Unsubscribe': `<mailto:unsubscribe@yourdomain.com?subject=Unsubscribe>`,
+          'List-Unsubscribe': `<mailto:unsubscribe@gmail.com?subject=Unsubscribe>`,
           'X-Mailer': 'NestJS Mailer',
           'X-Priority': '1',
-          Precedence: 'bulk',
         },
       });
       console.log(`Verification email sent to ${email}`);
@@ -110,6 +109,11 @@ export class MailService {
         to: email,
         subject: `Reset Your Password for ${process.env.APP_NAME}`,
         html,
+        headers: {
+          'List-Unsubscribe': `<mailto:unsubscribe@gmail.com?subject=Unsubscribe>`,
+          'X-Mailer': 'NestJS Mailer',
+          'X-Priority': '1',
+        },
       });
       console.log(`Password reset email sent to ${email}`);
     } catch (error) {
