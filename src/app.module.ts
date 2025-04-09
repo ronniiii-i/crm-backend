@@ -8,14 +8,29 @@ import { AuthModule } from './auth/auth.module';
 import { PrismaService } from './prisma/prisma.service';
 import { PrismaModule } from './prisma/prisma.module';
 import { MailService } from './mail/mail.service';
-// import { SuspicionDetectorService } from './security/suspicion-detector.service';
 
 @Module({
   imports: [
     ThrottlerModule.forRoot([
       {
-        ttl: 3600, // 1 hour
-        limit: 3, // 3 requests per hour
+        name: 'default',
+        ttl: 60000, // 1 minute in milliseconds
+        limit: 100, // 100 requests per minute (general API limits)
+      },
+      {
+        name: 'short',
+        ttl: 10000, // 10 seconds in milliseconds
+        limit: 10, // 10 requests per 10 seconds (burst protection)
+      },
+      {
+        name: 'auth',
+        ttl: 3600000, // 1 hour in milliseconds
+        limit: 5, // 5 requests per hour (strict auth endpoints)
+      },
+      {
+        name: 'sensitive',
+        ttl: 86400000, // 24 hours in milliseconds
+        limit: 10, // 10 requests per day (for very sensitive ops)
       },
     ]),
     AuthModule,
@@ -30,7 +45,6 @@ import { MailService } from './mail/mail.service';
     AppService,
     PrismaService,
     MailService,
-    // SuspicionDetectorService,
   ],
 })
 export class AppModule {}
