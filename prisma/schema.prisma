@@ -16,6 +16,16 @@ enum Role {
   GUEST
 }
 
+enum Department {
+  ADMINISTRATION
+  HUMAN_RESOURCES
+  SALES
+  OPERATIONS
+  FINANCE
+  INFORMATION_TECHNOLOGY
+  CUSTOMER_SERVICE
+}
+
 model User {
   id          String    @id @default(uuid())
   email       String    @unique
@@ -31,6 +41,8 @@ model User {
   verifyExpires DateTime?
   resetToken   String?
   resetExpires  DateTime?
+  department Department?
+  managedDepartment Department? @unique
 
   // Relations
   contacts           Contact[]
@@ -102,7 +114,7 @@ model Department {
   name        String
   description String?
   manager     User     @relation("DepartmentManagers", fields: [managerId], references: [id])
-  managerId   String
+  managerId   String?
   members     User[]   @relation("DepartmentMembers")
   createdAt   DateTime @default(now())
 }
