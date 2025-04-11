@@ -114,7 +114,7 @@ model Department {
   name        String
   description String?
   manager     User     @relation("DepartmentManagers", fields: [managerId], references: [id])
-  managerId   String
+  managerId   String?
   members     User[]   @relation("DepartmentMembers")
   createdAt   DateTime @default(now())
 }

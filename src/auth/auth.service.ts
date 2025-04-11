@@ -1,11 +1,10 @@
-// src/auth/auth.service.ts
 import { Injectable, UnauthorizedException } from '@nestjs/common';
 import { JwtService } from '@nestjs/jwt';
 import * as bcrypt from 'bcrypt';
-import { PrismaService } from '../prisma/prisma.service'; // Add this
-import { Role } from '@prisma/client'; // Auto-generated types
-import { MailService } from '../mail/mail.service'; // Add this
-import { addHours } from 'date-fns'; // npm install date-fns
+import { PrismaService } from '../prisma/prisma.service';
+import { Role } from '@prisma/client';
+import { MailService } from '../mail/mail.service';
+import { addHours } from 'date-fns';
 
 @Injectable()
 export class AuthService {
@@ -15,18 +14,10 @@ export class AuthService {
     private mailService: MailService,
   ) {}
 
-  // async validateUser(
-  //   password: string,
-  //   hashedPassword: string,
-  // ): Promise<boolean> {
-  //   return bcrypt.compare(password, hashedPassword);
-  // }
-
   async signup(email: string, password: string, name: string) {
     const hashedPassword = await bcrypt.hash(password, 10);
     const verifyToken = this.mailService.generateToken();
 
-    // Check if user exists using Prisma
     const existingUser = await this.prisma.user.findUnique({
       where: { email },
     });
@@ -34,7 +25,6 @@ export class AuthService {
       throw new UnauthorizedException('User already exists');
     }
 
-    // Create user in database
     const user = await this.prisma.user.create({
       data: {
         email,
@@ -42,10 +32,10 @@ export class AuthService {
         password: hashedPassword,
         role: Role.USER,
         verifyToken,
-        verifyExpires: addHours(new Date(), 3), // Expires in 3 hours
+        verifyExpires: addHours(new Date(), 3),
       },
     });
-    // Send verification email
+
     await this.mailService.sendVerificationEmail(email, name, verifyToken);
 
     return {
@@ -79,11 +69,12 @@ export class AuthService {
 
   async requestPasswordReset(email: string) {
     const user = await this.prisma.user.findUnique({ where: { email } });
-    if (!user)
+    if (!user) {
       return {
         success: true,
         message: 'If an account exists, you will receive an email',
       };
+    }
 
     const resetToken = this.mailService.generateToken();
 
@@ -91,7 +82,7 @@ export class AuthService {
       where: { id: user.id },
       data: {
         resetToken,
-        resetExpires: addHours(new Date(), 1), // Expires in 1 hour
+        resetExpires: addHours(new Date(), 1),
       },
     });
 
@@ -109,14 +100,6 @@ export class AuthService {
 
     if (!user) throw new UnauthorizedException('Invalid or expired token');
 
-    await this.prisma.user.updateMany({
-      where: { email: user.email },
-      data: {
-        resetToken: null,
-        resetExpires: null,
-      },
-    });
-
     const hashedPassword = await bcrypt.hash(newPassword, 10);
 
     await this.prisma.user.update({
@@ -132,16 +115,28 @@ export class AuthService {
   }
 
   async login(email: string, password: string) {
-    // Find user in database
     const user = await this.prisma.user.findUnique({
       where: { email },
+      include: {
+        departments: {
+          select: {
+            id: true,
+            name: true,
+          },
+        },
+        managedDepts: {
+          select: {
+            id: true,
+            name: true,
+          },
+        },
+      },
     });
+
     if (!user) {
       throw new UnauthorizedException('Invalid Email');
     }
-    // if (!user.isVerified) throw new UnauthorizedException('Email not verified');
 
-    // Validate password
     const isMatch = await bcrypt.compare(password, user.password);
     if (!isMatch) {
       throw new UnauthorizedException('Invalid Password');
@@ -153,16 +148,20 @@ export class AuthService {
       role: user.role,
       verified: user.isVerified,
     };
+
     const token = this.jwtService.sign(payload);
 
     return {
       success: true,
       message: 'Login successful!',
       user: {
+        id: user.id,
         email: user.email,
         name: user.name,
         role: user.role,
         isVerified: user.isVerified,
+        departments: user.departments,
+        managedDepts: user.managedDepts,
       },
       accessToken: token,
     };
