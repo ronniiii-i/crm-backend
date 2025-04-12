@@ -16,7 +16,7 @@ enum Role {
   GUEST
 }
 
-enum Department {
+enum DepartmentName  {
   ADMINISTRATION
   HUMAN_RESOURCES
   SALES
@@ -41,8 +41,8 @@ model User {
   verifyExpires DateTime?
   resetToken   String?
   resetExpires  DateTime?
-  department Department?
-  managedDepartment Department? @unique
+  department  DepartmentName?  // Changed to use the enum
+  managedDepartment Department? @relation("DepartmentManagers") // Removed @unique
 
   // Relations
   contacts           Contact[]
@@ -52,7 +52,7 @@ model User {
   uploadedFiles      ProjectFile[]
   projectMemberships ProjectMember[]
   departments        Department[]    @relation("DepartmentMembers")
-  managedDepts       Department[]    @relation("DepartmentManagers")
+  // managedDepts       Department[]    @relation("DepartmentManagers")
 }
 
 model Contact {
@@ -110,13 +110,13 @@ model Task {
 }
 
 model Department {
-  id          String   @id @default(uuid())
-  name        String
+  id          String     @id @default(uuid())
+  name        DepartmentName
   description String?
-  manager     User     @relation("DepartmentManagers", fields: [managerId], references: [id])
-  managerId   String?
-  members     User[]   @relation("DepartmentMembers")
-  createdAt   DateTime @default(now())
+  manager     User?      @relation("DepartmentManagers", fields: [managerId], references: [id])  // Made optional
+  managerId   String?    @unique  // Added @unique for one-to-one relation
+  members     User[]     @relation("DepartmentMembers")
+  createdAt   DateTime   @default(now())
 }
 
 model InventoryItem {
