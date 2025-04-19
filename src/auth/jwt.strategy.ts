@@ -17,13 +17,13 @@ export class JwtStrategy extends PassportStrategy(Strategy) {
     const user = await this.prisma.user.findUnique({
       where: { id: payload.sub },
       include: {
-        departments: {
+        department: {
           select: {
             id: true,
             name: true,
           },
         },
-        managedDepts: {
+        managedDepartment: {
           select: {
             id: true,
             name: true,
@@ -39,8 +39,8 @@ export class JwtStrategy extends PassportStrategy(Strategy) {
     return {
       ...user,
       role: payload.role, // Keep role from token (it's more secure)
-      departments: user.departments,
-      managedDepts: user.managedDepts,
+      departments: user.department,
+      managedDepartment: user.managedDepartment,
     };
   }
 }

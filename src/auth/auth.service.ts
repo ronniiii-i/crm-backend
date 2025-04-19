@@ -118,13 +118,13 @@ export class AuthService {
     const user = await this.prisma.user.findUnique({
       where: { email },
       include: {
-        departments: {
+        department: {
           select: {
             id: true,
             name: true,
           },
         },
-        managedDepts: {
+        managedDepartment: {
           select: {
             id: true,
             name: true,
@@ -160,8 +160,8 @@ export class AuthService {
         name: user.name,
         role: user.role,
         isVerified: user.isVerified,
-        departments: user.departments,
-        managedDepts: user.managedDepts,
+        departments: user.department,
+        managedDepartment: user.managedDepartment,
       },
       accessToken: token,
     };

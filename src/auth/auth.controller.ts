@@ -31,8 +31,8 @@ export class AuthController {
   }
 
   @Throttle({
-    default: { limit: 5, ttl: 3600000 },
-    short: { limit: 3, ttl: 10000 },
+    default: { limit: 50, ttl: 3600000 },
+    short: { limit: 30, ttl: 10000 },
   })
   @Post('login')
   async login(@Body() body: LoginDto) {
@@ -41,13 +41,13 @@ export class AuthController {
     const userWithDepts = await this.prisma.user.findUnique({
       where: { id: result.user.id },
       include: {
-        departments: {
+        department: {
           select: {
             id: true,
             name: true,
           },
         },
-        managedDepts: {
+        managedDepartment: {
           select: {
             id: true,
             name: true,
@@ -64,8 +64,12 @@ export class AuthController {
       ...result,
       user: {
         ...result.user,
-        departments: userWithDepts.departments,
-        managedDepts: userWithDepts.managedDepts,
+        departments: Array.isArray(userWithDepts.department)
+          ? (userWithDepts.department as { id: string; name: string }[])
+          : [],
+        managedDepartment: Array.isArray(userWithDepts.managedDepartment)
+          ? (userWithDepts.managedDepartment as { id: string; name: string }[])
+          : [],
       },
     };
   }
@@ -112,8 +116,8 @@ export class AuthController {
         name: string;
         role: string;
         isVerified: boolean;
-        departments: { id: string; name: string }[];
-        managedDepts: { id: string; name: string }[];
+        department: { id: string; name: string }[];
+        managedDepartment: { id: string; name: string }[];
       };
     },
   ) {
@@ -126,8 +130,8 @@ export class AuthController {
         name: req.user.name,
         role: req.user.role,
         isVerified: req.user.isVerified,
-        departments: req.user.departments,
-        managedDepts: req.user.managedDepts,
+        departments: req.user.department,
+        managedDepartment: req.user.managedDepartment,
       },
     };
   }
