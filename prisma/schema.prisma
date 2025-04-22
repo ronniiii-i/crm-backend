@@ -11,9 +11,9 @@ datasource db {
 
 enum Role {
   ADMIN
-  MANAGER
-  USER
-  GUEST
+  HOD      // Replaces MANAGER
+  LEAD     // New role
+  STAFF    // Replaces USER
 }
 
 enum DepartmentType {
@@ -31,7 +31,7 @@ model User {
   email         String    @unique
   password      String
   name          String
-  role          Role      @default(USER)
+  role          Role      @default(STAFF)
   avatarUrl     String?
   lastLoginAt   DateTime?
   createdAt     DateTime  @default(now())
