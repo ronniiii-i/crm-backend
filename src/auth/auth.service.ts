@@ -53,7 +53,9 @@ export class AuthService {
       },
     });
 
-    if (!user) throw new UnauthorizedException('Invalid or expired token');
+    if (!user) {
+      throw new UnauthorizedException('Invalid or expired token');
+    }
 
     await this.prisma.user.update({
       where: { id: user.id },
@@ -98,7 +100,9 @@ export class AuthService {
       },
     });
 
-    if (!user) throw new UnauthorizedException('Invalid or expired token');
+    if (!user) {
+      throw new UnauthorizedException('Invalid or expired token');
+    }
 
     const hashedPassword = await bcrypt.hash(newPassword, 10);
 

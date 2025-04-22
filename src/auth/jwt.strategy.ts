@@ -38,7 +38,7 @@ export class JwtStrategy extends PassportStrategy(Strategy) {
 
     return {
       ...user,
-      role: payload.role, // Keep role from token (it's more secure)
+      role: payload.role,
       departments: user.department,
       managedDepartment: user.managedDepartment,
     };
