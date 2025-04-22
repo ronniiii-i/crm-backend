@@ -64,12 +64,8 @@ export class AuthController {
       ...result,
       user: {
         ...result.user,
-        departments: Array.isArray(userWithDepts.department)
-          ? (userWithDepts.department as { id: string; name: string }[])
-          : [],
-        managedDepartment: Array.isArray(userWithDepts.managedDepartment)
-          ? (userWithDepts.managedDepartment as { id: string; name: string }[])
-          : [],
+        department: userWithDepts.department,
+        managedDepartment: userWithDepts.managedDepartment,
       },
     };
   }
