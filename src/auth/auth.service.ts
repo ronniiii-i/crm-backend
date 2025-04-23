@@ -30,7 +30,7 @@ export class AuthService {
         email,
         name,
         password: hashedPassword,
-        role: Role.USER,
+        role: Role.STAFF,
         verifyToken,
         verifyExpires: addHours(new Date(), 3),
       },
