@@ -11,12 +11,12 @@ datasource db {
 
 enum Role {
   ADMIN
-  MANAGER
-  USER
-  GUEST
+  HOD      // Replaces MANAGER
+  LEAD     // New role
+  STAFF    // Replaces USER
 }
 
-enum Department {
+enum DepartmentType {
   ADMINISTRATION
   HUMAN_RESOURCES
   SALES
@@ -27,22 +27,21 @@ enum Department {
 }
 
 model User {
-  id          String    @id @default(uuid())
-  email       String    @unique
-  password    String
-  name        String
-  role        Role      @default(USER)
-  avatarUrl   String?
-  lastLoginAt DateTime?
-  createdAt   DateTime  @default(now())
-  updatedAt   DateTime  @updatedAt
-  isVerified   Boolean   @default(false)
-  verifyToken  String?
+  id            String    @id @default(uuid())
+  email         String    @unique
+  password      String
+  name          String
+  role          Role      @default(STAFF)
+  avatarUrl     String?
+  lastLoginAt   DateTime?
+  createdAt     DateTime  @default(now())
+  updatedAt     DateTime  @updatedAt
+  isVerified    Boolean   @default(false)
+  verifyToken   String?
   verifyExpires DateTime?
-  resetToken   String?
+  resetToken    String?
   resetExpires  DateTime?
-  department Department?
-  managedDepartment Department? @unique
+  departmentId  String?   @map("department")
 
   // Relations
   contacts           Contact[]
@@ -51,8 +50,8 @@ model User {
   notifications      Notification[]
   uploadedFiles      ProjectFile[]
   projectMemberships ProjectMember[]
-  departments        Department[]    @relation("DepartmentMembers")
-  managedDepts       Department[]    @relation("DepartmentManagers")
+  department         Department?       @relation("DepartmentMembers", fields: [departmentId], references: [id])
+  managedDepartment  Department?       @relation("DepartmentManager")
 }
 
 model Contact {
@@ -110,13 +109,14 @@ model Task {
 }
 
 model Department {
-  id          String   @id @default(uuid())
+  id          String        @id @default(uuid())
   name        String
   description String?
-  manager     User     @relation("DepartmentManagers", fields: [managerId], references: [id])
-  managerId   String?
-  members     User[]   @relation("DepartmentMembers")
-  createdAt   DateTime @default(now())
+  type        DepartmentType
+  managerId   String?       @unique
+  manager     User?         @relation("DepartmentManager", fields: [managerId], references: [id])
+  members     User[]        @relation("DepartmentMembers")
+  createdAt   DateTime      @default(now())
 }
 
 model InventoryItem {
