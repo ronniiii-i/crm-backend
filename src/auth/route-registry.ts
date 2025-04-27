@@ -171,39 +171,39 @@ export class RouteRegistry {
 
     // Add all other routes from your frontend ALL_MODULES here
 
-    {
-      path: '/test-acl/admin-only',
-      permissions: {
-        ADMIN: [Permission.VIEW, Permission.EDIT, Permission.DELETE],
-        HOD: [],
-        LEAD: [],
-        STAFF: [],
-      },
-    },
-    {
-      path: '/test-acl/finance-data',
-      department: Department.FINANCE,
-      permissions: {
-        ADMIN: [Permission.VIEW, Permission.EDIT, Permission.DELETE],
-        HOD: [Permission.VIEW, Permission.EDIT],
-        LEAD: [Permission.VIEW],
-        STAFF: [],
-      },
-    },
-    {
-      path: '/test-acl/create-operation',
-      permissions: {
-        ADMIN: [
-          Permission.CREATE,
-          Permission.VIEW,
-          Permission.EDIT,
-          Permission.DELETE,
-        ],
-        HOD: [Permission.CREATE, Permission.VIEW],
-        LEAD: [Permission.VIEW],
-        STAFF: [],
-      },
-    },
+    // {
+    //   path: '/test-acl/admin-only',
+    //   permissions: {
+    //     ADMIN: [Permission.VIEW, Permission.EDIT, Permission.DELETE],
+    //     HOD: [],
+    //     LEAD: [],
+    //     STAFF: [],
+    //   },
+    // },
+    // {
+    //   path: '/test-acl/finance-data',
+    //   department: Department.FINANCE,
+    //   permissions: {
+    //     ADMIN: [Permission.VIEW, Permission.EDIT, Permission.DELETE],
+    //     HOD: [Permission.VIEW, Permission.EDIT],
+    //     LEAD: [Permission.VIEW],
+    //     STAFF: [],
+    //   },
+    // },
+    // {
+    //   path: '/test-acl/create-operation',
+    //   permissions: {
+    //     ADMIN: [
+    //       Permission.CREATE,
+    //       Permission.VIEW,
+    //       Permission.EDIT,
+    //       Permission.DELETE,
+    //     ],
+    //     HOD: [Permission.CREATE, Permission.VIEW],
+    //     LEAD: [Permission.VIEW],
+    //     STAFF: [],
+    //   },
+    // },
   ];
   constructor(private readonly cache: CacheService) {}
 
