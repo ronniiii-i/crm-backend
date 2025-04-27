@@ -2,12 +2,16 @@
 import { Module } from '@nestjs/common';
 import { JwtModule } from '@nestjs/jwt';
 import { PassportModule } from '@nestjs/passport';
-import { AuthService } from './auth.service';
+import { AuthService } from './services/auth.service';
 import { MailService } from '../mail/mail.service';
-import { AuthController } from './auth.controller';
+import { AuthController } from './controllers/auth.controller';
+import { AuthAclController } from './controllers/access-control.controller';
 import { JwtStrategy } from './jwt.strategy';
-import { GuardsModule } from './guards.module';
+import { GuardsModule } from './guards/guards.module';
 import { DataFilterService } from '../core/data-filter.service';
+import { CacheModule } from '../cache/cache.module';
+import { RouteRegistry } from './route-registry';
+import { FrontendAdapterService } from './frontend-adapter.service';
 
 @Module({
   imports: [
@@ -16,6 +20,7 @@ import { DataFilterService } from '../core/data-filter.service';
       secret: process.env.JWT_SECRET || 'supersecret',
       signOptions: { expiresIn: '1h' },
     }),
+    CacheModule,
   ],
   providers: [
     AuthService,
@@ -23,8 +28,10 @@ import { DataFilterService } from '../core/data-filter.service';
     MailService,
     GuardsModule,
     DataFilterService,
+    RouteRegistry,
+    FrontendAdapterService,
   ],
-  controllers: [AuthController],
-  exports: [GuardsModule],
+  controllers: [AuthController, AuthAclController],
+  exports: [GuardsModule, RouteRegistry, FrontendAdapterService],
 })
 export class AuthModule {}

@@ -17,13 +17,23 @@ export enum Department {
   OPERATIONS = 'Operations',
 }
 
-export interface ProtectedRouteConfig {
+export interface ProtectedRoute {
+  id?: string;
   path: string;
+  name?: string;
+  department?: Department;
+  icon?: string;
   permissions: {
     ADMIN: Permission[];
     HOD: Permission[];
     LEAD: Permission[];
     STAFF: Permission[];
   };
-  department?: Department;
 }
+
+export type UserWithDepartments = {
+  id: string;
+  role: 'ADMIN' | 'HOD' | 'LEAD' | 'STAFF';
+  department?: { name: Department };
+  managedDepartment?: { name: Department };
+};

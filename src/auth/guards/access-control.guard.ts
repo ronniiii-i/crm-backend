@@ -20,8 +20,8 @@ export class AccessControlGuard extends AuthGuard('jwt') {
     if (!baseAuth) return false;
 
     return (
-      this.rolesGuard.canActivate(context) &&
-      this.deptGuard.canActivate(context) &&
+      (await this.rolesGuard.canActivate(context)) &&
+      (await this.deptGuard.canActivate(context)) &&
       this.permissionGuard.canActivate(context)
     );
   }

@@ -1,12 +1,12 @@
-// src/projects/projects.module.ts
 import { Module } from '@nestjs/common';
 import { ProjectsController } from './projects.controller';
-// import { ProjectsService } from './projects.service';
 import { PrismaService } from '../prisma/prisma.service';
-import { AuthModule } from '../auth/auth.module'; // Import AuthModule
+import { AuthModule } from '../auth/auth.module';
+import { GuardsModule } from '../auth/guards/guards.module';
+import { CoreModule } from '../core/core.module';
 
 @Module({
-  imports: [AuthModule], // This gives access to all exported guards
+  imports: [AuthModule, GuardsModule, CoreModule],
   controllers: [ProjectsController],
   providers: [PrismaService],
 })

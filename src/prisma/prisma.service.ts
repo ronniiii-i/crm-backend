@@ -13,7 +13,9 @@ export class PrismaService
 
   enableShutdownHooks(app: INestApplication) {
     this.$on('beforeExit', () => {
-      app.close();
+      app.close().catch((error) => {
+        console.error('Error during app shutdown:', error);
+      });
     });
   }
 }

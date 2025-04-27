@@ -8,12 +8,12 @@ import {
   NotFoundException,
   // UnauthorizedException,
 } from '@nestjs/common';
-import { AuthService } from './auth.service';
-import { SignupDto } from './dto/signup.dto';
-import { LoginDto } from './dto/login.dto';
-import { JwtAuthGuard } from './jwt-auth.guard';
+import { AuthService } from '../services/auth.service';
+import { SignupDto } from '../dto/signup.dto';
+import { LoginDto } from '../dto/login.dto';
+import { JwtAuthGuard } from '../guards/jwt-auth.guard';
 import { Throttle, ThrottlerGuard } from '@nestjs/throttler';
-import { PrismaService } from '../prisma/prisma.service';
+import { PrismaService } from '../../prisma/prisma.service';
 
 @Controller('auth')
 @UseGuards(ThrottlerGuard)
@@ -39,7 +39,7 @@ export class AuthController {
     const result = await this.authService.login(body.email, body.password);
 
     const userWithDepts = await this.prisma.user.findUnique({
-      where: { id: result.user.id },
+      where: { id: result.user?.id as string },
       include: {
         department: {
           select: {
@@ -131,4 +131,89 @@ export class AuthController {
       },
     };
   }
+
+  // @Throttle({ default: { limit: 60, ttl: 60000 } })
+  // @UseGuards(JwtAuthGuard)
+  // @Get('refresh')
+  // refreshToken(
+  //   @Req()
+  //   req: {
+  //     user: {
+  //       id: string;
+  //       email: string;
+  //       name: string;
+  //       role: string;
+  //       isVerified: boolean;
+  //       department: { id: string; name: string }[];
+  //       managedDepartment: { id: string; name: string }[];
+  //     };
+  //   },
+  // ) {
+  //   return this.authService.refreshToken(req.user.id);
+  // }
+  // @Throttle({ default: { limit: 60, ttl: 60000 } })
+  // @UseGuards(JwtAuthGuard)
+  // @Get('logout')
+  // logout(
+  //   @Req()
+  //   req: {
+  //     user: {
+  //       id: string;
+  //       email: string;
+  //       name: string;
+  //       role: string;
+  //       isVerified: boolean;
+  //       department: { id: string; name: string }[];
+  //       managedDepartment: { id: string; name: string }[];
+  //     };
+  //   },
+  // ) {
+  //   return this.authService.logout(req.user.id);
+  // }
+  // @Throttle({ default: { limit: 60, ttl: 60000 } })
+  // @UseGuards(JwtAuthGuard)
+  // @Get('logout-all')
+  // logoutAll(
+  //   @Req()
+  //   req: {
+  //     user: {
+  //       id: string;
+  //       email: string;
+  //       name: string;
+  //       role: string;
+  //       isVerified: boolean;
+  //       department: { id: string; name: string }[];
+  //       managedDepartment: { id: string; name: string }[];
+  //     };
+  //   },
+  // ) {
+  //   return this.authService.logoutAll(req.user.id);
+  // }
+  // @Throttle({ default: { limit: 60, ttl: 60000 } })
+  // @UseGuards(JwtAuthGuard)
+  // @Get('me')
+  // getMe(
+  //   @Req()
+  //   req: {
+  //     user: {
+  //       id: string;
+  //       email: string;
+  //       name: string;
+  //       role: string;
+  //       isVerified: boolean;
+  //       department: { id: string; name: string }[];
+  //       managedDepartment: { id: string; name: string }[];
+  //     };
+  //   },
+  // ) {
+  //   return {
+  //     id: req.user.id,
+  //     email: req.user.email,
+  //     name: req.user.name,
+  //     role: req.user.role,
+  //     isVerified: req.user.isVerified,
+  //     department: req.user.department,
+  //     managedDepartment: req.user.managedDepartment,
+  //   };
+  // }
 }

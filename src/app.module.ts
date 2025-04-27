@@ -10,6 +10,8 @@ import { PrismaModule } from './prisma/prisma.module';
 import { MailService } from './mail/mail.service';
 import { ProjectsModule } from './projects/projects.module';
 import { CoreModule } from './core/core.module';
+import { CacheService } from './cache/cache.service';
+import { CacheModule } from './cache/cache.module';
 
 @Module({
   imports: [
@@ -39,6 +41,7 @@ import { CoreModule } from './core/core.module';
     PrismaModule,
     ProjectsModule,
     CoreModule,
+    CacheModule,
   ],
   controllers: [AppController],
   providers: [
@@ -49,6 +52,7 @@ import { CoreModule } from './core/core.module';
     AppService,
     PrismaService,
     MailService,
+    CacheService,
   ],
 })
 export class AppModule {}

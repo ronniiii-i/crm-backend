@@ -6,9 +6,9 @@ import {
   Param,
   ForbiddenException,
 } from '@nestjs/common';
-import { AccessControlGuard } from '../auth/access-control.guard';
-import { Roles } from '../auth/roles.decorator';
-import { User } from '../auth/user.decorator';
+import { AccessControlGuard } from '../auth/guards/access-control.guard';
+import { Roles } from '../auth/decorators/roles.decorator';
+import { User } from '../auth/decorators/user.decorator';
 import { DataFilterService } from '../core/data-filter.service';
 import { Role } from '@prisma/client';
 
