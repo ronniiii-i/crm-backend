@@ -25,7 +25,7 @@ import { MailService } from './mail/mail.service';
       {
         name: 'auth',
         ttl: 3600000, // 1 hour in milliseconds
-        limit: 50, // 5 requests per hour (strict auth endpoints)
+        limit: 5, // 5 requests per hour (strict auth endpoints)
       },
       {
         name: 'sensitive',
