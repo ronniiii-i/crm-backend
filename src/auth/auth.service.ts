@@ -146,10 +146,13 @@ export class AuthService {
       throw new UnauthorizedException('Invalid Password');
     }
 
+    // auth.service.ts - Update login method
     const payload = {
       sub: user.id,
       email: user.email,
       role: user.role,
+      departmentId: user.department?.id || null,
+      managedDepartmentId: user.managedDepartment?.id || null,
       verified: user.isVerified,
     };
 

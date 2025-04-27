@@ -4,14 +4,14 @@ import { PassportModule } from '@nestjs/passport';
 import { AuthService } from './auth.service';
 import { MailService } from '../mail/mail.service';
 import { AuthController } from './auth.controller';
-// import { UsersModule } from '../users/users.module';
 import { JwtStrategy } from './jwt.strategy';
-// import { RecaptchaService } from '../security/recaptcha.service';
-// import { SuspicionDetectorService } from '../security/suspicion-detector.service';
+import { RolesGuard } from './roles.guard';
+import { AccessControlGuard } from './access-control.guard';
+import { DepartmentGuard } from './department.guard';
+import { DataFilterService } from 'src/core/data-filter.service';
 
 @Module({
   imports: [
-    // UsersModule,
     PassportModule,
     JwtModule.register({
       secret: process.env.JWT_SECRET || 'supersecret',
@@ -22,9 +22,12 @@ import { JwtStrategy } from './jwt.strategy';
     AuthService,
     JwtStrategy,
     MailService,
-    // RecaptchaService,
-    // SuspicionDetectorService,
+    RolesGuard,
+    DepartmentGuard,
+    AccessControlGuard,
+    DataFilterService,
   ],
   controllers: [AuthController],
+  exports: [AccessControlGuard],
 })
 export class AuthModule {}
