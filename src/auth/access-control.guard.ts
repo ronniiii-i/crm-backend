@@ -3,12 +3,14 @@ import { ExecutionContext, Injectable } from '@nestjs/common';
 import { AuthGuard } from '@nestjs/passport';
 import { RolesGuard } from './roles.guard';
 import { DepartmentGuard } from './department.guard';
+import { PermissionGuard } from './permission.guard';
 
 @Injectable()
 export class AccessControlGuard extends AuthGuard('jwt') {
   constructor(
     private rolesGuard: RolesGuard,
     private deptGuard: DepartmentGuard,
+    private permissionGuard: PermissionGuard,
   ) {
     super();
   }
@@ -19,7 +21,8 @@ export class AccessControlGuard extends AuthGuard('jwt') {
 
     return (
       this.rolesGuard.canActivate(context) &&
-      this.deptGuard.canActivate(context)
+      this.deptGuard.canActivate(context) &&
+      this.permissionGuard.canActivate(context)
     );
   }
 }

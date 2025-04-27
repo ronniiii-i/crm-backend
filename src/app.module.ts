@@ -8,6 +8,8 @@ import { AuthModule } from './auth/auth.module';
 import { PrismaService } from './prisma/prisma.service';
 import { PrismaModule } from './prisma/prisma.module';
 import { MailService } from './mail/mail.service';
+import { ProjectsModule } from './projects/projects.module';
+import { CoreModule } from './core/core.module';
 
 @Module({
   imports: [
@@ -35,6 +37,8 @@ import { MailService } from './mail/mail.service';
     ]),
     AuthModule,
     PrismaModule,
+    ProjectsModule,
+    CoreModule,
   ],
   controllers: [AppController],
   providers: [

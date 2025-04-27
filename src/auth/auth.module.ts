@@ -1,3 +1,4 @@
+// src/auth/auth.module.ts
 import { Module } from '@nestjs/common';
 import { JwtModule } from '@nestjs/jwt';
 import { PassportModule } from '@nestjs/passport';
@@ -5,10 +6,8 @@ import { AuthService } from './auth.service';
 import { MailService } from '../mail/mail.service';
 import { AuthController } from './auth.controller';
 import { JwtStrategy } from './jwt.strategy';
-import { RolesGuard } from './roles.guard';
-import { AccessControlGuard } from './access-control.guard';
-import { DepartmentGuard } from './department.guard';
-import { DataFilterService } from 'src/core/data-filter.service';
+import { GuardsModule } from './guards.module';
+import { DataFilterService } from '../core/data-filter.service';
 
 @Module({
   imports: [
@@ -22,12 +21,10 @@ import { DataFilterService } from 'src/core/data-filter.service';
     AuthService,
     JwtStrategy,
     MailService,
-    RolesGuard,
-    DepartmentGuard,
-    AccessControlGuard,
+    GuardsModule,
     DataFilterService,
   ],
   controllers: [AuthController],
-  exports: [AccessControlGuard],
+  exports: [GuardsModule],
 })
 export class AuthModule {}
