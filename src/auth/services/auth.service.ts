@@ -6,6 +6,11 @@ import { Role } from '@prisma/client';
 import { MailService } from '../../mail/mail.service';
 import { addHours } from 'date-fns';
 
+interface DecodedToken {
+  exp?: number;
+  [key: string]: unknown;
+}
+
 @Injectable()
 export class AuthService {
   constructor(
@@ -145,8 +150,9 @@ export class AuthService {
     if (!isMatch) {
       throw new UnauthorizedException('Invalid Password');
     }
-
-    // auth.service.ts - Update login method
+    if (!user.isVerified) {
+      throw new UnauthorizedException('Email not verified');
+    }
     const payload = {
       sub: user.id,
       email: user.email,
@@ -173,4 +179,74 @@ export class AuthService {
       accessToken: token,
     };
   }
+  async logout(userId: string, token: string) {
+    const decoded: string | object | null = this.jwtService.decode(token);
+
+    if (
+      !decoded ||
+      typeof decoded !== 'object' ||
+      typeof (decoded as DecodedToken).exp !== 'number'
+    ) {
+      throw new UnauthorizedException('Invalid token');
+    }
+
+    const expiresAt = new Date(((decoded as DecodedToken)?.exp ?? 0) * 1000);
+
+    await this.prisma.blacklistedToken.create({
+      data: {
+        token,
+        userId,
+        expiresAt,
+      },
+    });
+
+    return { success: true, message: 'Logout successful!' };
+  }
 }
+
+// async refreshToken(token: string) {
+//   try {
+//     const payload = this.jwtService.verify<{
+//       sub: string;
+//       email: string;
+//       role: string;
+//       verified: boolean;
+//     }>(token);
+//     const user = await this.prisma.user.findUnique({
+//       where: { id: payload.sub },
+//       include: {
+//         department: {
+//           select: {
+//             id: true,
+//             name: true,
+//           },
+//         },
+//         managedDepartment: {
+//           select: {
+//             id: true,
+//             name: true,
+//           },
+//         },
+//       },
+//     });
+
+//     if (!user) {
+//       throw new UnauthorizedException('User not found');
+//     }
+
+//     const newToken = this.jwtService.sign({
+//       sub: user.id,
+//       email: user.email,
+//       role: user.role,
+//       verified: user.isVerified,
+//     });
+
+//     return {
+//       success: true,
+//       message: 'Token refreshed successfully',
+//       accessToken: newToken,
+//     };
+//   } catch {
+//     throw new UnauthorizedException('Invalid token');
+//   }
+// }

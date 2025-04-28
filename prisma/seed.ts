@@ -11,16 +11,16 @@ async function main() {
   const defaultPassword = await hash('password123', 12);
 
   // 1. Create admin user (won't be assigned as department manager)
-  // const admin = await prisma.user.create({
-  //   data: {
-  //     email: 'admin@crm.com',
-  //     password: await hash('admin123', 12),
-  //     name: 'System Admin',
-  //     role: Role.ADMIN,
-  //     isVerified: true,
-  //     avatarUrl: 'https://picsum.photos/200/200?random=1',
-  //   },
-  // });
+  const admin = await prisma.user.create({
+    data: {
+      email: 'admin@crm.com',
+      password: await hash('admin123', 12),
+      name: 'System Admin',
+      role: Role.ADMIN,
+      isVerified: true,
+      avatarUrl: 'https://picsum.photos/200/200?random=1',
+    },
+  });
 
   // 2. Create departments without managers first
   const departments = await Promise.all([
