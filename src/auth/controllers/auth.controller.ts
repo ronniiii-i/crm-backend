@@ -39,7 +39,7 @@ export class AuthController {
     const result = await this.authService.login(body.email, body.password);
 
     const userWithDepts = await this.prisma.user.findUnique({
-      where: { id: result.user?.id as string },
+      where: { id: result.user?.id },
       include: {
         department: {
           select: {
