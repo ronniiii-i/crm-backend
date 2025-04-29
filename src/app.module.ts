@@ -1,4 +1,4 @@
-import { Module } from '@nestjs/common';
+import { MiddlewareConsumer, Module, NestModule } from '@nestjs/common';
 import { ThrottlerModule, ThrottlerGuard } from '@nestjs/throttler';
 import { APP_GUARD } from '@nestjs/core';
 
@@ -12,6 +12,8 @@ import { ProjectsModule } from './projects/projects.module';
 import { CoreModule } from './core/core.module';
 import { CacheService } from './cache/cache.service';
 import { CacheModule } from './cache/cache.module';
+import { SessionMiddleware } from './auth/middleware/session.middleware';
+import { JwtService } from '@nestjs/jwt';
 
 @Module({
   imports: [
@@ -53,6 +55,11 @@ import { CacheModule } from './cache/cache.module';
     PrismaService,
     MailService,
     CacheService,
+    JwtService,
   ],
 })
-export class AppModule {}
+export class AppModule implements NestModule {
+  configure(consumer: MiddlewareConsumer) {
+    consumer.apply(SessionMiddleware).forRoutes('*'); // Apply to all routes
+  }
+}
