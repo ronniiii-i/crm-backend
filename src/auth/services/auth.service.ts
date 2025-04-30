@@ -163,6 +163,7 @@ export class AuthService {
     };
 
     const token = this.jwtService.sign(payload);
+    console.log('JWT Secret:', process.env.JWT_SECRET);
 
     return {
       success: true,

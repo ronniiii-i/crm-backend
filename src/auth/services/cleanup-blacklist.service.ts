@@ -8,7 +8,7 @@ export class CleanupBlacklistService {
 
   constructor(private readonly prisma: PrismaService) {}
 
-  @Cron('0 */6 * * *') // Runs every 6 hours instead of daily
+  @Cron('0 * * * *') // Runs every 6 hours instead of daily
   async handleCron() {
     this.logger.log('Starting token cleanup...');
 

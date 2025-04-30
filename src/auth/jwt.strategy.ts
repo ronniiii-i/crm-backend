@@ -35,6 +35,7 @@ export class JwtStrategy extends PassportStrategy(Strategy) {
     if (!user) {
       throw new UnauthorizedException('User not found');
     }
+    console.log('JWT Secret:', process.env.JWT_SECRET);
 
     return {
       ...user,

@@ -30,6 +30,9 @@ export class JwtAuthGuard extends AuthGuard('jwt') {
     const request = context.switchToHttp().getRequest<AuthenticatedRequest>();
     const token = this.extractTokenFromHeader(request);
 
+    console.log('Token being verified:', token); // Add this
+    console.log('Current time:', new Date()); // Add this
+
     if (!token) {
       throw new UnauthorizedException('No token provided');
     }
@@ -38,6 +41,8 @@ export class JwtAuthGuard extends AuthGuard('jwt') {
     const isBlacklisted = await this.prisma.blacklistedToken.findUnique({
       where: { token },
     });
+
+    console.log('Is token blacklisted?', !!isBlacklisted);
 
     if (isBlacklisted) {
       throw new UnauthorizedException('Token has been invalidated');
