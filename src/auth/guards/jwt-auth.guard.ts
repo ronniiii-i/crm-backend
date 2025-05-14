@@ -30,10 +30,15 @@ export class JwtAuthGuard extends AuthGuard('jwt') {
     const request = context.switchToHttp().getRequest<AuthenticatedRequest>();
     const token = this.extractTokenFromHeader(request);
 
-    console.log('Token being verified:', token); // Add this
-    console.log('Current time:', new Date()); // Add this
+    console.error('DEBUG: Authentication Request Details');
+    console.error('Request Headers:', request.headers);
+    console.error('Token being verified:', token);
+    console.error('Current time:', new Date());
+    console.error('Request URL:', request.url);
+    console.error('Request Method:', request.method);
 
     if (!token) {
+      console.error('ERROR: No token provided');
       throw new UnauthorizedException('No token provided');
     }
 
@@ -42,9 +47,10 @@ export class JwtAuthGuard extends AuthGuard('jwt') {
       where: { token },
     });
 
-    console.log('Is token blacklisted?', !!isBlacklisted);
+    console.error('Is token blacklisted?', !!isBlacklisted);
 
     if (isBlacklisted) {
+      console.error('ERROR: Token has been invalidated');
       throw new UnauthorizedException('Token has been invalidated');
     }
 
