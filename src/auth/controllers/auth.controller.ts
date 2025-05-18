@@ -12,12 +12,12 @@ import { AuthService } from '../services/auth.service';
 import { SignupDto } from '../dto/signup.dto';
 import { LoginDto } from '../dto/login.dto';
 import { JwtAuthGuard } from '../guards/jwt-auth.guard';
-import { Throttle, ThrottlerGuard } from '@nestjs/throttler';
+// import { Throttle, ThrottlerGuard } from '@nestjs/throttler';
 import { PrismaService } from '../../prisma/prisma.service';
 import { JwtService } from '@nestjs/jwt';
 
 @Controller('auth')
-@UseGuards(ThrottlerGuard)
+// @UseGuards(ThrottlerGuard)
 export class AuthController {
   constructor(
     private authService: AuthService,
@@ -25,17 +25,17 @@ export class AuthController {
     private jwtService: JwtService,
   ) {}
 
-  @Throttle({ default: { limit: 5, ttl: 3600000 } })
+  // @Throttle({ default: { limit: 5, ttl: 3600000 } })
   @Post('register')
   async signup(@Body() signupDto: SignupDto) {
     const { email, password, name } = signupDto;
     return await this.authService.signup(email, password, name);
   }
 
-  @Throttle({
-    default: { limit: 5, ttl: 3600000 },
-    short: { limit: 3, ttl: 10000 },
-  })
+  // @Throttle({
+  //   default: { limit: 5, ttl: 3600000 },
+  //   short: { limit: 3, ttl: 10000 },
+  // })
   @Post('login')
   async login(@Body() body: LoginDto) {
     const result = await this.authService.login(body.email, body.password);
@@ -72,25 +72,25 @@ export class AuthController {
     };
   }
 
-  @Throttle({ default: { limit: 10, ttl: 3600000 } })
+  // @Throttle({ default: { limit: 10, ttl: 3600000 } })
   @Post('verify-email')
   async verifyEmail(@Body() body: { token: string }) {
     return this.authService.verifyEmail(body.token);
   }
 
-  @Throttle({ default: { limit: 3, ttl: 3600000 } })
+  // @Throttle({ default: { limit: 3, ttl: 3600000 } })
   @Post('request-password-reset')
   async requestPasswordReset(@Body() body: { email: string }) {
     return this.authService.requestPasswordReset(body.email);
   }
 
-  @Throttle({ default: { limit: 5, ttl: 3600000 } })
+  // @Throttle({ default: { limit: 5, ttl: 3600000 } })
   @Post('reset-password')
   async resetPassword(@Body() body: { token: string; newPassword: string }) {
     return this.authService.resetPassword(body.token, body.newPassword);
   }
 
-  @Throttle({ default: { limit: 60, ttl: 60000 } })
+  // @Throttle({ default: { limit: 60, ttl: 60000 } })
   @UseGuards(JwtAuthGuard)
   @Get('protected')
   getProtected(
@@ -102,7 +102,7 @@ export class AuthController {
     return { message: 'Protected route accessed!', user: req.user };
   }
 
-  @Throttle({ default: { limit: 60, ttl: 60000 } })
+  // @Throttle({ default: { limit: 60, ttl: 60000 } })
   @UseGuards(JwtAuthGuard)
   @Get('verify')
   verifyToken(
@@ -179,7 +179,7 @@ export class AuthController {
     }
   }
 
-  @Throttle({ default: { limit: 60, ttl: 60000 } })
+  // @Throttle({ default: { limit: 60, ttl: 60000 } })
   @UseGuards(JwtAuthGuard)
   @Post('logout')
   logout(
