@@ -1,6 +1,8 @@
 import { Injectable, UnauthorizedException } from '@nestjs/common';
 import { JwtService } from '@nestjs/jwt';
-import * as bcrypt from 'bcrypt';
+import * as bcrypt from 'bcryptjs';
+import { FrontendAdapterService } from '../frontend-adapter.service';
+import { Department } from '../permission-types';
 import { PrismaService } from '../../prisma/prisma.service';
 import { Role } from '@prisma/client';
 import { MailService } from '../../mail/mail.service';
@@ -17,6 +19,7 @@ export class AuthService {
     private jwtService: JwtService,
     private prisma: PrismaService,
     private mailService: MailService,
+    private frontendAdapter: FrontendAdapterService,
   ) {}
 
   async signup(email: string, password: string, name: string) {
@@ -123,6 +126,78 @@ export class AuthService {
     return { success: true, message: 'Password reset successful' };
   }
 
+  generateTokenFromPayload(payload: any): string {
+    return this.jwtService.sign(payload);
+  }
+
+  async findUserById(id: string) {
+    return this.prisma.user.findUnique({
+      where: { id },
+      include: {
+        department: { select: { id: true, name: true } },
+        managedDepartment: { select: { id: true, name: true } },
+      },
+    });
+  }
+
+  // async login(email: string, password: string) {
+  //   const user = await this.prisma.user.findUnique({
+  //     where: { email },
+  //     include: {
+  //       department: {
+  //         select: {
+  //           id: true,
+  //           name: true,
+  //         },
+  //       },
+  //       managedDepartment: {
+  //         select: {
+  //           id: true,
+  //           name: true,
+  //         },
+  //       },
+  //     },
+  //   });
+
+  //   if (!user) {
+  //     throw new UnauthorizedException('Invalid Email');
+  //   }
+
+  //   const isMatch = await bcrypt.compare(password, user.password);
+  //   if (!isMatch) {
+  //     throw new UnauthorizedException('Invalid Password');
+  //   }
+  //   if (!user.isVerified) {
+  //     throw new UnauthorizedException('Email not verified');
+  //   }
+  //   const payload = {
+  //     sub: user.id,
+  //     email: user.email,
+  //     role: user.role,
+  //     departmentId: user.department?.id || null,
+  //     managedDepartmentId: user.managedDepartment?.id || null,
+  //     verified: user.isVerified,
+  //   };
+
+  //   const token = this.jwtService.sign(payload);
+  //   console.log('JWT Secret:', process.env.JWT_SECRET);
+
+  //   return {
+  //     success: true,
+  //     message: 'Login successful!',
+  //     user: {
+  //       id: user.id,
+  //       email: user.email,
+  //       name: user.name,
+  //       role: user.role,
+  //       isVerified: user.isVerified,
+  //       departments: user.department,
+  //       managedDepartment: user.managedDepartment,
+  //     },
+  //     accessToken: token,
+  //   };
+  // }
+
   async login(email: string, password: string) {
     const user = await this.prisma.user.findUnique({
       where: { email },
@@ -153,6 +228,23 @@ export class AuthService {
     if (!user.isVerified) {
       throw new UnauthorizedException('Email not verified');
     }
+
+    // Ensure user object has the structure expected by getAccessibleModules
+    const userForAcl = {
+      id: user.id,
+      role: user.role as 'ADMIN' | 'HOD' | 'LEAD' | 'STAFF', // Cast role to expected type
+      department: user.department
+        ? { name: user.department.name as Department }
+        : undefined,
+      managedDepartment: user.managedDepartment
+        ? { name: user.managedDepartment.name as Department }
+        : undefined,
+    };
+
+    // Get accessible modules using the frontend adapter
+    const accessibleModules =
+      await this.frontendAdapter.getAccessibleModules(userForAcl);
+
     const payload = {
       sub: user.id,
       email: user.email,
@@ -174,12 +266,15 @@ export class AuthService {
         name: user.name,
         role: user.role,
         isVerified: user.isVerified,
-        departments: user.department,
+        department: user.department,
         managedDepartment: user.managedDepartment,
+        // Include accessible modules directly in the user object
+        accessibleModules: accessibleModules,
       },
-      accessToken: token,
+      accessToken: token, // Still return accessToken in body for client-side JS storage
     };
   }
+
   async logout(userId: string, token: string) {
     const decoded: string | object | null = this.jwtService.decode(token);
 
