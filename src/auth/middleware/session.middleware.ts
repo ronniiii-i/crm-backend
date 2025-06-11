@@ -9,7 +9,7 @@ export class SessionMiddleware implements NestMiddleware {
 
   use(req: Request, res: Response, next: NextFunction) {
     const token =
-      (req.cookies as { access_token?: string })?.access_token || // <-- Use 'access_token'
+      (req.cookies as { access_token?: string })?.access_token ||
       req.headers.authorization?.split(' ')[1];
 
     if (token) {
