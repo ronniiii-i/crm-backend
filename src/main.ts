@@ -8,8 +8,9 @@ async function bootstrap() {
 
   // Configure CORS - ABSOLUTELY ESSENTIAL for cross-origin cookie sending
   app.enableCors({
-    origin: process.env.FRONTEND_URL, // e.g., 'http://localhost:3000' or your deployed frontend URL
-    credentials: true, // Allow cookies to be sent and received
+    origin: '*', //For testing purposes
+    // origin: process.env.FRONTEND_URL,
+    credentials: true,
     methods: 'GET,HEAD,PUT,PATCH,POST,DELETE',
     allowedHeaders: 'Content-Type, Accept, Authorization',
   });
