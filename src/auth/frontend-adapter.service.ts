@@ -34,7 +34,7 @@ export class FrontendAdapterService {
       return module.permissions[user.role]?.length > 0;
     });
 
-    this.cache.set(cacheKey, modules, 1800);
+    this.cache.set(cacheKey, modules, 3600);
     return modules;
   }
 

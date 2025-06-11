@@ -1,0 +1,154 @@
+// src/auth/auth.controller.ts
+import {
+  Controller,
+  Post,
+  Body,
+  HttpCode,
+  HttpStatus,
+  UseGuards,
+  Req,
+  Res,
+} from '@nestjs/common';
+import { AuthService } from './auth.service';
+import { LoginDto } from './dto/login.dto';
+import { RegisterDto } from './dto/register.dto';
+import { VerifyEmailDto } from './dto/verify-email.dto';
+import { ForgotPasswordDto } from './dto/forgot-password.dto';
+import { ResetPasswordDto } from './dto/reset-password.dto';
+import { Request, Response } from 'express'; // Import Request and Response from express
+import { JwtAuthGuard } from '../guards/jwt-auth.guard'; // Ensure correct path
+import { User } from '../decorators/user.decorator'; // Ensure correct path
+
+@Controller('auth')
+export class AuthController {
+  constructor(private readonly authService: AuthService) {}
+
+  @Post('register')
+  @HttpCode(HttpStatus.CREATED)
+  async register(@Body() body: RegisterDto) {
+    return this.authService.register(body.email, body.password, body.name);
+  }
+
+  @Post('login')
+  @HttpCode(HttpStatus.OK)
+  async login(@Body() body: LoginDto, @Res({ passthrough: true }) response: Response) {
+    const result = await this.authService.login(body.email, body.password);
+
+    // Set the JWT as an HTTP-only cookie
+    // 'access_token' is a common name for the cookie
+    response.cookie('access_token', result.accessToken, {
+      httpOnly: true, // Crucial for security: makes cookie inaccessible to client-side JS
+      secure: process.env.NODE_ENV === 'production', // Only send over HTTPS in production
+      sameSite: 'lax', // Protects against CSRF in some cases, 'strict' is more secure but can break cross-site links
+      maxAge: 3600000, // 1 hour in milliseconds (adjust to match your JWT expiry time)
+    });
+
+    // Remove the `userWithDepts` re-fetch. The `authService.login` now includes the department info and modules.
+    return {
+      success: result.success,
+      message: result.message,
+      user: result.user, // The user object now includes department, managedDepartment, and accessibleModules
+      // accessToken: result.accessToken // You can choose to omit this from the *response body* if only using cookies,
+                                     // but keeping it for client-side localStorage access is common.
+    };
+  }
+
+  @Post('logout')
+  @UseGuards(JwtAuthGuard) // Protect this endpoint so only authenticated users can log out
+  @HttpCode(HttpStatus.OK)
+  async logout(@Req() req: Request, @Res({ passthrough: true }) response: Response, @User() user: any) {
+    // Optionally blacklist the token if you have a token blacklisting mechanism
+    const token = req.headers.authorization?.split(' ')[1]; // Get token from header
+    if (token) {
+      await this.authService.logout(token); // Call service logout to blacklist token
+    }
+
+    // Clear the HTTP-only cookie
+    response.clearCookie('access_token', {
+      httpOnly: true,
+      secure: process.env.NODE_ENV === 'production',
+      sameSite: 'lax',
+    });
+
+    return { success: true, message: 'Logged out successfully' };
+  }
+
+  @Post('verify-email')
+  @HttpCode(HttpStatus.OK)
+  async verifyEmail(@Body() body: VerifyEmailDto) {
+    return this.authService.verifyEmail(body.token);
+  }
+
+  @Post('forgot-password')
+  @HttpCode(HttpStatus.OK)
+  async forgotPassword(@Body() body: ForgotPasswordDto) {
+    return this.authService.forgotPassword(body.email);
+  }
+
+  @Post('reset-password')
+  @HttpCode(HttpStatus.OK)
+  async resetPassword(@Body() body: ResetPasswordDto) {
+    return this.authService.resetPassword(body.token, body.password);
+  }
+
+  @Post('refresh')
+  @UseGuards(JwtAuthGuard) // Protect this endpoint for refresh
+  @HttpCode(HttpStatus.OK)
+  async refresh(@User() user: any, @Res({ passthrough: true }) response: Response) {
+    // The JwtAuthGuard already validated the old token and populated `req.user`
+    // We create a new token based on the user data from the validated old token
+    const newToken = this.authService.generateTokenFromPayload({
+      sub: user.sub,
+      email: user.email,
+      role: user.role,
+      departmentId: user.departmentId,
+      managedDepartmentId: user.managedDepartmentId,
+      verified: user.verified,
+    });
+
+    response.cookie('access_token', newToken, {
+      httpOnly: true,
+      secure: process.env.NODE_ENV === 'production',
+      sameSite: 'lax',
+      maxAge: 3600000,
+    });
+
+    // Also return in body for client-side localStorage update
+    return { accessToken: newToken };
+  }
+
+  @Get('verify')
+  @UseGuards(JwtAuthGuard)
+  @HttpCode(HttpStatus.OK)
+  async verify(@User() userPayload: any) {
+    // Fetch full user details from DB to ensure up-to-date department info etc.
+    const user = await this.authService.findUserById(userPayload.sub); // Assuming you have a method like this in AuthService
+
+    if (!user) {
+      throw new NotFoundException('User not found');
+    }
+
+    // Get accessible modules using the frontend adapter, as this is used by useAuth to populate initial state
+    const userForAcl = {
+      id: user.id,
+      role: user.role as 'ADMIN' | 'HOD' | 'LEAD' | 'STAFF',
+      department: user.department ? { name: user.department.name } : undefined,
+      managedDepartment: user.managedDepartment ? { name: user.managedDepartment.name } : undefined,
+    };
+    const accessibleModules = await this.authService['frontendAdapter'].getAccessibleModules(userForAcl);
+
+
+    return {
+      user: {
+        id: user.id,
+        email: user.email,
+        name: user.name,
+        role: user.role,
+        isVerified: user.isVerified,
+        department: user.department,
+        managedDepartment: user.managedDepartment,
+        accessibleModules: accessibleModules,
+      },
+    };
+  }
+}

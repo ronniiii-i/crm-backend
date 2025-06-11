@@ -19,6 +19,7 @@ import { FrontendAdapterService } from './frontend-adapter.service';
     JwtModule.register({
       secret: process.env.JWT_SECRET || 'supersecret',
       signOptions: { expiresIn: '1h' },
+      // signOptions: { expiresIn: '5m' },
     }),
     CacheModule,
   ],
