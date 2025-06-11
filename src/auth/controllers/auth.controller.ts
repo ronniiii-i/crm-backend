@@ -7,7 +7,7 @@ import {
   Req,
   Res,
   NotFoundException,
-  UnauthorizedException,
+  // UnauthorizedException,
   HttpCode,
   HttpStatus,
 } from '@nestjs/common';
@@ -92,9 +92,9 @@ export class AuthController {
   //   // Set the token as an HTTP-only cookie
   //   response.cookie('access_token', result.accessToken, {
   //     httpOnly: true,
-  //     secure: process.env.NODE_ENV === 'production', // Use secure in production
-  //     sameSite: 'lax', // Or 'strict' depending on your needs
-  //     maxAge: 3600000, // 1 hour in milliseconds, adjust to match token expiry
+  //     secure: process.env.NODE_ENV === 'production',
+  //     sameSite: 'lax',
+  //     maxAge: 3600000,
   //   });
 
   //   const userWithDepts = await this.prisma.user.findUnique({
@@ -137,22 +137,19 @@ export class AuthController {
   ) {
     const result = await this.authService.login(body.email, body.password);
 
-    // Set the JWT as an HTTP-only cookie
-    // 'access_token' is a common name for the cookie
     response.cookie('access_token', result.accessToken, {
-      httpOnly: true, // Crucial for security: makes cookie inaccessible to client-side JS
-      secure: process.env.NODE_ENV === 'production', // Only send over HTTPS in production
-      sameSite: 'lax', // Protects against CSRF in some cases, 'strict' is more secure but can break cross-site links
-      maxAge: 3600000, // 1 hour in milliseconds (adjust to match your JWT expiry time)
+      httpOnly: true,
+      secure: process.env.NODE_ENV === 'production',
+      sameSite: 'lax',
+      path: '/',
+      maxAge: 3600000,
     });
 
-    // Remove the `userWithDepts` re-fetch. The `authService.login` now includes the department info and modules.
     return {
       success: result.success,
       message: result.message,
-      user: result.user, // The user object now includes department, managedDepartment, and accessibleModules
-      accessToken: result.accessToken, // You can choose to omit this from the *response body* if only using cookies,
-      // but keeping it for client-side localStorage access is common.
+      user: result.user,
+      accessToken: result.accessToken,
     };
   }
 
@@ -287,31 +284,63 @@ export class AuthController {
   // @UseGuards(JwtAuthGuard) // Protect logout
   // logout(@Res({ passthrough: true }) response: Response) {
   //   // Invalidate token on backend (if you have a blacklist)
-  //   // await this.authService.blacklistToken(request.user.token); // You might need to get the token from the request
-  //   response.clearCookie('access_token'); // Clear the httpOnly cookie
+  //   // await this.authService.blacklistToken(request.user.token);
+  //   response.clearCookie('access_token');
+  //   return { success: true, message: 'Logged out successfully' };
+  // }
+
+  // @Post('logout')
+  // @UseGuards(JwtAuthGuard) // Protect this endpoint so only authenticated users can log out
+  // @HttpCode(HttpStatus.OK)
+  // async logout(
+  //   @Req() req: Request & { headers: { authorization?: string } },
+  //   @Res({ passthrough: true }) response: Response,
+  //   @User() user: any,
+  // ) {
+  //   // Optionally blacklist the token if you have a token blacklisting mechanism
+  //   const token = req.headers.authorization?.split(' ')[1];
+  //   if (token) {
+  //     await this.authService.logout(user.id, token);
+  //   }
+
+  //   // Clear the HTTP-only cookie
+  //   response.clearCookie('access_token', {
+  //     httpOnly: true,
+  //     secure: process.env.NODE_ENV === 'production',
+  //     sameSite: 'lax',
+  //   });
+
   //   return { success: true, message: 'Logged out successfully' };
   // }
 
   @Post('logout')
-  @UseGuards(JwtAuthGuard) // Protect this endpoint so only authenticated users can log out
   @HttpCode(HttpStatus.OK)
+  // @UseGuards(JwtAuthGuard)
   async logout(
     @Req() req: Request & { headers: { authorization?: string } },
     @Res({ passthrough: true }) response: Response,
-    @User() user: any,
+    // @User() user: any,
   ) {
-    // Optionally blacklist the token if you have a token blacklisting mechanism
-    const token = req.headers.authorization?.split(' ')[1]; // Get token from header
+    const token = req.headers.authorization?.split(' ')[1];
+
     if (token) {
-      await this.authService.logout(user.id, token); // Call service logout to blacklist token
+      await this.authService.logout(token);
+    } else {
+      console.log(
+        'Logout: No token found in Authorization header for blacklisting.',
+      );
     }
 
-    // Clear the HTTP-only cookie
-    response.clearCookie('access_token', {
+    // Define consistent cookie options for clearing. MUST match login options.
+    const clearCookieOptions = {
       httpOnly: true,
       secure: process.env.NODE_ENV === 'production',
-      sameSite: 'lax',
-    });
+      sameSite: 'lax' as 'lax' | 'strict' | 'none',
+      path: '/',
+    };
+
+    response.clearCookie('access_token', clearCookieOptions);
+    console.log('Logout: Attempted to clear access_token cookie.');
 
     return { success: true, message: 'Logged out successfully' };
   }
@@ -337,12 +366,18 @@ export class AuthController {
   @Post('refresh')
   @UseGuards(JwtAuthGuard) // Protect this endpoint for refresh
   @HttpCode(HttpStatus.OK)
-  async refresh(
-    @User() user: any,
+  refresh(
+    @User()
+    user: {
+      sub: string;
+      email: string;
+      role: string;
+      departmentId?: string;
+      managedDepartmentId?: string;
+      verified?: boolean;
+    },
     @Res({ passthrough: true }) response: Response,
   ) {
-    // The JwtAuthGuard already validated the old token and populated `req.user`
-    // We create a new token based on the user data from the validated old token
     const newToken = this.authService.generateTokenFromPayload({
       sub: user.sub,
       email: user.email,
@@ -359,16 +394,21 @@ export class AuthController {
       maxAge: 3600000,
     });
 
-    // Also return in body for client-side localStorage update
     return { accessToken: newToken };
   }
 
   @Get('verify')
   @UseGuards(JwtAuthGuard)
   @HttpCode(HttpStatus.OK)
-  async verify(@User() userPayload: any) {
+  async verify(
+    @User()
+    userPayload: {
+      sub: string;
+      [key: string]: any;
+    },
+  ) {
     // Fetch full user details from DB to ensure up-to-date department info etc.
-    const user = await this.authService.findUserById(userPayload.sub); // Assuming you have a method like this in AuthService
+    const user = await this.authService.findUserById(userPayload.sub);
 
     if (!user) {
       throw new NotFoundException('User not found');

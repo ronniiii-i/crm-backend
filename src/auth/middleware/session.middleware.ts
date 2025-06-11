@@ -9,17 +9,24 @@ export class SessionMiddleware implements NestMiddleware {
 
   use(req: Request, res: Response, next: NextFunction) {
     const token =
-      (req.cookies as { token?: string })?.token ||
+      (req.cookies as { access_token?: string })?.access_token || // <-- Use 'access_token'
       req.headers.authorization?.split(' ')[1];
 
     if (token) {
       try {
         this.jwtService.verify(token);
-        // Token is valid, continue
         next();
       } catch {
-        // Token expired or invalid
-        res.clearCookie('token');
+        const clearCookieOptions = {
+          httpOnly: true,
+          secure: process.env.NODE_ENV === 'production',
+          sameSite: 'lax' as 'lax' | 'strict' | 'none',
+          path: '/',
+        };
+        res.clearCookie('access_token', clearCookieOptions);
+        console.warn(
+          'SessionMiddleware: Invalid token detected. Cleared access_token cookie, returning 401.',
+        );
         return res.status(401).json({ message: 'Session expired' });
       }
     } else {

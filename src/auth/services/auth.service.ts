@@ -275,26 +275,91 @@ export class AuthService {
     };
   }
 
-  async logout(userId: string, token: string) {
-    const decoded: string | object | null = this.jwtService.decode(token);
+  // async logout(userId: string, token: string) {
+  //   const decoded: string | object | null = this.jwtService.decode(token);
 
-    if (
-      !decoded ||
-      typeof decoded !== 'object' ||
-      typeof (decoded as DecodedToken).exp !== 'number'
-    ) {
-      throw new UnauthorizedException('Invalid token');
+  //   if (
+  //     !decoded ||
+  //     typeof decoded !== 'object' ||
+  //     typeof (decoded as DecodedToken).exp !== 'number'
+  //   ) {
+  //     throw new UnauthorizedException('Invalid token');
+  //   }
+
+  //   const expiresAt = new Date(((decoded as DecodedToken)?.exp ?? 0) * 1000);
+
+  //   await this.prisma.blacklistedToken.create({
+  //     data: {
+  //       token,
+  //       userId,
+  //       expiresAt,
+  //     },
+  //   });
+
+  //   return { success: true, message: 'Logout successful!' };
+  // }
+
+  async logout(token: string) {
+    let userId: string | null = null;
+    let expiresAt: Date | null = null;
+    let decodedToken: DecodedToken | null = null;
+
+    try {
+      // Attempt to decode the token. This works even for expired tokens (does not verify signature or expiry).
+      decodedToken = this.jwtService.decode(token);
+
+      if (
+        decodedToken &&
+        typeof decodedToken === 'object' &&
+        typeof decodedToken.exp === 'number'
+      ) {
+        userId = decodedToken.sub as string;
+        expiresAt = new Date(decodedToken.exp * 1000);
+      } else {
+        console.warn(
+          'Logout service: Could not decode token or extract expiry/user ID.',
+        );
+      }
+    } catch (e) {
+      console.warn(
+        'Logout service: Error decoding token for blacklisting:',
+        (e as Error)?.message ?? e,
+      );
+      // Proceed without blacklisting if token is malformed, but still return success for cookie clearing
     }
 
-    const expiresAt = new Date(((decoded as DecodedToken)?.exp ?? 0) * 1000);
+    if (token && userId && expiresAt) {
+      // Only attempt blacklisting if we have a valid token string and derived user/expiry
+      // Check if the token is already blacklisted to prevent duplicates
+      const existingBlacklistedToken =
+        await this.prisma.blacklistedToken.findUnique({
+          where: { token },
+        });
 
-    await this.prisma.blacklistedToken.create({
-      data: {
-        token,
-        userId,
-        expiresAt,
-      },
-    });
+      if (existingBlacklistedToken) {
+        console.warn(
+          `Logout service: Token for userId ${userId} already blacklisted. No new entry created.`,
+        );
+        return { success: true, message: 'Token already invalidated.' };
+      }
+
+      await this.prisma.blacklistedToken.create({
+        data: {
+          token,
+          userId, // Blacklist with the derived userId
+          expiresAt,
+        },
+      });
+      console.log(
+        `Logout service: Token for userId ${userId} blacklisted successfully. Expires at: ${expiresAt.toISOString()}`,
+      );
+    } else if (token) {
+      console.warn(
+        'Logout service: Token present but could not derive userId or expiry for blacklisting.',
+      );
+    } else {
+      console.log('Logout service: No token provided for blacklisting.');
+    }
 
     return { success: true, message: 'Logout successful!' };
   }

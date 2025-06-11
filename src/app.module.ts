@@ -1,4 +1,9 @@
-import { MiddlewareConsumer, Module, NestModule } from '@nestjs/common';
+import {
+  MiddlewareConsumer,
+  Module,
+  NestModule,
+  RequestMethod,
+} from '@nestjs/common';
 // import { ThrottlerModule, ThrottlerGuard } from '@nestjs/throttler';
 // import { APP_GUARD } from '@nestjs/core';
 
@@ -60,6 +65,13 @@ import { JwtService } from '@nestjs/jwt';
 })
 export class AppModule implements NestModule {
   configure(consumer: MiddlewareConsumer) {
-    consumer.apply(SessionMiddleware).forRoutes('*'); // Apply to all routes
+    consumer
+      .apply(SessionMiddleware)
+      .exclude(
+        { path: 'auth/logout', method: RequestMethod.POST },
+        // { path: 'auth/login', method: RequestMethod.POST },
+        // { path: 'auth/register', method: RequestMethod.POST },
+      )
+      .forRoutes('*'); // This applies the middleware to all other routes
   }
 }
