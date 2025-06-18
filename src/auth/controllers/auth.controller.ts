@@ -142,7 +142,7 @@ export class AuthController {
       secure: true,
       sameSite: 'lax',
       path: '/',
-      domain: '.onrender.com',
+      domain: '.render.com',
       maxAge: 3600000,
     });
 
