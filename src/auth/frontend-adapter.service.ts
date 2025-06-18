@@ -29,8 +29,25 @@ export class FrontendAdapterService {
 
     const modules = this.routeRegistry.ALL_ROUTES.filter((module) => {
       if (user.role === 'ADMIN') return true;
-      if (module.department && module.department !== user.department?.name)
-        return false;
+
+      if (module.department) {
+        if (Array.isArray(module.department)) {
+          if (
+            !user.department?.name ||
+            !module.department.includes(user.department.name)
+          ) {
+            return false;
+          }
+        } else {
+          if (
+            !user.department?.name ||
+            module.department !== user.department.name
+          ) {
+            return false;
+          }
+        }
+      }
+
       return module.permissions[user.role]?.length > 0;
     });
 

@@ -21,7 +21,7 @@ export interface ProtectedRoute {
   id?: string;
   path: string;
   name?: string;
-  department?: Department;
+  department?: Department | Department[];
   icon?: string;
   permissions: {
     ADMIN: Permission[];
