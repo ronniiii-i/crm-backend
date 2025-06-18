@@ -8,7 +8,12 @@ async function bootstrap() {
 
   // Configure CORS - ABSOLUTELY ESSENTIAL for cross-origin cookie sending
   app.enableCors({
-    origin: process.env.FRONTEND_URL,
+    // origin: process.env.FRONTEND_URL,
+    origin: [
+      'http://localhost:3000',
+      'https://claspcrm.vercel.app',
+      'https://claspcrm.onrender.com',
+    ],
     credentials: true,
     methods: 'GET,HEAD,PUT,PATCH,POST,DELETE',
     allowedHeaders: 'Content-Type, Accept, Authorization',
