@@ -139,10 +139,9 @@ export class AuthController {
 
     response.cookie('access_token', result.accessToken, {
       httpOnly: true,
-      secure: true,
+      secure: process.env.NODE_ENV === 'production',
       sameSite: 'lax',
       path: '/',
-      domain: '.render.com',
       maxAge: 3600000,
     });
 
