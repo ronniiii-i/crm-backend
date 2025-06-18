@@ -50,9 +50,13 @@ model User {
   notifications      Notification[]
   uploadedFiles      ProjectFile[]
   projectMemberships ProjectMember[]
-  department         Department?       @relation("DepartmentMembers", fields: [departmentId], references: [id])
-  managedDepartment  Department?       @relation("DepartmentManager")
-  blacklistedTokens BlacklistedToken[]
+  department         Department?        @relation("DepartmentMembers", fields: [departmentId], references: [id])
+  managedDepartment  Department?        @relation("DepartmentManager")
+  blacklistedTokens  BlacklistedToken[]
+  expenses           Expense[]
+  assignedDeals      Deal[]             @relation("DealAssignedTo")
+  assignedTickets    SupportTicket[]    @relation("UserTickets")
+  attendanceRecords  AttendanceRecord[]
 
   @@map("users")
 }
@@ -73,7 +77,10 @@ model Contact {
   updatedAt DateTime @updatedAt
 
   // Optional tags/categories
-  tags String[]
+  tags           String[]
+  invoices       Invoice[]
+  deals          Deal[]
+  supportTickets SupportTicket[]
 }
 
 model Project {
@@ -112,14 +119,16 @@ model Task {
 }
 
 model Department {
-  id          String        @id @default(uuid())
+  id          String         @id @default(uuid())
   name        String
   description String?
   type        DepartmentType
-  managerId   String?       @unique
-  manager     User?         @relation("DepartmentManager", fields: [managerId], references: [id])
-  members     User[]        @relation("DepartmentMembers")
-  createdAt   DateTime      @default(now())
+  managerId   String?        @unique
+  manager     User?          @relation("DepartmentManager", fields: [managerId], references: [id])
+  members     User[]         @relation("DepartmentMembers")
+  createdAt   DateTime       @default(now())
+
+  expenses Expense[]
 }
 
 model InventoryItem {
@@ -140,7 +149,7 @@ model Notification {
   title     String
   message   String
   read      Boolean  @default(false)
-  type      String // "system", "message", "alert"
+  type      String // "system", "message", "alert", "security"
   user      User     @relation(fields: [userId], references: [id])
   userId    String
   createdAt DateTime @default(now())
@@ -179,4 +188,98 @@ model BlacklistedToken {
 
   @@index([userId])
   @@map("blacklisted_tokens")
+}
+
+model Invoice {
+  id            String    @id @default(uuid())
+  invoiceNumber String    @unique
+  customer      Contact   @relation(fields: [customerId], references: [id])
+  customerId    String
+  amount        Float
+  status        String    @default("Pending") // Pending, Paid, Overdue, Cancelled
+  dueDate       DateTime
+  paidDate      DateTime?
+  createdAt     DateTime  @default(now())
+  updatedAt     DateTime  @updatedAt
+
+  payments Payment[] // One invoice can have many payments
+}
+
+model Payment {
+  id        String   @id @default(uuid())
+  invoice   Invoice  @relation(fields: [invoiceId], references: [id])
+  invoiceId String
+  amount    Float
+  paidAt    DateTime @default(now())
+  method    String // e.g., Credit Card, Bank Transfer
+  createdAt DateTime @default(now())
+}
+
+model Expense {
+  id           String     @id @default(uuid())
+  description  String
+  amount       Float
+  category     String // e.g., Travel, Supplies
+  incurredAt   DateTime
+  department   Department @relation(fields: [departmentId], references: [id])
+  departmentId String
+  createdBy    User       @relation(fields: [userId], references: [id])
+  userId       String
+  createdAt    DateTime   @default(now())
+}
+
+enum DealStatus {
+  LEAD
+  QUALIFIED
+  PROPOSAL
+  NEGOTIATION
+  WON
+  LOST
+}
+
+model Deal {
+  id         String     @id @default(uuid())
+  name       String
+  contact    Contact    @relation(fields: [contactId], references: [id])
+  contactId  String
+  amount     Float
+  status     DealStatus @default(LEAD)
+  closeDate  DateTime?
+  assignedTo User       @relation("DealAssignedTo", fields: [userId], references: [id])
+  userId     String
+  createdAt  DateTime   @default(now())
+  updatedAt  DateTime   @updatedAt
+}
+
+enum TicketStatus {
+  OPEN
+  IN_PROGRESS
+  RESOLVED
+  CLOSED
+}
+
+model SupportTicket {
+  id             String       @id @default(uuid())
+  subject        String
+  description    String?
+  status         TicketStatus @default(OPEN)
+  priority       Int          @default(1)
+  createdBy      Contact      @relation(fields: [contactId], references: [id])
+  contactId      String
+  assignedTo     User?        @relation("UserTickets", fields: [userId], references: [id])
+  userId         String?
+  createdAt      DateTime     @default(now())
+  updatedAt      DateTime     @updatedAt
+  resolvedAt     DateTime?
+  slaDueDate     DateTime?
+  customerRating Int?
+}
+
+model AttendanceRecord {
+  id        String   @id @default(uuid())
+  user      User     @relation(fields: [userId], references: [id])
+  userId    String
+  date      DateTime
+  status    String // Present, Absent, Leave, etc.
+  createdAt DateTime @default(now())
 }
