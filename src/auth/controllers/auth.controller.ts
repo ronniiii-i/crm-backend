@@ -142,6 +142,7 @@ export class AuthController {
       secure: process.env.NODE_ENV === 'production',
       sameSite: 'lax',
       path: '/',
+      domain: '.yourdomain.com',
       maxAge: 3600000,
     });
 
