@@ -8,10 +8,10 @@ const prisma = new PrismaClient();
 
 async function seedDashboardData() {
   // Find Finance and Sales departments and users for relations
-  const financeDept = await prisma.department.findUnique({
+  const financeDept = await prisma.department.findFirst({
     where: { name: 'Finance' },
   });
-  const salesDept = await prisma.department.findUnique({
+  const salesDept = await prisma.department.findFirst({
     where: { name: 'Sales' },
   });
 
@@ -31,6 +31,9 @@ async function seedDashboardData() {
           firstName: 'John',
           lastName: 'Doe',
           email: 'john.doe@example.com',
+          createdBy: {
+            connect: { email: 'admin@crm.com' },
+          }, // Connects to the admin user by email
         },
       },
       amount: 5000,

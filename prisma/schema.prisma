@@ -283,3 +283,12 @@ model AttendanceRecord {
   status    String // Present, Absent, Leave, etc.
   createdAt DateTime @default(now())
 }
+
+model QuickAction {
+  id          String   @id @default(uuid())
+  name        String
+  description String?
+  command     String   // Backend command or API endpoint
+  createdAt   DateTime @default(now())
+  updatedAt   DateTime @updatedAt
+}
