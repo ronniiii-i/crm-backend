@@ -35,6 +35,6 @@ import { FrontendAdapterService } from './frontend-adapter.service';
     FrontendAdapterService,
   ],
   controllers: [AuthController, AuthAclController],
-  exports: [GuardsModule, RouteRegistry, FrontendAdapterService],
+  exports: [GuardsModule, RouteRegistry, FrontendAdapterService, JwtModule],
 })
 export class AuthModule {}

@@ -20,7 +20,7 @@ import { CoreModule } from './core/core.module';
 // import { CacheService } from './cache/cache.service';
 // import { CacheModule } from './cache/cache.module';
 import { SessionMiddleware } from './auth/middleware/session.middleware';
-import { JwtService } from '@nestjs/jwt';
+// import { JwtService } from '@nestjs/jwt';
 import { DashboardModule } from './dashboard/dashboard.module';
 
 @Module({
@@ -71,7 +71,7 @@ import { DashboardModule } from './dashboard/dashboard.module';
     PrismaService,
     MailService,
     // CacheService,
-    JwtService,
+    // JwtService,
   ],
 })
 export class AppModule implements NestModule {

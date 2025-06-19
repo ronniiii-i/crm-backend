@@ -34,6 +34,7 @@ export class DashboardController {
     @User() user: { role: Role; departmentId?: string; userId: string },
     @Query('period') period: 'week' | 'month' | 'year',
   ) {
+    console.log('--- Request hit DashboardController.getAttendanceChart ---');
     if (!period || !['week', 'month', 'year'].includes(period)) {
       // You might want to throw a BadRequestException or use a DTO with validation
       throw new Error(
