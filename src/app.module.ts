@@ -4,6 +4,8 @@ import {
   NestModule,
   RequestMethod,
 } from '@nestjs/common';
+import { CacheModule } from '@nestjs/cache-manager';
+import * as redisStore from 'cache-manager-redis-store';
 // import { ThrottlerModule, ThrottlerGuard } from '@nestjs/throttler';
 // import { APP_GUARD } from '@nestjs/core';
 
@@ -15,10 +17,11 @@ import { PrismaModule } from './prisma/prisma.module';
 import { MailService } from './mail/mail.service';
 import { ProjectsModule } from './projects/projects.module';
 import { CoreModule } from './core/core.module';
-import { CacheService } from './cache/cache.service';
-import { CacheModule } from './cache/cache.module';
+// import { CacheService } from './cache/cache.service';
+// import { CacheModule } from './cache/cache.module';
 import { SessionMiddleware } from './auth/middleware/session.middleware';
 import { JwtService } from '@nestjs/jwt';
+import { DashboardModule } from './dashboard/dashboard.module';
 
 @Module({
   imports: [
@@ -48,7 +51,15 @@ import { JwtService } from '@nestjs/jwt';
     PrismaModule,
     ProjectsModule,
     CoreModule,
-    CacheModule,
+    // CacheModule,
+    DashboardModule,
+    CacheModule.register({
+      store: redisStore,
+      host: 'localhost', // Replace with your Redis host (e.g., 'redis' if in Docker)
+      port: 6379, // Replace with your Redis port
+      ttl: 300, // Default cache lifetime in seconds (e.g., 5 minutes)
+      // You can also add other options like password, db, etc.
+    }),
   ],
   controllers: [AppController],
   providers: [
@@ -59,7 +70,7 @@ import { JwtService } from '@nestjs/jwt';
     AppService,
     PrismaService,
     MailService,
-    CacheService,
+    // CacheService,
     JwtService,
   ],
 })
