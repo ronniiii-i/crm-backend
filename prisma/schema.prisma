@@ -122,7 +122,7 @@ model Department {
   id          String         @id @default(uuid())
   name        String
   description String?
-  type        DepartmentType
+  type        DepartmentType  @unique
   managerId   String?         @unique
   manager     User?           @relation("DepartmentManager", fields: [managerId], references: [id])
   members     User[]          @relation("DepartmentMembers")
@@ -315,6 +315,7 @@ model Module {
   id           String  @id @default(uuid())
   name         String
   path         String  @unique
+  icon         String?
   departmentId String?
 
   // Relations
