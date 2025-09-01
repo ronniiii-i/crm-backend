@@ -19,9 +19,13 @@ import { CacheService } from './cache/cache.service';
 import { CacheModule } from './cache/cache.module';
 import { SessionMiddleware } from './auth/middleware/session.middleware';
 import { JwtService } from '@nestjs/jwt';
+import { ConfigModule } from '@nestjs/config';
 
 @Module({
   imports: [
+    ConfigModule.forRoot({
+      isGlobal: true, // makes the ConfigModule available everywhere
+    }),
     // ThrottlerModule.forRoot([
     //   {
     //     name: 'default',
