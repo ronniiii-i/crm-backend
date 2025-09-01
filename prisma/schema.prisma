@@ -50,9 +50,9 @@ model User {
   notifications      Notification[]
   uploadedFiles      ProjectFile[]
   projectMemberships ProjectMember[]
-  department         Department?        @relation("DepartmentMembers", fields: [departmentId], references: [id])
-  managedDepartment  Department?        @relation("DepartmentManager")
-  blacklistedTokens  BlacklistedToken[]
+  department         Department?         @relation("DepartmentMembers", fields: [departmentId], references: [id])
+  managedDepartment  Department?         @relation("DepartmentManager")
+  blacklistedTokens   BlacklistedToken[]
   expenses           Expense[]
   assignedDeals      Deal[]             @relation("DealAssignedTo")
   assignedTickets    SupportTicket[]    @relation("UserTickets")
@@ -123,12 +123,13 @@ model Department {
   name        String
   description String?
   type        DepartmentType
-  managerId   String?        @unique
-  manager     User?          @relation("DepartmentManager", fields: [managerId], references: [id])
-  members     User[]         @relation("DepartmentMembers")
-  createdAt   DateTime       @default(now())
+  managerId   String?         @unique
+  manager     User?           @relation("DepartmentManager", fields: [managerId], references: [id])
+  members     User[]          @relation("DepartmentMembers")
+  createdAt   DateTime        @default(now())
 
   expenses Expense[]
+  Module      Module[]
 }
 
 model InventoryItem {
@@ -291,4 +292,48 @@ model QuickAction {
   command     String   // Backend command or API endpoint
   createdAt   DateTime @default(now())
   updatedAt   DateTime @updatedAt
+}
+
+
+enum PermissionType {
+  VIEW
+  EDIT
+  DELETE
+}
+
+model Permission {
+  id   Int            @id @default(autoincrement())
+  type PermissionType @unique
+
+  // Relation
+  roleModulePermissions RoleModulePermission[]
+
+  @@map("permissions")
+}
+
+model Module {
+  id           String  @id @default(uuid())
+  name         String
+  path         String  @unique
+  departmentId String?
+
+  // Relations
+  department            Department?            @relation(fields: [departmentId], references: [id])
+  roleModulePermissions RoleModulePermission[]
+
+  @@map("modules")
+}
+
+model RoleModulePermission {
+  id           String @id @default(uuid())
+  role         Role
+  moduleId     String
+  permissionId Int
+
+  // Relations
+  module     Module     @relation(fields: [moduleId], references: [id])
+  permission Permission @relation(fields: [permissionId], references: [id])
+
+  @@unique([role, moduleId, permissionId])
+  @@map("role_module_permissions")
 }
