@@ -1,239 +1,90 @@
-/* eslint-disable @typescript-eslint/no-misused-promises */
-/* eslint-disable @typescript-eslint/no-unused-vars */
-import { PrismaClient, Role } from '@prisma/client';
-// import { DepartmentType } from '@prisma/client'; // Ensure proper import
-import { hash } from 'bcryptjs';
+// prisma/seed.ts
+
+import { PrismaClient, DepartmentType, Role } from '@prisma/client';
+import { ALL_ROUTES } from 'src/auth/routes';
 
 const prisma = new PrismaClient();
 
 async function main() {
-  // Hash passwords
-  const defaultPassword = await hash('password123', 12);
+  console.log('Start seeding...');
 
-  // 1. Create admin user (won't be assigned as department manager)
-  const admin = await prisma.user.create({
-    data: {
-      email: 'admin@crm.com',
-      password: await hash('admin123', 12),
-      name: 'System Admin',
-      role: Role.ADMIN,
-      isVerified: true,
-      avatarUrl: 'https://picsum.photos/200/200?random=1',
-    },
+  // 1. Seed Permissions
+  const permissionsData = [
+    { type: 'VIEW' },
+    { type: 'EDIT' },
+    { type: 'DELETE' },
+  ];
+  await prisma.permission.createMany({
+    data: permissionsData,
+    skipDuplicates: true,
   });
 
-  // 2. Create departments without managers first
-  const departments = await Promise.all([
-    prisma.department.create({
-      data: {
-        name: 'Administration',
-        description: 'Company administration',
-        type: 'ADMINISTRATION',
-      },
-    }),
-    prisma.department.create({
-      data: {
-        name: 'Human Resources',
-        description: 'HR department',
-        type: 'HUMAN_RESOURCES',
-      },
-    }),
-    prisma.department.create({
-      data: {
-        name: 'Sales',
-        description: 'Sales and marketing',
-        type: 'SALES',
-      },
-    }),
-    prisma.department.create({
-      data: {
-        name: 'Operations',
-        description: 'Business operations',
-        type: 'OPERATIONS',
-      },
-    }),
-    prisma.department.create({
-      data: {
-        name: 'Finance',
-        description: 'Financial department',
-        type: 'FINANCE',
-      },
-    }),
-    prisma.department.create({
-      data: {
-        name: 'IT',
-        description: 'Information technology',
-        type: 'INFORMATION_TECHNOLOGY',
-      },
-    }),
-    prisma.department.create({
-      data: {
-        name: 'Customer Service',
-        description: 'Customer support',
-        type: 'CUSTOMER_SERVICE',
-      },
-    }),
-  ]);
-
-  // 3. Create department managers and assign them
-  const [hrManager, salesManager, opsManager, financeManager, itManager] =
-    await Promise.all([
-      prisma.user.create({
-        data: {
-          email: 'hr.hod@example.com',
-          password: defaultPassword,
-          name: 'Jane Smith',
-          role: Role.HOD,
-          isVerified: true,
-          avatarUrl: 'https://picsum.photos/200/200?random=2',
-          department: { connect: { id: departments[1].id } }, // HR
-        },
-      }),
-      prisma.user.create({
-        data: {
-          email: 'sales.hod@example.com',
-          password: defaultPassword,
-          name: 'Mike Johnson',
-          role: Role.HOD,
-          isVerified: true,
-          avatarUrl: 'https://picsum.photos/200/200?random=3',
-          department: { connect: { id: departments[2].id } }, // Sales
-        },
-      }),
-      prisma.user.create({
-        data: {
-          email: 'ops.hod@example.com',
-          password: defaultPassword,
-          name: 'Sarah Williams',
-          role: Role.HOD,
-          isVerified: true,
-          avatarUrl: 'https://picsum.photos/200/200?random=4',
-          department: { connect: { id: departments[3].id } }, // Operations
-        },
-      }),
-      prisma.user.create({
-        data: {
-          email: 'finance.hod@example.com',
-          password: defaultPassword,
-          name: 'David Brown',
-          role: Role.HOD,
-          isVerified: true,
-          avatarUrl: 'https://picsum.photos/200/200?random=5',
-          department: { connect: { id: departments[4].id } }, // Finance
-        },
-      }),
-      prisma.user.create({
-        data: {
-          email: 'it.hod@example.com',
-          password: defaultPassword,
-          name: 'Alex Chen',
-          role: Role.HOD,
-          isVerified: true,
-          avatarUrl: 'https://picsum.photos/200/200?random=6',
-          department: { connect: { id: departments[5].id } }, // IT
-        },
-      }),
-    ]);
-
-  // 4. Update departments with their managers
-  await Promise.all([
-    prisma.department.update({
-      where: { id: departments[1].id }, // HR
-      data: { managerId: hrManager.id },
-    }),
-    prisma.department.update({
-      where: { id: departments[2].id }, // Sales
-      data: { managerId: salesManager.id },
-    }),
-    prisma.department.update({
-      where: { id: departments[3].id }, // Operations
-      data: { managerId: opsManager.id },
-    }),
-    prisma.department.update({
-      where: { id: departments[4].id }, // Finance
-      data: { managerId: financeManager.id },
-    }),
-    prisma.department.update({
-      where: { id: departments[5].id }, // IT
-      data: { managerId: itManager.id },
-    }),
-  ]);
-
-  const [hrUser, salesUser, opsUser, financeUser] = await Promise.all([
-    prisma.user.create({
-      data: {
-        email: 'hr.staff@example.com',
-        password: defaultPassword,
-        name: 'Emily Davis',
-        role: Role.STAFF,
-        isVerified: true,
-        avatarUrl: 'https://picsum.photos/200/200?random=7',
-        department: { connect: { id: departments[1].id } }, // HR
-      },
-    }),
-    prisma.user.create({
-      data: {
-        email: 'sales.staff@example.com',
-        password: defaultPassword,
-        name: 'Robert Wilson',
-        role: Role.STAFF,
-        isVerified: true,
-        avatarUrl: 'https://picsum.photos/200/200?random=8',
-        department: { connect: { id: departments[2].id } }, // Sales
-      },
-    }),
-    prisma.user.create({
-      data: {
-        email: 'ops.staff@example.com',
-        password: defaultPassword,
-        name: 'Lisa Taylor',
-        role: Role.STAFF,
-        isVerified: true,
-        avatarUrl: 'https://picsum.photos/200/200?random=9',
-        department: { connect: { id: departments[3].id } }, // Operations
-      },
-    }),
-    prisma.user.create({
-      data: {
-        email: 'finance.staff@example.com',
-        password: defaultPassword,
-        name: 'Michael Scott',
-        role: Role.STAFF,
-        isVerified: true,
-        avatarUrl: 'https://picsum.photos/200/200?random=10',
-        department: { connect: { id: departments[4].id } }, // Finance
-      },
-    }),
-  ]);
-
-  // 6. Create sample projects and tasks
-  const salesProject = await prisma.project.create({
-    data: {
-      name: 'Sales Portal Redesign',
-      description: 'Redesign of customer sales portal',
-      status: 'Active',
-      userId: salesManager.id,
-      teamMembers: {
-        create: [
-          { userId: salesManager.id, role: 'Manager' },
-          { userId: salesUser.id, role: 'Member' },
-          { userId: salesUser?.id, role: 'Member' },
-        ],
-      },
-    },
+  const viewPerm = await prisma.permission.findUnique({
+    where: { type: 'VIEW' },
+  });
+  const editPerm = await prisma.permission.findUnique({
+    where: { type: 'EDIT' },
+  });
+  const deletePerm = await prisma.permission.findUnique({
+    where: { type: 'DELETE' },
   });
 
-  await prisma.task.create({
-    data: {
-      title: 'Design wireframes',
-      description: 'Create initial wireframes for new portal',
-      status: 'In Progress',
-      projectId: salesProject.id,
-      assignedToId: salesUser?.id,
-    },
-  });
+  console.log('Permissions seeded.');
 
-  console.log('Database seeded successfully!');
+  // 2. Seed Modules and RoleModulePermissions
+  for (const route of ALL_ROUTES) {
+    // Insert module data
+    const module = await prisma.module.upsert({
+      where: { path: route.path },
+      update: {}, // No need to update on subsequent runs
+      create: {
+        id: route.id, // Use the existing ID from your route file
+        name: route.name,
+        path: route.path,
+        icon: route.icon, // Assuming 'icon' is a field in your Module model
+        department: route.department
+          ? {
+              connect: { type: route.department as DepartmentType }, // Adjust for array/single string
+            }
+          : undefined,
+      },
+    });
+
+    // Handle department mapping (if department is an array)
+    // You will need to add logic here to handle the `department: Department.HR, Department.ACCOUNTING` case from your `routes.ts` file.
+
+    // Insert permissions for each role
+    for (const role in route.permissions) {
+      const allowedPermissions = route.permissions[role as Role];
+
+      for (const permission of allowedPermissions) {
+        let permissionId;
+        if (permission === 'VIEW') permissionId = viewPerm.id;
+        if (permission === 'EDIT') permissionId = editPerm.id;
+        if (permission === 'DELETE') permissionId = deletePerm.id;
+
+        if (permissionId) {
+          await prisma.roleModulePermission.upsert({
+            where: {
+              role_moduleId_permissionId: {
+                role: role as Role,
+                moduleId: module.id,
+                permissionId: permissionId,
+              },
+            },
+            update: {},
+            create: {
+              role: role as Role,
+              moduleId: module.id,
+              permissionId: permissionId,
+            },
+          });
+        }
+      }
+    }
+  }
+
+  console.log('Seeding finished.');
 }
 
 main()

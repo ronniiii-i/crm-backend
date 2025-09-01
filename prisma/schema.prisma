@@ -50,9 +50,9 @@ model User {
   notifications      Notification[]
   uploadedFiles      ProjectFile[]
   projectMemberships ProjectMember[]
-  department         Department?       @relation("DepartmentMembers", fields: [departmentId], references: [id])
-  managedDepartment  Department?       @relation("DepartmentManager")
-  blacklistedTokens BlacklistedToken[]
+  department         Department?        @relation("DepartmentMembers", fields: [departmentId], references: [id])
+  managedDepartment  Department?        @relation("DepartmentManager")
+  blacklistedTokens  BlacklistedToken[]
 
   @@map("users")
 }
@@ -112,14 +112,15 @@ model Task {
 }
 
 model Department {
-  id          String        @id @default(uuid())
+  id          String         @id @default(uuid())
   name        String
   description String?
   type        DepartmentType
-  managerId   String?       @unique
-  manager     User?         @relation("DepartmentManager", fields: [managerId], references: [id])
-  members     User[]        @relation("DepartmentMembers")
-  createdAt   DateTime      @default(now())
+  managerId   String?        @unique
+  manager     User?          @relation("DepartmentManager", fields: [managerId], references: [id])
+  members     User[]         @relation("DepartmentMembers")
+  createdAt   DateTime       @default(now())
+  Module      Module[]
 }
 
 model InventoryItem {
@@ -179,4 +180,47 @@ model BlacklistedToken {
 
   @@index([userId])
   @@map("blacklisted_tokens")
+}
+
+enum PermissionType {
+  VIEW
+  EDIT
+  DELETE
+}
+
+model Permission {
+  id   Int            @id @default(autoincrement())
+  type PermissionType @unique
+
+  // Relation
+  roleModulePermissions RoleModulePermission[]
+
+  @@map("permissions")
+}
+
+model Module {
+  id           String  @id @default(uuid())
+  name         String
+  path         String  @unique
+  departmentId String?
+
+  // Relations
+  department            Department?            @relation(fields: [departmentId], references: [id])
+  roleModulePermissions RoleModulePermission[]
+
+  @@map("modules")
+}
+
+model RoleModulePermission {
+  id           String @id @default(uuid())
+  role         Role
+  moduleId     String
+  permissionId Int
+
+  // Relations
+  module     Module     @relation(fields: [moduleId], references: [id])
+  permission Permission @relation(fields: [permissionId], references: [id])
+
+  @@unique([role, moduleId, permissionId])
+  @@map("role_module_permissions")
 }
