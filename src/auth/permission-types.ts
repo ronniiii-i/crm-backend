@@ -18,9 +18,9 @@ export enum Department {
 }
 
 export interface ProtectedRoute {
-  id?: string;
+  id: string;
   path: string;
-  name?: string;
+  name: string;
   department?: Department | Department[];
   icon?: string;
   permissions: {
