@@ -20,7 +20,6 @@ import { JwtAuthGuard } from '../guards/jwt-auth.guard';
 import { PrismaService } from '../../prisma/prisma.service';
 import { JwtService } from '@nestjs/jwt';
 import { User } from '../decorators/user.decorator';
-import { Department } from '../permission-types';
 
 @Controller('auth')
 // @UseGuards(ThrottlerGuard)
@@ -328,9 +327,7 @@ export class AuthController {
     if (token) {
       await this.authService.logout(token);
     } else {
-      console.log(
-        'Logout: No token found in Authorization header for blacklisting.',
-      );
+      // Handle case where no token is provided
     }
 
     // Define consistent cookie options for clearing. MUST match login options.
@@ -342,7 +339,6 @@ export class AuthController {
     };
 
     response.clearCookie('access_token', clearCookieOptions);
-    console.log('Logout: Attempted to clear access_token cookie.');
 
     return { success: true, message: 'Logged out successfully' };
   }
@@ -419,12 +415,12 @@ export class AuthController {
     // Get accessible modules using the frontend adapter, as this is used by useAuth to populate initial state
     const userForAcl = {
       id: user.id,
-      role: user.role as 'ADMIN' | 'HOD' | 'LEAD' | 'STAFF',
+      role: user.role as string,
       department: user.department
-        ? { name: user.department.name as Department }
+        ? { type: user.department.type as string }
         : undefined,
       managedDepartment: user.managedDepartment
-        ? { name: user.managedDepartment.name as Department }
+        ? { type: user.managedDepartment.type as string }
         : undefined,
     };
     const accessibleModules =

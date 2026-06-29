@@ -2,35 +2,48 @@ import { Controller, Get, Param, UseGuards } from '@nestjs/common';
 import { JwtAuthGuard } from '../guards/jwt-auth.guard';
 import { User } from '../decorators/user.decorator';
 import { FrontendAdapterService } from '../frontend-adapter.service';
+import { PrismaService } from '../../prisma/prisma.service';
 import {
   UserWithDepartments,
-  ProtectedRoute,
+  AccessibleModule,
   Permission,
 } from '../permission-types';
 
 @Controller('auth/acl')
+@UseGuards(JwtAuthGuard)
 export class AuthAclController {
-  constructor(private readonly frontendAdapter: FrontendAdapterService) {}
+  constructor(
+    private readonly frontendAdapter: FrontendAdapterService,
+    private readonly prisma: PrismaService,
+  ) {}
 
   @Get('modules')
-  @UseGuards(JwtAuthGuard)
   async getModules(
     @User() user: UserWithDepartments,
-  ): Promise<ProtectedRoute[]> {
+  ): Promise<AccessibleModule[]> {
     return this.frontendAdapter.getAccessibleModules(user);
   }
 
   @Get('check-permission/:moduleId/:action')
-  @UseGuards(JwtAuthGuard)
   async checkPermission(
     @User() user: UserWithDepartments,
     @Param('moduleId') moduleId: string,
     @Param('action') action: Permission,
   ): Promise<{ hasPermission: boolean }> {
-    const modules = await this.frontendAdapter.getAccessibleModules(user);
-    const module = modules.find((m) => m.id === moduleId);
-    return {
-      hasPermission: module?.permissions[user.role]?.includes(action) ?? false,
-    };
+    const permission = await this.prisma.permission.findUnique({
+      where: { type: action as any },
+    });
+
+    if (!permission) return { hasPermission: false };
+
+    const entry = await this.prisma.roleModulePermission.findFirst({
+      where: {
+        role: user.role as any,
+        moduleId,
+        permissionId: permission.id,
+      },
+    });
+
+    return { hasPermission: !!entry };
   }
 }

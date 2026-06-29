@@ -1,5 +1,4 @@
 // prisma/seed.ts
-
 import {
   PrismaClient,
   DepartmentType,
@@ -7,119 +6,93 @@ import {
   PermissionType,
 } from '@prisma/client';
 import { ALL_ROUTES } from '../src/auth/routes';
-import { Department } from '../src/auth/permission-types';
 
 const prisma = new PrismaClient();
 
-// Create a mapping from your routes.ts enum to your Prisma enum
-const departmentMapping: Record<Department, DepartmentType> = {
-  [Department.FINANCE]: DepartmentType.FINANCE,
-  [Department.IT]: DepartmentType.INFORMATION_TECHNOLOGY,
-  [Department.SALES]: DepartmentType.SALES,
-  [Department.CUSTOMER_SUPPORT]: DepartmentType.CUSTOMER_SERVICE,
-  [Department.HR]: DepartmentType.HUMAN_RESOURCES,
-  [Department.ACCOUNTING]: DepartmentType.FINANCE, // Assuming Accounting falls under Finance
-  [Department.ADMINISTRATION]: DepartmentType.ADMINISTRATION,
-  [Department.OPERATIONS]: DepartmentType.OPERATIONS,
-};
-
 async function main() {
-  console.log('Start seeding...');
-
-  // Seed Permissions
-  const permissionsData = [
-    { type: PermissionType.VIEW },
-    { type: PermissionType.EDIT },
-    { type: PermissionType.DELETE },
-  ];
+  // Seed Permissions (idempotent)
   await prisma.permission.createMany({
-    data: permissionsData,
+    data: [
+      { type: PermissionType.VIEW },
+      { type: PermissionType.EDIT },
+      { type: PermissionType.DELETE },
+    ],
     skipDuplicates: true,
   });
 
-  const viewPerm = await prisma.permission.findUnique({
-    where: { type: PermissionType.VIEW },
-  });
-  const editPerm = await prisma.permission.findUnique({
-    where: { type: PermissionType.EDIT },
-  });
-  const deletePerm = await prisma.permission.findUnique({
-    where: { type: PermissionType.DELETE },
-  });
+  const [viewPerm, editPerm, deletePerm] = await Promise.all([
+    prisma.permission.findUnique({ where: { type: PermissionType.VIEW } }),
+    prisma.permission.findUnique({ where: { type: PermissionType.EDIT } }),
+    prisma.permission.findUnique({ where: { type: PermissionType.DELETE } }),
+  ]);
 
   if (!viewPerm || !editPerm || !deletePerm) {
-    throw new Error('Could not find all required permissions in the database.');
+    throw new Error('Could not find required permissions in the database.');
   }
 
-  console.log('Permissions seeded.');
+  // permMap stores numeric IDs (Int primary key in schema)
+  const permMap: Record<string, number> = {
+    VIEW: viewPerm.id,
+    EDIT: editPerm.id,
+    DELETE: deletePerm.id,
+  };
 
   // Seed Modules and RoleModulePermissions
   for (const route of ALL_ROUTES) {
     let departmentId: string | undefined;
 
     if (route.department) {
-      // Find the correct Prisma enum value using the mapping
-      const prismaDepartmentType = Array.isArray(route.department)
-        ? departmentMapping[route.department[0]]
-        : departmentMapping[route.department];
+      const deptType = Array.isArray(route.department)
+        ? (route.department[0] as unknown as DepartmentType)
+        : (route.department as unknown as DepartmentType);
 
-      if (prismaDepartmentType) {
-        const department = await prisma.department.findUnique({
-          where: { type: prismaDepartmentType },
-        });
-        departmentId = department?.id;
-      }
+      const dept = await prisma.department.findUnique({
+        where: { type: deptType },
+      });
+      departmentId = dept?.id;
     }
 
-    const module = await prisma.module.upsert({
+    const mod = await prisma.module.upsert({
       where: { path: route.path },
-      update: {},
+      update: { name: route.name, icon: route.icon },
       create: {
         id: route.id,
         name: route.name,
         path: route.path,
         icon: route.icon,
-        departmentId: departmentId,
+        departmentId,
       },
     });
 
     for (const role in route.permissions) {
       const allowedPermissions = route.permissions[role as Role];
-
       for (const permission of allowedPermissions) {
-        let permissionId;
-        if (permission === 'VIEW') permissionId = viewPerm.id;
-        if (permission === 'EDIT') permissionId = editPerm.id;
-        if (permission === 'DELETE') permissionId = deletePerm.id;
+        const permissionId = permMap[permission];
+        if (permissionId === undefined) continue;
 
-        if (permissionId) {
-          await prisma.roleModulePermission.upsert({
-            where: {
-              role_moduleId_permissionId: {
-                role: role as Role,
-                moduleId: module.id,
-                permissionId: permissionId,
-              },
-            },
-            update: {},
-            create: {
+        await prisma.roleModulePermission.upsert({
+          where: {
+            role_moduleId_permissionId: {
               role: role as Role,
-              moduleId: module.id,
-              permissionId: permissionId,
+              moduleId: mod.id,
+              permissionId,
             },
-          });
-        }
+          },
+          update: {},
+          create: { role: role as Role, moduleId: mod.id, permissionId },
+        });
       }
     }
   }
-  console.log('Seeding finished.');
+
+  console.log('Seeding complete: ' + ALL_ROUTES.length + ' routes processed.');
 }
 
 main()
-  .catch((e) => {
+  .catch((e: unknown) => {
     console.error(e);
     process.exit(1);
   })
-  .finally(async () => {
-    await prisma.$disconnect();
+  .finally(() => {
+    prisma.$disconnect().catch(() => undefined);
   });

@@ -1,4 +1,3 @@
-// src/dashboard/dashboard.service.ts
 import { Injectable, Inject } from '@nestjs/common';
 import { CACHE_MANAGER } from '@nestjs/cache-manager';
 import { PrismaService } from '../prisma/prisma.service'; // Adjust path if necessary
@@ -49,7 +48,6 @@ export class DashboardService {
     const cacheKey = 'admin-dashboard';
     const cachedData = await this.cacheManager.get(cacheKey);
     if (cachedData) {
-      console.log('Serving admin dashboard from cache.');
       return cachedData;
     }
 
@@ -94,9 +92,6 @@ export class DashboardService {
     const cacheKey = `hod-dashboard-${departmentId}`;
     const cachedData = await this.cacheManager.get(cacheKey);
     if (cachedData) {
-      console.log(
-        `Serving HOD dashboard for department ${departmentId} from cache.`,
-      );
       return cachedData;
     }
 
@@ -134,9 +129,6 @@ export class DashboardService {
     const cacheKey = `lead-dashboard-${departmentId}-${userId}`;
     const cachedData = await this.cacheManager.get(cacheKey);
     if (cachedData) {
-      console.log(
-        `Serving Lead dashboard for user ${userId} in department ${departmentId} from cache.`,
-      );
       return cachedData;
     }
 
@@ -169,9 +161,6 @@ export class DashboardService {
     const cacheKey = `staff-dashboard-${departmentId}-${userId}`;
     const cachedData = await this.cacheManager.get(cacheKey);
     if (cachedData) {
-      console.log(
-        `Serving Staff dashboard for user ${userId} in department ${departmentId} from cache.`,
-      );
       return cachedData;
     }
 
@@ -417,7 +406,6 @@ export class DashboardService {
     user: { role: Role; departmentId?: string; userId: string },
     period: 'week' | 'month' | 'year',
   ) {
-    console.log('User role in getAttendanceChart:', user.role);
     // This method needs to be refined based on how you store attendance dates
     // and how you want to aggregate for the chart (e.g., daily presence counts)
     const now = new Date();
@@ -443,21 +431,15 @@ export class DashboardService {
     };
 
     if (user.role === Role.ADMIN) {
-      console.log('User is ADMIN, no additional user-based filter applied.');
       // No additional user-based filter needed for admin
     } else if (user.role === Role.HOD && user.departmentId) {
-      console.log('User is HOD, filtering by departmentId:', user.departmentId);
       whereClause.user = { departmentId: user.departmentId };
     } else if (
       (user.role === Role.LEAD || user.role === Role.STAFF) &&
       user.userId
     ) {
-      console.log('User is LEAD/STAFF, filtering by userId:', user.userId);
       whereClause.userId = user.userId;
     } else {
-      console.error(
-        'Insufficient user context for attendance chart. Falling into else block.',
-      ); 
       throw new Error('Insufficient user context for attendance chart.');
     }
 

@@ -2,7 +2,6 @@ import { Injectable, UnauthorizedException } from '@nestjs/common';
 import { JwtService } from '@nestjs/jwt';
 import * as bcrypt from 'bcryptjs';
 import { FrontendAdapterService } from '../frontend-adapter.service';
-import { Department } from '../permission-types';
 import { PrismaService } from '../../prisma/prisma.service';
 import { Role } from '@prisma/client';
 import { MailService } from '../../mail/mail.service';
@@ -134,8 +133,8 @@ export class AuthService {
     return this.prisma.user.findUnique({
       where: { id },
       include: {
-        department: { select: { id: true, name: true } },
-        managedDepartment: { select: { id: true, name: true } },
+        department: { select: { id: true, name: true, type: true } },
+        managedDepartment: { select: { id: true, name: true, type: true } },
       },
     });
   }
@@ -180,7 +179,7 @@ export class AuthService {
   //   };
 
   //   const token = this.jwtService.sign(payload);
-  //   console.log('JWT Secret:', process.env.JWT_SECRET);
+  //
 
   //   return {
   //     success: true,
@@ -206,12 +205,14 @@ export class AuthService {
           select: {
             id: true,
             name: true,
+            type: true,
           },
         },
         managedDepartment: {
           select: {
             id: true,
             name: true,
+            type: true,
           },
         },
       },
@@ -233,11 +234,9 @@ export class AuthService {
     const userForAcl = {
       id: user.id,
       role: user.role as 'ADMIN' | 'HOD' | 'LEAD' | 'STAFF', // Cast role to expected type
-      department: user.department
-        ? { name: user.department.name as Department }
-        : undefined,
+      department: user.department ? { type: user.department.type } : undefined,
       managedDepartment: user.managedDepartment
-        ? { name: user.managedDepartment.name as Department }
+        ? { type: user.managedDepartment.type }
         : undefined,
     };
 
@@ -255,7 +254,6 @@ export class AuthService {
     };
 
     const token = this.jwtService.sign(payload);
-    console.log('JWT Secret:', process.env.JWT_SECRET);
 
     return {
       success: true,
@@ -315,16 +313,8 @@ export class AuthService {
       ) {
         userId = decodedToken.sub as string;
         expiresAt = new Date(decodedToken.exp * 1000);
-      } else {
-        console.warn(
-          'Logout service: Could not decode token or extract expiry/user ID.',
-        );
       }
-    } catch (e) {
-      console.warn(
-        'Logout service: Error decoding token for blacklisting:',
-        (e as Error)?.message ?? e,
-      );
+    } catch {
       // Proceed without blacklisting if token is malformed, but still return success for cookie clearing
     }
 
@@ -337,9 +327,6 @@ export class AuthService {
         });
 
       if (existingBlacklistedToken) {
-        console.warn(
-          `Logout service: Token for userId ${userId} already blacklisted. No new entry created.`,
-        );
         return { success: true, message: 'Token already invalidated.' };
       }
 
@@ -350,17 +337,7 @@ export class AuthService {
           expiresAt,
         },
       });
-      console.log(
-        `Logout service: Token for userId ${userId} blacklisted successfully. Expires at: ${expiresAt.toISOString()}`,
-      );
-    } else if (token) {
-      console.warn(
-        'Logout service: Token present but could not derive userId or expiry for blacklisting.',
-      );
-    } else {
-      console.log('Logout service: No token provided for blacklisting.');
     }
-
     return { success: true, message: 'Logout successful!' };
   }
 }

@@ -1,4 +1,3 @@
-// src/auth/permission-types.ts
 export enum Permission {
   VIEW = 'VIEW',
   CREATE = 'CREATE',
@@ -7,14 +6,13 @@ export enum Permission {
 }
 
 export enum Department {
-  FINANCE = 'Finance',
-  IT = 'IT',
-  SALES = 'Sales',
-  CUSTOMER_SUPPORT = 'Customer Support',
-  HR = 'Human Resources',
-  ACCOUNTING = 'Accounting',
-  ADMINISTRATION = 'Administration',
-  OPERATIONS = 'Operations',
+  FINANCE = 'FINANCE',
+  IT = 'INFORMATION_TECHNOLOGY',
+  SALES = 'SALES',
+  CUSTOMER_SUPPORT = 'CUSTOMER_SERVICE',
+  HR = 'HUMAN_RESOURCES',
+  ADMINISTRATION = 'ADMINISTRATION',
+  OPERATIONS = 'OPERATIONS',
 }
 
 export interface ProtectedRoute {
@@ -23,6 +21,8 @@ export interface ProtectedRoute {
   name: string;
   department?: Department | Department[];
   icon?: string;
+  group?: string;
+  order?: number;
   permissions: {
     ADMIN: Permission[];
     HOD: Permission[];
@@ -31,9 +31,18 @@ export interface ProtectedRoute {
   };
 }
 
-export type UserWithDepartments = {
+export interface AccessibleModule {
   id: string;
-  role: 'ADMIN' | 'HOD' | 'LEAD' | 'STAFF';
-  department?: { name: Department };
-  managedDepartment?: { name: Department };
-};
+  name: string;
+  path: string;
+  icon?: string | null;
+}
+
+export interface UserForAcl {
+  id: string;
+  role: string;
+  department?: { type: string } | null;
+  managedDepartment?: { type: string } | null;
+}
+
+export type UserWithDepartments = UserForAcl;

@@ -23,6 +23,8 @@ import { SessionMiddleware } from './auth/middleware/session.middleware';
 // import { JwtService } from '@nestjs/jwt';
 import { DashboardModule } from './dashboard/dashboard.module';
 import { ConfigModule } from '@nestjs/config';
+import { UsersModule } from './users/users.module';
+import { ProfileModule } from './profile/profile.module';
 
 @Module({
   imports: [
@@ -64,6 +66,8 @@ import { ConfigModule } from '@nestjs/config';
       ttl: 300, // Default cache lifetime in seconds (e.g., 5 minutes)
       // You can also add other options like password, db, etc.
     }),
+    UsersModule,
+    ProfileModule,
   ],
   controllers: [AppController],
   providers: [

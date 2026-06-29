@@ -1,4 +1,3 @@
-// src/dashboard/dashboard.controller.ts
 import { Controller, Get, UseGuards, Query } from '@nestjs/common';
 import { DashboardService } from './dashboard.service';
 import { JwtAuthGuard } from '../auth/guards/jwt-auth.guard'; // Adjust path if necessary
@@ -34,7 +33,6 @@ export class DashboardController {
     @User() user: { role: Role; departmentId?: string; userId: string },
     @Query('period') period: 'week' | 'month' | 'year',
   ) {
-    console.log('--- Request hit DashboardController.getAttendanceChart ---');
     if (!period || !['week', 'month', 'year'].includes(period)) {
       // You might want to throw a BadRequestException or use a DTO with validation
       throw new Error(
@@ -43,7 +41,4 @@ export class DashboardController {
     }
     return this.dashboardService.getAttendanceChart(user, period);
   }
-
-  // You can add more specific endpoints here if a KPI requires unique parameters
-  // e.g., @Get('project-details/:projectId')
 }

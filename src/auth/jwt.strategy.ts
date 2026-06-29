@@ -15,10 +15,6 @@ export class JwtStrategy extends PassportStrategy(Strategy) {
       secretOrKey: process.env.JWT_SECRET || 'supersecret',
       ignoreExpiration: false,
     });
-    console.log(
-      'JwtStrategy secretOrKey:',
-      process.env.JWT_SECRET || 'supersecret',
-    );
   }
 
   async validate(payload: { sub: string; email: string; role: string }) {
@@ -29,12 +25,14 @@ export class JwtStrategy extends PassportStrategy(Strategy) {
           select: {
             id: true,
             name: true,
+            type: true,
           },
         },
         managedDepartment: {
           select: {
             id: true,
             name: true,
+            type: true,
           },
         },
       },
@@ -43,7 +41,6 @@ export class JwtStrategy extends PassportStrategy(Strategy) {
     if (!user) {
       throw new UnauthorizedException('User not found');
     }
-    console.log('JWT Secret:', process.env.JWT_SECRET);
 
     // Determine the relevant departmentId based on the user's role
     let departmentId: string | undefined;
