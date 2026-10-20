@@ -26,6 +26,13 @@ enum DepartmentType {
   CUSTOMER_SERVICE
 }
 
+enum EmploymentStatus {
+  ACTIVE
+  SUSPENDED
+  ON_LEAVE
+  FIRED
+}
+
 model User {
   id            String    @id @default(uuid())
   email         String    @unique
@@ -42,6 +49,7 @@ model User {
   resetToken    String?
   resetExpires  DateTime?
   departmentId  String?   @map("department")
+  status        EmploymentStatus @default(ACTIVE)
 
   // Relations
   contacts           Contact[]
