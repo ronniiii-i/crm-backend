@@ -25,12 +25,16 @@ import { DashboardModule } from './dashboard/dashboard.module';
 import { ConfigModule } from '@nestjs/config';
 import { UsersModule } from './users/users.module';
 import { ProfileModule } from './profile/profile.module';
+import { TenantModule } from './tenant/tenant.module';
+import { APP_INTERCEPTOR } from '@nestjs/core';
+import { TenantInterceptor } from './tenant/tenant.interceptor';
 
 @Module({
   imports: [
     ConfigModule.forRoot({
       isGlobal: true, // makes the ConfigModule available everywhere
     }),
+    TenantModule,
     // ThrottlerModule.forRoot([
     //   {
     //     name: 'default',
@@ -61,10 +65,12 @@ import { ProfileModule } from './profile/profile.module';
     DashboardModule,
     CacheModule.register({
       store: redisStore,
-      host: 'localhost', // Replace with your Redis host (e.g., 'redis' if in Docker)
-      port: 6379, // Replace with your Redis port
+      host: process.env.REDIS_HOST || 'localhost',
+      port: Number(process.env.REDIS_PORT) || 6379,
+      password: process.env.REDIS_PASSWORD || undefined,
       ttl: 300, // Default cache lifetime in seconds (e.g., 5 minutes)
-      // You can also add other options like password, db, etc.
+      // All cache keys are additionally prefixed with `tenant:{tenantId}:`
+      // by the services so tenants never share cached entries.
     }),
     UsersModule,
     ProfileModule,
@@ -75,6 +81,10 @@ import { ProfileModule } from './profile/profile.module';
     //   provide: APP_GUARD,
     //   useClass: ThrottlerGuard,
     // },
+    {
+      provide: APP_INTERCEPTOR,
+      useClass: TenantInterceptor,
+    },
     AppService,
     PrismaService,
     MailService,

@@ -12,7 +12,7 @@ export class FrontendAdapterService {
   ) {}
 
   private getUserCacheKey(userId: string): string {
-    return `user:${userId}:modules`;
+    return this.cache.tenantKey(`user:${userId}:modules`);
   }
 
   async getAccessibleModules(user: UserForAcl): Promise<AccessibleModule[]> {
@@ -53,15 +53,27 @@ export class FrontendAdapterService {
       };
     }
 
-    const accessibleModules = await this.prisma.module.findMany({
-      where: whereClause,
-      select: {
-        id: true,
-        name: true,
-        path: true,
-        icon: true,
-      },
-    });
+    const where = {
+      AND: [
+        whereClause,
+        ...(user.tenantId ? [{ tenantId: user.tenantId }] : []),
+      ],
+    };
+
+    const select = {
+      id: true,
+      name: true,
+      path: true,
+      icon: true,
+    } as const;
+
+    // Run inside the tenant context so RLS applies even on public routes
+    // (e.g. login) where the request middleware has not set a tenant yet.
+    const accessibleModules = user.tenantId
+      ? await this.prisma.withTenant(user.tenantId, (tx) =>
+          tx.module.findMany({ where, select }),
+        )
+      : await this.prisma.module.findMany({ where, select });
 
     this.cache.set(cacheKey, accessibleModules, 3600);
     return accessibleModules;

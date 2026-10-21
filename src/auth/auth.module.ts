@@ -14,6 +14,7 @@ import { DataFilterService } from '../core/data-filter.service';
 import { CacheModule } from '../cache/cache.module';
 import { RouteRegistry } from './route-registry';
 import { FrontendAdapterService } from './frontend-adapter.service';
+import { TenantModule } from '../tenant/tenant.module';
 
 @Module({
   imports: [
@@ -24,6 +25,7 @@ import { FrontendAdapterService } from './frontend-adapter.service';
       // signOptions: { expiresIn: '5m' },
     }),
     CacheModule,
+    TenantModule,
   ],
   providers: [
     AuthService,

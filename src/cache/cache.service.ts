@@ -1,10 +1,21 @@
 // src/cache/cache.service.ts
 import { Injectable } from '@nestjs/common';
 import * as NodeCache from 'node-cache';
+import { getTenantId } from '../tenant/tenant-context';
 
 @Injectable()
 export class CacheService {
   private cache: NodeCache;
+
+  /**
+   * Build a tenant-scoped cache key: `tenant:{tenantId}:{key}`.
+   * When no tenant context is active (e.g. background jobs, bootstrap),
+   * the `global` pseudo-tenant is used so keys remain deterministic and
+   * never collide with a real tenant namespace.
+   */
+  tenantKey(key: string, tenantId: string = getTenantId() ?? 'global'): string {
+    return `tenant:${tenantId}:${key}`;
+  }
 
   // Advanced cache config (in CacheService)
   //   private cache = new NodeCache({
@@ -41,14 +52,23 @@ export class CacheService {
 
   // Call this when routes change
   invalidateRouteCache(path: string): void {
-    const cacheKey = `route:${path}`;
+    const cacheKey = this.tenantKey(`route:${path}`);
     this.del(cacheKey);
   }
 
   // Call this when all routes need refreshing
   invalidateAllRoutes(): void {
-    const keys = this.cache.keys().filter((k) => k.startsWith('route:'));
+    const keys = this.cache.keys().filter((k) => k.includes(':route:'));
     keys.forEach((k) => this.del(k));
+  }
+
+  /** Drop every cache entry belonging to a tenant (e.g. on tenant purge). */
+  flushTenant(tenantId: string = getTenantId() ?? 'global'): void {
+    const prefix = `tenant:${tenantId}:`;
+    this.cache
+      .keys()
+      .filter((k) => k.startsWith(prefix))
+      .forEach((k) => this.del(k));
   }
 
   // Add to CacheService

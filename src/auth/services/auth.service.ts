@@ -3,6 +3,7 @@ import { JwtService } from '@nestjs/jwt';
 import * as bcrypt from 'bcryptjs';
 import { FrontendAdapterService } from '../frontend-adapter.service';
 import { PrismaService } from '../../prisma/prisma.service';
+import { TenantResolverService } from '../../tenant/tenant-resolver.service';
 import { Role } from '@prisma/client';
 import { MailService } from '../../mail/mail.service';
 import { addHours } from 'date-fns';
@@ -19,29 +20,40 @@ export class AuthService {
     private prisma: PrismaService,
     private mailService: MailService,
     private frontendAdapter: FrontendAdapterService,
+    private tenantResolver: TenantResolverService,
   ) {}
 
   async signup(email: string, password: string, name: string) {
     const hashedPassword = await bcrypt.hash(password, 10);
     const verifyToken = this.mailService.generateToken();
 
-    const existingUser = await this.prisma.user.findUnique({
-      where: { email },
-    });
-    if (existingUser) {
+    // Self-registration cannot know the tenant, so find an existing account by
+    // email across tenants, then fall back to the default tenant.
+    const existingTenantId = await this.tenantResolver.resolveTenantByEmail(email);
+    const tenantId =
+      existingTenantId ?? (await this.tenantResolver.resolveDefaultTenant());
+
+    if (!tenantId) {
+      throw new UnauthorizedException('No active tenant is configured');
+    }
+
+    if (existingTenantId) {
       throw new UnauthorizedException('User already exists');
     }
 
-    const user = await this.prisma.user.create({
-      data: {
-        email,
-        name,
-        password: hashedPassword,
-        role: Role.STAFF,
-        verifyToken,
-        verifyExpires: addHours(new Date(), 3),
-      },
-    });
+    const user = await this.prisma.withTenant(tenantId, (tx) =>
+      tx.user.create({
+        data: {
+          email,
+          name,
+          password: hashedPassword,
+          role: Role.STAFF,
+          verifyToken,
+          verifyExpires: addHours(new Date(), 3),
+          tenantId,
+        },
+      }),
+    );
 
     await this.mailService.sendVerificationEmail(email, name, verifyToken);
 
@@ -53,31 +65,53 @@ export class AuthService {
   }
 
   async verifyEmail(token: string) {
-    const user = await this.prisma.user.findFirst({
-      where: {
-        verifyToken: token,
-        verifyExpires: { gt: new Date() },
-      },
-    });
+    const tenantId = await this.tenantResolver.resolveTenantByToken(
+      'verifyToken',
+      token,
+    );
+    if (!tenantId) {
+      throw new UnauthorizedException('Invalid or expired token');
+    }
+
+    const user = await this.prisma.withTenant(tenantId, (tx) =>
+      tx.user.findFirst({
+        where: {
+          verifyToken: token,
+          verifyExpires: { gt: new Date() },
+        },
+      }),
+    );
 
     if (!user) {
       throw new UnauthorizedException('Invalid or expired token');
     }
 
-    await this.prisma.user.update({
-      where: { id: user.id },
-      data: {
-        isVerified: true,
-        verifyToken: null,
-        verifyExpires: null,
-      },
-    });
+    await this.prisma.withTenant(tenantId, (tx) =>
+      tx.user.update({
+        where: { id: user.id },
+        data: {
+          isVerified: true,
+          verifyToken: null,
+          verifyExpires: null,
+        },
+      }),
+    );
 
     return { success: true, message: 'Email verified successfully!' };
   }
 
   async requestPasswordReset(email: string) {
-    const user = await this.prisma.user.findUnique({ where: { email } });
+    const tenantId = await this.tenantResolver.resolveTenantByEmail(email);
+    if (!tenantId) {
+      return {
+        success: true,
+        message: 'If an account exists, you will receive an email',
+      };
+    }
+
+    const user = await this.prisma.withTenant(tenantId, (tx) =>
+      tx.user.findFirst({ where: { email } }),
+    );
     if (!user) {
       return {
         success: true,
@@ -87,25 +121,37 @@ export class AuthService {
 
     const resetToken = this.mailService.generateToken();
 
-    await this.prisma.user.update({
-      where: { id: user.id },
-      data: {
-        resetToken,
-        resetExpires: addHours(new Date(), 1),
-      },
-    });
+    await this.prisma.withTenant(tenantId, (tx) =>
+      tx.user.update({
+        where: { id: user.id },
+        data: {
+          resetToken,
+          resetExpires: addHours(new Date(), 1),
+        },
+      }),
+    );
 
     await this.mailService.sendPasswordResetEmail(email, user.name, resetToken);
     return { success: true, message: 'Password reset email sent' };
   }
 
   async resetPassword(token: string, newPassword: string) {
-    const user = await this.prisma.user.findFirst({
-      where: {
-        resetToken: token,
-        resetExpires: { gt: new Date() },
-      },
-    });
+    const tenantId = await this.tenantResolver.resolveTenantByToken(
+      'resetToken',
+      token,
+    );
+    if (!tenantId) {
+      throw new UnauthorizedException('Invalid or expired token');
+    }
+
+    const user = await this.prisma.withTenant(tenantId, (tx) =>
+      tx.user.findFirst({
+        where: {
+          resetToken: token,
+          resetExpires: { gt: new Date() },
+        },
+      }),
+    );
 
     if (!user) {
       throw new UnauthorizedException('Invalid or expired token');
@@ -113,14 +159,16 @@ export class AuthService {
 
     const hashedPassword = await bcrypt.hash(newPassword, 10);
 
-    await this.prisma.user.update({
-      where: { id: user.id },
-      data: {
-        password: hashedPassword,
-        resetToken: null,
-        resetExpires: null,
-      },
-    });
+    await this.prisma.withTenant(tenantId, (tx) =>
+      tx.user.update({
+        where: { id: user.id },
+        data: {
+          password: hashedPassword,
+          resetToken: null,
+          resetExpires: null,
+        },
+      }),
+    );
 
     return { success: true, message: 'Password reset successful' };
   }
@@ -130,13 +178,18 @@ export class AuthService {
   }
 
   async findUserById(id: string) {
-    return this.prisma.user.findUnique({
-      where: { id },
-      include: {
-        department: { select: { id: true, name: true, type: true } },
-        managedDepartment: { select: { id: true, name: true, type: true } },
-      },
-    });
+    const tenantId = await this.tenantResolver.resolveTenantByUserId(id);
+    if (!tenantId) return null;
+
+    return this.prisma.withTenant(tenantId, (tx) =>
+      tx.user.findUnique({
+        where: { id },
+        include: {
+          department: { select: { id: true, name: true, type: true } },
+          managedDepartment: { select: { id: true, name: true, type: true } },
+        },
+      }),
+    );
   }
 
   // async login(email: string, password: string) {
@@ -198,25 +251,32 @@ export class AuthService {
   // }
 
   async login(email: string, password: string) {
-    const user = await this.prisma.user.findUnique({
-      where: { email },
-      include: {
-        department: {
-          select: {
-            id: true,
-            name: true,
-            type: true,
+    const tenantId = await this.tenantResolver.resolveTenantByEmail(email);
+    if (!tenantId) {
+      throw new UnauthorizedException('Invalid Email');
+    }
+
+    const user = await this.prisma.withTenant(tenantId, (tx) =>
+      tx.user.findFirst({
+        where: { email },
+        include: {
+          department: {
+            select: {
+              id: true,
+              name: true,
+              type: true,
+            },
+          },
+          managedDepartment: {
+            select: {
+              id: true,
+              name: true,
+              type: true,
+            },
           },
         },
-        managedDepartment: {
-          select: {
-            id: true,
-            name: true,
-            type: true,
-          },
-        },
-      },
-    });
+      }),
+    );
 
     if (!user) {
       throw new UnauthorizedException('Invalid Email');
@@ -234,13 +294,14 @@ export class AuthService {
     const userForAcl = {
       id: user.id,
       role: user.role as 'ADMIN' | 'HOD' | 'LEAD' | 'STAFF', // Cast role to expected type
+      tenantId: user.tenantId,
       department: user.department ? { type: user.department.type } : undefined,
       managedDepartment: user.managedDepartment
         ? { type: user.managedDepartment.type }
         : undefined,
     };
 
-    // Get accessible modules using the frontend adapter
+    // Get accessible modules using the frontend adapter (tenant-scoped)
     const accessibleModules =
       await this.frontendAdapter.getAccessibleModules(userForAcl);
 
@@ -248,6 +309,7 @@ export class AuthService {
       sub: user.id,
       email: user.email,
       role: user.role,
+      tenantId: user.tenantId,
       departmentId: user.department?.id || null,
       managedDepartmentId: user.managedDepartment?.id || null,
       verified: user.isVerified,

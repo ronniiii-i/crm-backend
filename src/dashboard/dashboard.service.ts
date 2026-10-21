@@ -1,8 +1,16 @@
 import { Injectable, Inject } from '@nestjs/common';
 import { CACHE_MANAGER } from '@nestjs/cache-manager';
 import { PrismaService } from '../prisma/prisma.service'; // Adjust path if necessary
-import { Role } from '@prisma/client'; // Import Role enum from your Prisma client
+import { Role, Prisma } from '@prisma/client'; // Import Role enum from your Prisma client
 import { Cache } from 'cache-manager'; // Import Cache type from cache-manager
+import { getTenantId } from '../tenant/tenant-context';
+
+interface DashboardUser {
+  role: Role;
+  departmentId?: string;
+  userId: string;
+  tenantId?: string;
+}
 
 @Injectable()
 export class DashboardService {
@@ -11,6 +19,25 @@ export class DashboardService {
     @Inject(CACHE_MANAGER) private cacheManager: Cache, // Inject NestJS CacheManager
   ) {}
 
+  /** Tenant-scoped cache key so tenants never share cached dashboards. */
+  private tenantCacheKey(key: string, tenantId?: string): string {
+    return `tenant:${tenantId ?? getTenantId() ?? 'global'}:${key}`;
+  }
+
+  /**
+   * Run an aggregation inside the tenant transaction so Postgres RLS applies
+   * on the same pooled connection as the query. Falls back to the plain client
+   * when no tenant is available (RLS then fails closed at the DB layer).
+   */
+  private scoped<T>(
+    tenantId: string | undefined,
+    fn: (db: Prisma.TransactionClient | PrismaService) => Promise<T>,
+  ): Promise<T> {
+    const resolved = tenantId ?? getTenantId();
+    if (!resolved) return fn(this.prisma);
+    return this.prisma.withTenant(resolved, (tx) => fn(tx));
+  }
+
   /**
    * Main method to get dashboard data based on user's role and context.
    */
@@ -18,25 +45,34 @@ export class DashboardService {
     role: Role;
     departmentId?: string;
     userId: string;
+    tenantId?: string;
   }) {
     switch (user.role) {
       case Role.ADMIN:
-        return this.getAdminDashboard();
+        return this.getAdminDashboard(user.tenantId);
       case Role.HOD:
         if (!user.departmentId) {
           throw new Error('HOD user must have a departmentId.');
         }
-        return this.getHodDashboard(user.departmentId);
+        return this.getHodDashboard(user.departmentId, user.tenantId);
       case Role.LEAD:
         if (!user.departmentId || !user.userId) {
           throw new Error('Lead user must have departmentId and userId.');
         }
-        return this.getLeadDashboard(user.departmentId, user.userId);
+        return this.getLeadDashboard(
+          user.departmentId,
+          user.userId,
+          user.tenantId,
+        );
       case Role.STAFF:
         if (!user.departmentId || !user.userId) {
           throw new Error('Staff user must have departmentId and userId.');
         }
-        return this.getStaffDashboard(user.departmentId, user.userId);
+        return this.getStaffDashboard(
+          user.departmentId,
+          user.userId,
+          user.tenantId,
+        );
       default:
         throw new Error('Invalid user role provided.');
     }
@@ -44,146 +80,347 @@ export class DashboardService {
 
   // --- Private Methods for Each Role's Dashboard Data ---
 
-  private async getAdminDashboard() {
-    const cacheKey = 'admin-dashboard';
+  private async getAdminDashboard(tenantId?: string) {
+    const cacheKey = this.tenantCacheKey('admin-dashboard', tenantId);
     const cachedData = await this.cacheManager.get(cacheKey);
     if (cachedData) {
       return cachedData;
     }
 
-    // Fetch all admin-level KPIs in parallel
-    const [
-      totalRevenue,
-      totalExpenses,
-      salesPipelineSummary,
-      totalTickets,
-      totalOpenTickets,
-      projectStatuses,
-      securityAlertsCount,
-      // ... add other admin KPIs
-    ] = await Promise.all([
-      this.getTotalRevenue(),
-      this.getTotalExpenses(),
-      this.getSalesPipelineSummary(),
-      this.getTotalTickets(),
-      this.getTotalOpenTickets(),
-      this.getProjectStatuses(),
-      this.getSecurityAlertsCount(),
-      // this.getCashflowSummary(), // Implement this method
-      // this.getAttendanceSummary(), // Implement a summary for admin
-    ]);
+    const resolved = tenantId ?? getTenantId();
+    if (!resolved) {
+      // Fallback when no tenant context is available; RLS will fail closed.
+      const [
+        totalRevenue,
+        totalExpenses,
+        salesPipelineSummary,
+        totalTickets,
+        totalOpenTickets,
+        projectStatuses,
+        securityAlertsCount,
+      ] = await Promise.all([
+        this.getTotalRevenue(tenantId),
+        this.getTotalExpenses(tenantId),
+        this.getSalesPipelineSummary(tenantId),
+        this.getTotalTickets(tenantId),
+        this.getTotalOpenTickets(tenantId),
+        this.getProjectStatuses(tenantId),
+        this.getSecurityAlertsCount(tenantId),
+      ]);
 
-    const dashboardData = {
-      totalRevenue,
-      totalExpenses,
-      salesPipelineSummary,
-      totalTickets,
-      totalOpenTickets,
-      projectStatuses,
-      securityAlertsCount,
-      // ... include other fetched data
-    };
+      const dashboardData = {
+        totalRevenue,
+        totalExpenses,
+        salesPipelineSummary,
+        totalTickets,
+        totalOpenTickets,
+        projectStatuses,
+        securityAlertsCount,
+      };
 
-    await this.cacheManager.set(cacheKey, dashboardData); // Cache for 5 mins (default TTL)
-    return dashboardData;
-  }
-
-  private async getHodDashboard(departmentId: string) {
-    const cacheKey = `hod-dashboard-${departmentId}`;
-    const cachedData = await this.cacheManager.get(cacheKey);
-    if (cachedData) {
-      return cachedData;
+      await this.cacheManager.set(cacheKey, dashboardData);
+      return dashboardData;
     }
 
-    // Fetch department-specific KPIs for HOD
-    const [
-      departmentRevenue,
-      departmentExpenses,
-      departmentOpenTickets,
-      departmentProjectStatuses,
-      // ... add other HOD KPIs
-    ] = await Promise.all([
-      this.getDepartmentRevenue(departmentId),
-      this.getDepartmentExpenses(departmentId),
-      this.getDepartmentOpenTickets(departmentId),
-      this.getDepartmentProjectStatuses(departmentId),
-      // this.getDepartmentCashflow(departmentId),
-      // this.getDepartmentAttendanceSummary(departmentId),
-      // this.getDepartmentBudgetUtilization(departmentId),
-    ]);
+    // Run all admin KPIs in a single tenant-scoped transaction to avoid
+    // exhausting the connection pool with parallel transactions.
+    const dashboardData = await this.prisma.withTenant(resolved, async (tx) => {
+      const [
+        totalRevenue,
+        totalExpenses,
+        salesPipelineSummary,
+        totalTickets,
+        totalOpenTickets,
+        projectStatuses,
+        securityAlertsCount,
+      ] = await Promise.all([
+        tx.payment.aggregate({
+          _sum: { amount: true },
+          where: { tenantId: resolved },
+        }),
+        tx.expense.aggregate({
+          _sum: { amount: true },
+          where: { tenantId: resolved },
+        }),
+        tx.deal.groupBy({
+          by: ['status'],
+          _sum: { amount: true },
+          _count: { id: true },
+          where: { tenantId: resolved },
+          orderBy: { _sum: { amount: 'desc' } },
+        }),
+        tx.supportTicket.count({ where: { tenantId: resolved } }),
+        tx.supportTicket.count({
+          where: { tenantId: resolved, status: { notIn: ['CLOSED', 'RESOLVED'] } },
+        }),
+        tx.project.groupBy({
+          by: ['status'],
+          _count: { id: true },
+          where: { tenantId: resolved },
+          orderBy: { _count: { id: 'desc' } },
+        }),
+        tx.notification.count({
+          where: { tenantId: resolved, type: 'security', read: false },
+        }),
+      ]);
 
-    const dashboardData = {
-      departmentId,
-      departmentRevenue,
-      departmentExpenses,
-      departmentOpenTickets,
-      departmentProjectStatuses,
-      // ... include other fetched data
-    };
+      return {
+        totalRevenue: totalRevenue._sum.amount || 0,
+        totalExpenses: totalExpenses._sum.amount || 0,
+        salesPipelineSummary,
+        totalTickets,
+        totalOpenTickets,
+        projectStatuses,
+        securityAlertsCount,
+      };
+    });
 
     await this.cacheManager.set(cacheKey, dashboardData);
     return dashboardData;
   }
 
-  private async getLeadDashboard(departmentId: string, userId: string) {
-    const cacheKey = `lead-dashboard-${departmentId}-${userId}`;
+  private async getHodDashboard(departmentId: string, tenantId?: string) {
+    const cacheKey = this.tenantCacheKey(
+      `hod-dashboard-${departmentId}`,
+      tenantId,
+    );
     const cachedData = await this.cacheManager.get(cacheKey);
     if (cachedData) {
       return cachedData;
     }
 
-    // Fetch Lead-specific KPIs (team-level, personal targets)
-    const [
-      teamSalesPipeline,
-      teamTaskCompletion,
-      personalTasksDue,
-      // ... add other Lead KPIs
-    ] = await Promise.all([
-      this.getTeamSalesPipeline(departmentId, userId),
-      this.getTeamTaskCompletion(departmentId),
-      this.getPersonalTasksDue(userId),
-    ]);
+    const resolved = tenantId ?? getTenantId();
+    let dashboardData: any;
 
-    const dashboardData = {
-      departmentId,
-      userId,
-      teamSalesPipeline,
-      teamTaskCompletion,
-      personalTasksDue,
-      // ... include other fetched data
-    };
+    if (!resolved) {
+      const [
+        departmentRevenue,
+        departmentExpenses,
+        departmentOpenTickets,
+        departmentProjectStatuses,
+      ] = await Promise.all([
+        this.getDepartmentRevenue(departmentId, tenantId),
+        this.getDepartmentExpenses(departmentId, tenantId),
+        this.getDepartmentOpenTickets(departmentId, tenantId),
+        this.getDepartmentProjectStatuses(departmentId, tenantId),
+      ]);
+
+      dashboardData = {
+        departmentId,
+        departmentRevenue,
+        departmentExpenses,
+        departmentOpenTickets,
+        departmentProjectStatuses,
+      };
+    } else {
+      dashboardData = await this.prisma.withTenant(resolved, async (tx) => {
+        const [
+          rev,
+          exp,
+          openTickets,
+          projectStatuses,
+        ] = await Promise.all([
+          tx.payment.aggregate({
+            _sum: { amount: true },
+            where: {
+              tenantId: resolved,
+              invoice: {
+                customer: {
+                  createdBy: { departmentId },
+                },
+              },
+            },
+          }),
+          tx.expense.aggregate({
+            _sum: { amount: true },
+            where: { tenantId: resolved, departmentId },
+          }),
+          tx.supportTicket.count({
+            where: {
+              tenantId: resolved,
+              assignedTo: { departmentId },
+              status: { notIn: ['CLOSED', 'RESOLVED'] },
+            },
+          }),
+          tx.project.groupBy({
+            by: ['status'],
+            _count: { id: true },
+            where: { tenantId: resolved, createdBy: { departmentId } },
+          }),
+        ]);
+
+        return {
+          departmentId,
+          departmentRevenue: rev._sum.amount || 0,
+          departmentExpenses: exp._sum.amount || 0,
+          departmentOpenTickets: openTickets,
+          departmentProjectStatuses: projectStatuses,
+        };
+      });
+    }
 
     await this.cacheManager.set(cacheKey, dashboardData);
     return dashboardData;
   }
 
-  private async getStaffDashboard(departmentId: string, userId: string) {
-    const cacheKey = `staff-dashboard-${departmentId}-${userId}`;
+  private async getLeadDashboard(
+    departmentId: string,
+    userId: string,
+    tenantId?: string,
+  ) {
+    const cacheKey = this.tenantCacheKey(
+      `lead-dashboard-${departmentId}-${userId}`,
+      tenantId,
+    );
     const cachedData = await this.cacheManager.get(cacheKey);
     if (cachedData) {
       return cachedData;
     }
 
-    // Fetch Staff-specific KPIs (personal tasks, attendance)
-    const [
-      personalAttendanceSummary,
-      assignedTickets,
-      myProjectsStatus,
-      // ... add other Staff KPIs
-    ] = await Promise.all([
-      this.getPersonalAttendanceSummary(userId),
-      this.getAssignedTickets(userId),
-      this.getMyProjectsStatus(userId),
-    ]);
+    const resolved = tenantId ?? getTenantId();
+    let dashboardData: any;
 
-    const dashboardData = {
-      departmentId,
-      userId,
-      personalAttendanceSummary,
-      assignedTickets,
-      myProjectsStatus,
-      // ... include other fetched data
-    };
+    if (!resolved) {
+      const [teamSalesPipeline, teamTaskCompletion, personalTasksDue] =
+        await Promise.all([
+          this.getTeamSalesPipeline(departmentId, userId, tenantId),
+          this.getTeamTaskCompletion(departmentId, tenantId),
+          this.getPersonalTasksDue(userId, tenantId),
+        ]);
+
+      dashboardData = {
+        departmentId,
+        userId,
+        teamSalesPipeline,
+        teamTaskCompletion,
+        personalTasksDue,
+      };
+    } else {
+      dashboardData = await this.prisma.withTenant(resolved, async (tx) => {
+        const today = new Date();
+        today.setHours(0, 0, 0, 0);
+
+        const [teamSalesPipeline, totalTasks, completedTasks, personalTasksDue] =
+          await Promise.all([
+            tx.deal.groupBy({
+              by: ['status'],
+              _sum: { amount: true },
+              _count: { id: true },
+              where: {
+                tenantId: resolved,
+                OR: [
+                  { userId },
+                  { assignedTo: { departmentId } },
+                ],
+              },
+            }),
+            tx.task.count({
+              where: { tenantId: resolved, assignedTo: { departmentId } },
+            }),
+            tx.task.count({
+              where: {
+                tenantId: resolved,
+                assignedTo: { departmentId },
+                status: 'Completed',
+              },
+            }),
+            tx.task.count({
+              where: {
+                tenantId: resolved,
+                assignedToId: userId,
+                status: { notIn: ['Completed', 'Cancelled'] },
+                dueDate: { lte: today },
+              },
+            }),
+          ]);
+
+        return {
+          departmentId,
+          userId,
+          teamSalesPipeline,
+          teamTaskCompletion:
+            totalTasks > 0 ? (completedTasks / totalTasks) * 100 : 0,
+          personalTasksDue,
+        };
+      });
+    }
+
+    await this.cacheManager.set(cacheKey, dashboardData);
+    return dashboardData;
+  }
+
+  private async getStaffDashboard(
+    departmentId: string,
+    userId: string,
+    tenantId?: string,
+  ) {
+    const cacheKey = this.tenantCacheKey(
+      `staff-dashboard-${departmentId}-${userId}`,
+      tenantId,
+    );
+    const cachedData = await this.cacheManager.get(cacheKey);
+    if (cachedData) {
+      return cachedData;
+    }
+
+    const resolved = tenantId ?? getTenantId();
+    let dashboardData: any;
+
+    if (!resolved) {
+      const [personalAttendanceSummary, assignedTickets, myProjectsStatus] =
+        await Promise.all([
+          this.getPersonalAttendanceSummary(userId, tenantId),
+          this.getAssignedTickets(userId, tenantId),
+          this.getMyProjectsStatus(userId, tenantId),
+        ]);
+
+      dashboardData = {
+        departmentId,
+        userId,
+        personalAttendanceSummary,
+        assignedTickets,
+        myProjectsStatus,
+      };
+    } else {
+      dashboardData = await this.prisma.withTenant(resolved, async (tx) => {
+        const thirtyDaysAgo = new Date();
+        thirtyDaysAgo.setDate(thirtyDaysAgo.getDate() - 30);
+
+        const [personalAttendanceSummary, assignedTickets, myProjectsStatus] =
+          await Promise.all([
+            tx.attendanceRecord.groupBy({
+              by: ['status'],
+              _count: { id: true },
+              where: { tenantId: resolved, userId, date: { gte: thirtyDaysAgo } },
+            }),
+            tx.supportTicket.findMany({
+              where: {
+                tenantId: resolved,
+                userId,
+                status: { notIn: ['CLOSED', 'RESOLVED'] },
+              },
+              select: { id: true, subject: true, status: true, priority: true },
+              orderBy: { createdAt: 'asc' },
+            }),
+            tx.project.groupBy({
+              by: ['status'],
+              _count: { id: true },
+              where: {
+                tenantId: resolved,
+                teamMembers: { some: { id: userId } },
+              },
+            }),
+          ]);
+
+        return {
+          departmentId,
+          userId,
+          personalAttendanceSummary,
+          assignedTickets,
+          myProjectsStatus,
+        };
+      });
+    }
 
     await this.cacheManager.set(cacheKey, dashboardData);
     return dashboardData;
@@ -192,218 +429,291 @@ export class DashboardService {
   // --- KPI Aggregation Methods (Examples - you will implement more) ---
 
   // Financial KPIs (Admin)
-  async getTotalRevenue(): Promise<number> {
-    const result = await this.prisma.payment.aggregate({
-      _sum: { amount: true },
-    });
+  async getTotalRevenue(tenantId?: string): Promise<number> {
+    const result = await this.scoped(tenantId, (db) =>
+      db.payment.aggregate({
+        _sum: { amount: true },
+        where: { ...(tenantId ? { tenantId } : {}) },
+      }),
+    );
     return result._sum.amount || 0;
   }
 
-  async getTotalExpenses(): Promise<number> {
-    const result = await this.prisma.expense.aggregate({
-      _sum: { amount: true },
-    });
+  async getTotalExpenses(tenantId?: string): Promise<number> {
+    const result = await this.scoped(tenantId, (db) =>
+      db.expense.aggregate({
+        _sum: { amount: true },
+        where: { ...(tenantId ? { tenantId } : {}) },
+      }),
+    );
     return result._sum.amount || 0;
   }
 
-  async getSalesPipelineSummary() {
-    return this.prisma.deal.groupBy({
-      by: ['status'],
-      _sum: { amount: true },
-      _count: { id: true },
-      orderBy: {
-        _sum: {
-          amount: 'desc',
+  async getSalesPipelineSummary(tenantId?: string) {
+    return this.scoped(tenantId, (db) =>
+      db.deal.groupBy({
+        by: ['status'],
+        _sum: { amount: true },
+        _count: { id: true },
+        where: { ...(tenantId ? { tenantId } : {}) },
+        orderBy: {
+          _sum: {
+            amount: 'desc',
+          },
         },
-      },
-    });
+      }),
+    );
   }
 
-  async getTotalTickets(): Promise<number> {
-    return this.prisma.supportTicket.count();
+  async getTotalTickets(tenantId?: string): Promise<number> {
+    return this.scoped(tenantId, (db) =>
+      db.supportTicket.count({
+        where: { ...(tenantId ? { tenantId } : {}) },
+      }),
+    );
   }
 
-  async getTotalOpenTickets(): Promise<number> {
-    return this.prisma.supportTicket.count({
-      where: { status: { notIn: ['CLOSED', 'RESOLVED'] } },
-    });
-  }
-
-  async getProjectStatuses() {
-    return this.prisma.project.groupBy({
-      by: ['status'],
-      _count: { id: true },
-      orderBy: {
-        _count: {
-          id: 'desc',
+  async getTotalOpenTickets(tenantId?: string): Promise<number> {
+    return this.scoped(tenantId, (db) =>
+      db.supportTicket.count({
+        where: {
+          ...(tenantId ? { tenantId } : {}),
+          status: { notIn: ['CLOSED', 'RESOLVED'] },
         },
-      },
-    });
+      }),
+    );
   }
 
-  async getSecurityAlertsCount(): Promise<number> {
+  async getProjectStatuses(tenantId?: string) {
+    return this.scoped(tenantId, (db) =>
+      db.project.groupBy({
+        by: ['status'],
+        _count: { id: true },
+        where: { ...(tenantId ? { tenantId } : {}) },
+        orderBy: {
+          _count: {
+            id: 'desc',
+          },
+        },
+      }),
+    );
+  }
+
+  async getSecurityAlertsCount(tenantId?: string): Promise<number> {
     // Assuming 'Notification' model has a 'type' field and 'security' type
-    return this.prisma.notification.count({
-      where: { type: 'security', read: false }, // Count unread security alerts
-    });
+    return this.scoped(tenantId, (db) =>
+      db.notification.count({
+        where: {
+          ...(tenantId ? { tenantId } : {}),
+          type: 'security',
+          read: false,
+        }, // Count unread security alerts
+      }),
+    );
   }
 
   // --- Department-Specific KPIs (HOD) ---
-  async getDepartmentRevenue(departmentId: string): Promise<number> {
-    const result = await this.prisma.payment.aggregate({
-      _sum: { amount: true },
-      where: {
-        // Assuming your Payment model is linked to a user, and user to a department
-        invoice: {
-          customer: {
-            // Adjust this filter to match your actual Prisma schema.
-            // For example, if 'customer' has a 'user' relation:
-            createdBy: {
-              departmentId: departmentId, // Assuming User model has a departmentId
+  async getDepartmentRevenue(
+    departmentId: string,
+    tenantId?: string,
+  ): Promise<number> {
+    const result = await this.scoped(tenantId, (db) =>
+      db.payment.aggregate({
+        _sum: { amount: true },
+        where: {
+          ...(tenantId ? { tenantId } : {}),
+          // Assuming your Payment model is linked to a user, and user to a department
+          invoice: {
+            customer: {
+              // Adjust this filter to match your actual Prisma schema.
+              // For example, if 'customer' has a 'user' relation:
+              createdBy: {
+                departmentId: departmentId, // Assuming User model has a departmentId
+              },
+              // If 'customer' directly has a departmentId, use:
+              // departmentId: departmentId,
             },
-            // If 'customer' directly has a departmentId, use:
-            // departmentId: departmentId,
+          },
+          // OR if Payment directly has a departmentId field:
+          // departmentId: departmentId
+        },
+      }),
+    );
+    return result._sum.amount || 0;
+  }
+
+  async getDepartmentExpenses(
+    departmentId: string,
+    tenantId?: string,
+  ): Promise<number> {
+    const result = await this.scoped(tenantId, (db) =>
+      db.expense.aggregate({
+        _sum: { amount: true },
+        where: {
+          ...(tenantId ? { tenantId } : {}),
+          departmentId: departmentId, // Assuming Expense model has a departmentId
+        },
+      }),
+    );
+    return result._sum.amount || 0;
+  }
+
+  async getDepartmentOpenTickets(
+    departmentId: string,
+    tenantId?: string,
+  ): Promise<number> {
+    return this.scoped(tenantId, (db) =>
+      db.supportTicket.count({
+        where: {
+          ...(tenantId ? { tenantId } : {}),
+          assignedTo: {
+            departmentId: departmentId, // Assuming User model has a departmentId
+          },
+          // Exclude closed/resolved tickets
+          status: { notIn: ['CLOSED', 'RESOLVED'] },
+        },
+      }),
+    );
+  }
+
+  async getDepartmentProjectStatuses(departmentId: string, tenantId?: string) {
+    return this.scoped(tenantId, (db) =>
+      db.project.groupBy({
+        by: ['status'],
+        _count: { id: true },
+        where: {
+          ...(tenantId ? { tenantId } : {}),
+          createdBy: {
+            departmentId: departmentId,
           },
         },
-        // OR if Payment directly has a departmentId field:
-        // departmentId: departmentId
-      },
-    });
-    return result._sum.amount || 0;
-  }
-
-  async getDepartmentExpenses(departmentId: string): Promise<number> {
-    const result = await this.prisma.expense.aggregate({
-      _sum: { amount: true },
-      where: {
-        departmentId: departmentId, // Assuming Expense model has a departmentId
-      },
-    });
-    return result._sum.amount || 0;
-  }
-
-  async getDepartmentOpenTickets(departmentId: string): Promise<number> {
-    return this.prisma.supportTicket.count({
-      where: {
-        assignedTo: {
-          departmentId: departmentId, // Assuming User model has a departmentId
-        },
-        // Exclude closed/resolved tickets
-        status: { notIn: ['CLOSED', 'RESOLVED'] },
-      },
-    });
-  }
-
-  async getDepartmentProjectStatuses(departmentId: string) {
-    return this.prisma.project.groupBy({
-      by: ['status'],
-      _count: { id: true },
-      where: {
-        createdBy: {
-          departmentId: departmentId,
-        },
-      },
-    });
+      }),
+    );
   }
 
   // --- Team/Personal KPIs (Lead/Staff) ---
-  async getTeamSalesPipeline(departmentId: string, leadId: string) {
+  async getTeamSalesPipeline(
+    departmentId: string,
+    leadId: string,
+    tenantId?: string,
+  ) {
     // Assuming Deal has a field for assigned lead/salesperson, and departmentId
-    return this.prisma.deal.groupBy({
-      by: ['status'],
-      _sum: { amount: true },
-      _count: { id: true },
-      where: {
-        OR: [
-          { userId: leadId }, // Deals directly assigned to the lead
-          // Add logic for deals in the lead's team/department if applicable
-          {
-            // Example: If a deal has a relationship to users in a department
-            // AND the users are managed by this lead. This depends heavily on your schema.
-            // For simplicity, we'll assume `assignedToId` is sufficient for team/personal scope.
-            assignedTo: {
-              departmentId: departmentId, // Assuming user.departmentId is stored
+    return this.scoped(tenantId, (db) =>
+      db.deal.groupBy({
+        by: ['status'],
+        _sum: { amount: true },
+        _count: { id: true },
+        where: {
+          ...(tenantId ? { tenantId } : {}),
+          OR: [
+            { userId: leadId }, // Deals directly assigned to the lead
+            // Add logic for deals in the lead's team/department if applicable
+            {
+              // Example: If a deal has a relationship to users in a department
+              // AND the users are managed by this lead. This depends heavily on your schema.
+              // For simplicity, we'll assume `assignedToId` is sufficient for team/personal scope.
+              assignedTo: {
+                departmentId: departmentId, // Assuming user.departmentId is stored
+              },
             },
-          },
-        ],
-      },
-    });
+          ],
+        },
+      }),
+    );
   }
 
-  async getTeamTaskCompletion(departmentId: string) {
+  async getTeamTaskCompletion(departmentId: string, tenantId?: string) {
     // Assuming Task model exists and can be filtered by assignee/department
-    const totalTasks = await this.prisma.task.count({
-      where: { assignedTo: { departmentId: departmentId } },
+    return this.scoped(tenantId, async (db) => {
+      const totalTasks = await db.task.count({
+        where: {
+          ...(tenantId ? { tenantId } : {}),
+          assignedTo: { departmentId: departmentId },
+        },
+      });
+      const completedTasks = await db.task.count({
+        where: {
+          ...(tenantId ? { tenantId } : {}),
+          assignedTo: { departmentId: departmentId },
+          status: 'Completed',
+        },
+      });
+      return totalTasks > 0 ? (completedTasks / totalTasks) * 100 : 0;
     });
-    const completedTasks = await this.prisma.task.count({
-      where: {
-        assignedTo: { departmentId: departmentId },
-        status: 'Completed',
-      },
-    });
-    return totalTasks > 0 ? (completedTasks / totalTasks) * 100 : 0;
   }
 
-  async getPersonalTasksDue(userId: string) {
+  async getPersonalTasksDue(userId: string, tenantId?: string) {
     // Assuming Task model has a dueDate and assignedToId
     const today = new Date();
     today.setHours(0, 0, 0, 0); // Start of today
-    return this.prisma.task.count({
-      where: {
-        assignedToId: userId,
-        status: { notIn: ['Completed', 'Cancelled'] },
-        dueDate: { lte: today }, // Tasks due today or overdue
-      },
-    });
+    return this.scoped(tenantId, (db) =>
+      db.task.count({
+        where: {
+          ...(tenantId ? { tenantId } : {}),
+          assignedToId: userId,
+          status: { notIn: ['Completed', 'Cancelled'] },
+          dueDate: { lte: today }, // Tasks due today or overdue
+        },
+      }),
+    );
   }
 
-  async getPersonalAttendanceSummary(userId: string) {
+  async getPersonalAttendanceSummary(userId: string, tenantId?: string) {
     // Example: Count absences/presences in the last 30 days
     const thirtyDaysAgo = new Date();
     thirtyDaysAgo.setDate(thirtyDaysAgo.getDate() - 30);
 
-    return await this.prisma.attendanceRecord.groupBy({
-      by: ['status'], // e.g., 'Present', 'Absent', 'Leave'
-      _count: { id: true },
-      where: {
-        userId: userId,
-        date: { gte: thirtyDaysAgo },
-      },
-    });
+    return this.scoped(tenantId, (db) =>
+      db.attendanceRecord.groupBy({
+        by: ['status'], // e.g., 'Present', 'Absent', 'Leave'
+        _count: { id: true },
+        where: {
+          ...(tenantId ? { tenantId } : {}),
+          userId: userId,
+          date: { gte: thirtyDaysAgo },
+        },
+      }),
+    );
   }
 
-  async getAssignedTickets(userId: string) {
+  async getAssignedTickets(userId: string, tenantId?: string) {
     // Tickets assigned to a specific staff member
-    return this.prisma.supportTicket.findMany({
-      where: {
-        userId: userId,
-        status: { notIn: ['CLOSED', 'RESOLVED'] },
-      },
-      select: { id: true, subject: true, status: true, priority: true },
-      orderBy: { createdAt: 'asc' },
-    });
+    return this.scoped(tenantId, (db) =>
+      db.supportTicket.findMany({
+        where: {
+          ...(tenantId ? { tenantId } : {}),
+          userId: userId,
+          status: { notIn: ['CLOSED', 'RESOLVED'] },
+        },
+        select: { id: true, subject: true, status: true, priority: true },
+        orderBy: { createdAt: 'asc' },
+      }),
+    );
   }
 
-  async getMyProjectsStatus(userId: string) {
+  async getMyProjectsStatus(userId: string, tenantId?: string) {
     // Projects where the staff member is involved/assigned
-    return this.prisma.project.groupBy({
-      by: ['status'],
-      _count: { id: true },
-      where: {
-        // Assuming Project model has a relation to users or a list of assigned users
-        // This might need adjustment based on your Project-User relationship
-        teamMembers: {
-          some: {
-            id: userId,
+    return this.scoped(tenantId, (db) =>
+      db.project.groupBy({
+        by: ['status'],
+        _count: { id: true },
+        where: {
+          ...(tenantId ? { tenantId } : {}),
+          // Assuming Project model has a relation to users or a list of assigned users
+          // This might need adjustment based on your Project-User relationship
+          teamMembers: {
+            some: {
+              id: userId,
+            },
           },
         },
-      },
-    });
+      }),
+    );
   }
 
   // --- Example for Attendance Chart (filterable by period) ---
   async getAttendanceChart(
-    user: { role: Role; departmentId?: string; userId: string },
+    user: { role: Role; departmentId?: string; userId: string; tenantId?: string },
     period: 'week' | 'month' | 'year',
   ) {
     // This method needs to be refined based on how you store attendance dates
@@ -430,6 +740,10 @@ export class DashboardService {
       date: { gte: startDate },
     };
 
+    if (user.tenantId) {
+      whereClause.tenantId = user.tenantId;
+    }
+
     if (user.role === Role.ADMIN) {
       // No additional user-based filter needed for admin
     } else if (user.role === Role.HOD && user.departmentId) {
@@ -445,12 +759,14 @@ export class DashboardService {
 
     // This is a basic example. For a real chart, you'd likely group by date
     // and then aggregate counts of different statuses (Present, Absent, etc.)
-    return await this.prisma.attendanceRecord.groupBy({
-      by: ['date', 'status'], // Group by date and status
-      _count: { id: true },
-      where: whereClause,
-      orderBy: { date: 'asc' },
-    });
+    return this.scoped(user.tenantId, (db) =>
+      db.attendanceRecord.groupBy({
+        by: ['date', 'status'], // Group by date and status
+        _count: { id: true },
+        where: whereClause,
+        orderBy: { date: 'asc' },
+      }),
+    );
   }
 
   // REMINDER: You'll need to add Prisma models and fields for `Task`

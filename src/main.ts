@@ -33,6 +33,7 @@ async function bootstrap() {
 
   const PORT = process.env.PORT || 3030;
   await app.listen(PORT);
+  console.log(`Listening on port: ${PORT}`)
 }
 bootstrap().catch((err) => {
   console.error('Error during application bootstrap:', err);

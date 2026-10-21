@@ -41,6 +41,7 @@ export interface AccessibleModule {
 export interface UserForAcl {
   id: string;
   role: string;
+  tenantId?: string | null;
   department?: { type: string } | null;
   managedDepartment?: { type: string } | null;
 }

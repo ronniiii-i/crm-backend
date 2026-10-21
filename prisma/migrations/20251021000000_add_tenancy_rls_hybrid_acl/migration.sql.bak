@@ -1,0 +1,8 @@
+﻿npx.cmd : npm warn exec The following package was not found and will be installed: prisma@7.10.1
+At line:1 char:1
++ npx.cmd prisma migrate diff --from-empty --to-schema-datamodel prisma ...
++ ~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~
+    + CategoryInfo          : NotSpecified: (npm warn exec T...: prisma@7.10.1:String) [], RemoteException
+    + FullyQualifiedErrorId : NativeCommandError
+ 
+

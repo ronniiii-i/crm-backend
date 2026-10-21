@@ -18,7 +18,13 @@ export class DashboardController {
   @Get()
   @Roles(Role.ADMIN, Role.HOD, Role.LEAD, Role.STAFF)
   async getDashboard(
-    @User() user: { role: Role; departmentId?: string; userId: string },
+    @User()
+    user: {
+      role: Role;
+      departmentId?: string;
+      userId: string;
+      tenantId?: string;
+    },
   ) {
     return this.dashboardService.getDashboardData(user);
   }
@@ -30,7 +36,13 @@ export class DashboardController {
   @Get('attendance-chart')
   @Roles(Role.ADMIN, Role.HOD, Role.LEAD, Role.STAFF)
   async getAttendanceChart(
-    @User() user: { role: Role; departmentId?: string; userId: string },
+    @User()
+    user: {
+      role: Role;
+      departmentId?: string;
+      userId: string;
+      tenantId?: string;
+    },
     @Query('period') period: 'week' | 'month' | 'year',
   ) {
     if (!period || !['week', 'month', 'year'].includes(period)) {
