@@ -68,29 +68,43 @@ export class DataFilterService {
     role: Role;
     tenantId?: string;
     departmentId?: string;
+    managedDepartmentId?: string;
   }): Promise<User[]> {
-    const baseConditions: Array<{
-      departmentId?: string;
-      managedBy?: { id: string };
-    }> = [];
+    const baseConditions: Array<any> = [];
 
     // HODs see their department members
-    if (viewer.role === 'HOD' && viewer.departmentId) {
+    const hodDeptId = viewer.managedDepartmentId || viewer.departmentId;
+    if (viewer.role === 'HOD' && hodDeptId) {
       baseConditions.push({
-        departmentId: viewer.departmentId,
+        departmentId: hodDeptId,
       });
     }
 
-    // Team Leads see their team members
+    // Team Leads see their team members (via TeamMember relation)
     if (viewer.role === 'LEAD') {
       baseConditions.push({
-        managedBy: { id: viewer.id },
+        teamMemberships: { some: { team: { leadUserId: viewer.id } } },
       });
+    }
+
+    // Staff can only see themselves
+    if (viewer.role === 'STAFF') {
+      return this.scoped(viewer.tenantId, (db) =>
+        db.user.findMany({
+          where: { id: viewer.id },
+        }),
+      );
     }
 
     // Admins see everyone (but remain tenant-scoped by RLS)
     if (viewer.role === 'ADMIN') {
       return this.scoped(viewer.tenantId, (db) => db.user.findMany());
+    }
+
+    if (baseConditions.length === 0) {
+      return this.scoped(viewer.tenantId, (db) =>
+        db.user.findMany({ where: { id: viewer.id } }),
+      );
     }
 
     return this.scoped(viewer.tenantId, (db) =>

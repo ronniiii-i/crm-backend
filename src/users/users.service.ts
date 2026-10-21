@@ -98,12 +98,20 @@ export class UsersService {
       throw new NotFoundException(`User with ID ${id} not found`);
     }
 
+    const updateData: any = {
+      ...data,
+    };
+
+    // Map avatar -> avatarUrl for compatibility
+    if (updateData.avatar !== undefined) {
+      updateData.avatarUrl = updateData.avatar;
+      delete updateData.avatar;
+    }
+
     return this.scoped((db) =>
       db.user.update({
         where: { id },
-        data: {
-          ...data,
-        },
+        data: updateData,
       }),
     );
   }
