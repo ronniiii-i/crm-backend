@@ -212,7 +212,7 @@ export class RouteRegistry {
   constructor(private readonly cache: CacheService) {}
 
   findRoute(path: string): Promise<ProtectedRoute | undefined> {
-    const cacheKey = `route:${path}`;
+    const cacheKey = this.cache.tenantKey(`route:${path}`);
     const cached = this.cache.get(cacheKey) as ProtectedRoute | undefined;
     if (cached) return Promise.resolve(cached);
 
@@ -223,15 +223,12 @@ export class RouteRegistry {
   }
 
   async clearCache(): Promise<void> {
-    const keys: string[] = Array.isArray(this.cache.getStats().keys)
-      ? Array.isArray(this.cache.getStats().keys)
-        ? ((Array.isArray(this.cache.getStats().keys)
-            ? this.cache.getStats().keys
-            : []) as string[])
-        : []
-      : [];
+    // Clear route cache for current tenant namespace
+    const keys = (this.cache as any).cache?.keys?.() || [];
     await Promise.all(
-      keys.filter((k) => k.startsWith('route:')).map((k) => this.cache.del(k)),
+      keys
+        .filter((k: string) => k.includes(':route:'))
+        .map((k: string) => this.cache.del(k)),
     );
   }
 }
