@@ -7,6 +7,7 @@ import { TenantResolverService } from '../../tenant/tenant-resolver.service';
 import { Role } from '@prisma/client';
 import { MailService } from '../../mail/mail.service';
 import { addHours } from 'date-fns';
+import { PermissionResolutionService } from './permission-resolution.service';
 
 interface DecodedToken {
   exp?: number;
@@ -21,6 +22,7 @@ export class AuthService {
     private mailService: MailService,
     private frontendAdapter: FrontendAdapterService,
     private tenantResolver: TenantResolverService,
+    private permissionResolution: PermissionResolutionService,
   ) {}
 
   async signup(email: string, password: string, name: string) {
@@ -295,6 +297,8 @@ export class AuthService {
       id: user.id,
       role: user.role as 'ADMIN' | 'HOD' | 'LEAD' | 'STAFF', // Cast role to expected type
       tenantId: user.tenantId,
+      departmentId: user.department?.id ?? null,
+      managedDepartmentId: user.managedDepartment?.id ?? null,
       department: user.department ? { type: user.department.type } : undefined,
       managedDepartment: user.managedDepartment
         ? { type: user.managedDepartment.type }
@@ -304,6 +308,11 @@ export class AuthService {
     // Get accessible modules using the frontend adapter (tenant-scoped)
     const accessibleModules =
       await this.frontendAdapter.getAccessibleModules(userForAcl);
+
+    // `Role+` indicator: true when groups/overrides widened or narrowed the
+    // user's access relative to their base role.
+    const roleEnhanced =
+      await this.permissionResolution.hasEnhancedPermissions(userForAcl);
 
     const payload = {
       sub: user.id,
@@ -325,6 +334,7 @@ export class AuthService {
         email: user.email,
         name: user.name,
         role: user.role,
+        roleEnhanced,
         isVerified: user.isVerified,
         department: user.department,
         managedDepartment: user.managedDepartment,

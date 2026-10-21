@@ -42,6 +42,8 @@ export interface UserForAcl {
   id: string;
   role: string;
   tenantId?: string | null;
+  departmentId?: string | null;
+  managedDepartmentId?: string | null;
   department?: { type: string } | null;
   managedDepartment?: { type: string } | null;
 }

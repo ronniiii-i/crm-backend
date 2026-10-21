@@ -7,9 +7,10 @@ import { DepartmentGuard } from './department.guard';
 import { PermissionGuard } from './permission.guard';
 import { RouteRegistry } from '../route-registry';
 import { CacheModule } from '../../cache/cache.module';
+import { AclModule } from '../acl.module';
 
 @Module({
-  imports: [CacheModule],
+  imports: [CacheModule, AclModule],
   providers: [
     Reflector,
     RolesGuard,

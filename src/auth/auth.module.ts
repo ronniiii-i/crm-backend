@@ -15,6 +15,7 @@ import { CacheModule } from '../cache/cache.module';
 import { RouteRegistry } from './route-registry';
 import { FrontendAdapterService } from './frontend-adapter.service';
 import { TenantModule } from '../tenant/tenant.module';
+import { AclModule } from './acl.module';
 
 @Module({
   imports: [
@@ -26,6 +27,7 @@ import { TenantModule } from '../tenant/tenant.module';
     }),
     CacheModule,
     TenantModule,
+    AclModule,
   ],
   providers: [
     AuthService,
@@ -37,6 +39,12 @@ import { TenantModule } from '../tenant/tenant.module';
     FrontendAdapterService,
   ],
   controllers: [AuthController, AuthAclController],
-  exports: [GuardsModule, RouteRegistry, FrontendAdapterService, JwtModule],
+  exports: [
+    GuardsModule,
+    RouteRegistry,
+    FrontendAdapterService,
+    JwtModule,
+    AclModule,
+  ],
 })
 export class AuthModule {}

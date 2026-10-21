@@ -3,62 +3,59 @@ import { PrismaService } from '../prisma/prisma.service';
 import { CacheService } from '../cache/cache.service';
 import { DepartmentType } from '@prisma/client';
 import { AccessibleModule, UserForAcl } from './permission-types';
+import { PermissionResolutionService } from './services/permission-resolution.service';
 
 @Injectable()
 export class FrontendAdapterService {
   constructor(
     private readonly prisma: PrismaService,
     private readonly cache: CacheService,
+    private readonly permissions: PermissionResolutionService,
   ) {}
 
   private getUserCacheKey(userId: string): string {
     return this.cache.tenantKey(`user:${userId}:modules`);
   }
 
+  /**
+   * Modules the user can view, derived from their effective permissions
+   * (role base + groups + overrides) and restricted to their department
+   * unless they are an admin.
+   */
   async getAccessibleModules(user: UserForAcl): Promise<AccessibleModule[]> {
     const cacheKey = this.getUserCacheKey(user.id);
     const cached = this.cache.get(cacheKey) as AccessibleModule[] | undefined;
     if (cached) return cached;
 
-    const permissionFilter = {
-      roleModulePermissions: {
-        some: {
-          AND: [{ role: user.role }, { permission: { type: 'VIEW' } }],
-        },
-      },
-    };
+    const effective = await this.permissions.getEffectivePermissions(user);
 
-    let whereClause: object;
+    const moduleIds = Array.from(effective.entries())
+      .filter(([, permissions]) => permissions.has('VIEW'))
+      .map(([moduleId]) => moduleId);
 
-    if (user.role === 'ADMIN') {
-      whereClause = permissionFilter;
-    } else {
-      const rawType =
-        user.role === 'HOD'
-          ? user.managedDepartment?.type
-          : user.department?.type;
-
-      const deptType = rawType as DepartmentType | undefined;
-
-      whereClause = {
-        AND: [
-          permissionFilter,
-          {
-            OR: [
-              { departmentId: null },
-              ...(deptType ? [{ department: { type: deptType } }] : []),
-            ],
-          },
-        ],
-      };
+    if (moduleIds.length === 0) {
+      this.cache.set(cacheKey, [], 3600);
+      return [];
     }
 
-    const where = {
-      AND: [
-        whereClause,
-        ...(user.tenantId ? [{ tenantId: user.tenantId }] : []),
-      ],
-    };
+    const baseFilter = { id: { in: moduleIds } };
+
+    const where =
+      user.role === 'ADMIN'
+        ? baseFilter
+        : {
+            AND: [
+              baseFilter,
+              {
+                OR: [
+                  { departmentId: null },
+                  ...(this.getDepartmentType(user)
+                    ? [{ department: { type: this.getDepartmentType(user) } }]
+                    : []),
+                ],
+              },
+            ],
+          };
 
     const select = {
       id: true,
@@ -67,16 +64,24 @@ export class FrontendAdapterService {
       icon: true,
     } as const;
 
-    // Run inside the tenant context so RLS applies even on public routes
-    // (e.g. login) where the request middleware has not set a tenant yet.
-    const accessibleModules = user.tenantId
-      ? await this.prisma.withTenant(user.tenantId, (tx) =>
+    const tenantId = user.tenantId ?? undefined;
+    const accessibleModules = tenantId
+      ? await this.prisma.withTenant(tenantId, (tx) =>
           tx.module.findMany({ where, select }),
         )
       : await this.prisma.module.findMany({ where, select });
 
     this.cache.set(cacheKey, accessibleModules, 3600);
     return accessibleModules;
+  }
+
+  private getDepartmentType(user: UserForAcl): DepartmentType | undefined {
+    const rawType =
+      user.role === 'HOD'
+        ? user.managedDepartment?.type
+        : user.department?.type;
+
+    return rawType as DepartmentType | undefined;
   }
 
   clearUserCache(userId: string): void {
