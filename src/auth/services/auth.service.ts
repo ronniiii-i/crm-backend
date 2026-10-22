@@ -337,6 +337,7 @@ export class AuthService {
         role: user.role,
         roleEnhanced,
         isVerified: user.isVerified,
+        tenantId: user.tenantId,
         department: user.department,
         managedDepartment: user.managedDepartment,
         // Include accessible modules directly in the user object

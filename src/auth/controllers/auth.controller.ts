@@ -428,13 +428,21 @@ export class AuthController {
         userForAcl,
       );
 
+    // `Role+` indicator, consistent with the login response.
+    const roleEnhanced =
+      await this.authService['permissionResolution'].hasEnhancedPermissions(
+        userForAcl,
+      );
+
     return {
       user: {
         id: user.id,
         email: user.email,
         name: user.name,
         role: user.role,
+        roleEnhanced,
         isVerified: user.isVerified,
+        tenantId: user.tenantId,
         department: user.department,
         managedDepartment: user.managedDepartment,
         accessibleModules: accessibleModules,
