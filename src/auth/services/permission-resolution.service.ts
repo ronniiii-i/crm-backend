@@ -40,7 +40,10 @@ export class PermissionResolutionService {
   ) {}
 
   private cacheKey(userId: string, tenantId?: string): string {
-    return this.cache.tenantKey(`user:${userId}:effective-permissions`, tenantId);
+    return this.cache.tenantKey(
+      `user:${userId}:effective-permissions`,
+      tenantId,
+    );
   }
 
   /**
@@ -150,10 +153,9 @@ export class PermissionResolutionService {
     }
 
     // 2. Permission groups assigned to the user or their department
-    const departmentIds = [
-      user.departmentId,
-      user.managedDepartmentId,
-    ].filter((id): id is string => !!id);
+    const departmentIds = [user.departmentId, user.managedDepartmentId].filter(
+      (id): id is string => !!id,
+    );
 
     const assignments = await db.permissionGroupAssignment.findMany({
       where: {
@@ -210,9 +212,7 @@ export class PermissionResolutionService {
   /** Drop cached effective permissions for a user. */
   invalidateUserCache(userId: string, tenantId?: string): void {
     this.cache.del(this.cacheKey(userId, tenantId));
-    this.cache.del(
-      this.cache.tenantKey(`user:${userId}:modules`, tenantId),
-    );
+    this.cache.del(this.cache.tenantKey(`user:${userId}:modules`, tenantId));
   }
 
   /** Drop every cached entry for a tenant. */

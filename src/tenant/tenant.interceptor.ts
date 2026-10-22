@@ -21,10 +21,7 @@ import { getTenantId } from './tenant-context';
  */
 @Injectable()
 export class TenantInterceptor implements NestInterceptor {
-  intercept(
-    context: ExecutionContext,
-    next: CallHandler,
-  ): Observable<any> {
+  intercept(context: ExecutionContext, next: CallHandler): Observable<any> {
     const tenantId = getTenantId();
     const req = context.switchToHttp().getRequest();
 

@@ -31,7 +31,8 @@ export class AuthService {
 
     // Self-registration cannot know the tenant, so find an existing account by
     // email across tenants, then fall back to the default tenant.
-    const existingTenantId = await this.tenantResolver.resolveTenantByEmail(email);
+    const existingTenantId =
+      await this.tenantResolver.resolveTenantByEmail(email);
     const tenantId =
       existingTenantId ?? (await this.tenantResolver.resolveDefaultTenant());
 

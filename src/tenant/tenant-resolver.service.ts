@@ -17,10 +17,9 @@ export class TenantResolverService {
 
   /** Tenant owning the given email address, or null when no account exists. */
   async resolveTenantByEmail(email: string): Promise<string | null> {
-    const rows = await this.prisma.$queryRawUnsafe<{ tenantId: string | null }[]>(
-      `SELECT auth_lookup_tenant_by_email($1) AS "tenantId"`,
-      email,
-    );
+    const rows = await this.prisma.$queryRawUnsafe<
+      { tenantId: string | null }[]
+    >(`SELECT auth_lookup_tenant_by_email($1) AS "tenantId"`, email);
     return rows[0]?.tenantId ?? null;
   }
 
@@ -32,7 +31,9 @@ export class TenantResolverService {
     column: 'verifyToken' | 'resetToken',
     token: string,
   ): Promise<string | null> {
-    const rows = await this.prisma.$queryRawUnsafe<{ tenantId: string | null }[]>(
+    const rows = await this.prisma.$queryRawUnsafe<
+      { tenantId: string | null }[]
+    >(
       `SELECT auth_lookup_tenant_by_token($1, $2) AS "tenantId"`,
       column,
       token,
@@ -42,10 +43,9 @@ export class TenantResolverService {
 
   /** Tenant owning the given user id. */
   async resolveTenantByUserId(userId: string): Promise<string | null> {
-    const rows = await this.prisma.$queryRawUnsafe<{ tenantId: string | null }[]>(
-      `SELECT auth_lookup_tenant_by_user_id($1) AS "tenantId"`,
-      userId,
-    );
+    const rows = await this.prisma.$queryRawUnsafe<
+      { tenantId: string | null }[]
+    >(`SELECT auth_lookup_tenant_by_user_id($1) AS "tenantId"`, userId);
     return rows[0]?.tenantId ?? null;
   }
 
@@ -54,9 +54,9 @@ export class TenantResolverService {
    * new account when the caller supplies no tenant context.
    */
   async resolveDefaultTenant(): Promise<string | null> {
-    const rows = await this.prisma.$queryRawUnsafe<{ tenantId: string | null }[]>(
-      `SELECT auth_lookup_default_tenant() AS "tenantId"`,
-    );
+    const rows = await this.prisma.$queryRawUnsafe<
+      { tenantId: string | null }[]
+    >(`SELECT auth_lookup_default_tenant() AS "tenantId"`);
     return rows[0]?.tenantId ?? null;
   }
 

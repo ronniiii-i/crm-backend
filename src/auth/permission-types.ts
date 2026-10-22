@@ -7,6 +7,7 @@ export enum Permission {
 
 export enum Department {
   FINANCE = 'FINANCE',
+  ACCOUNTING = 'ACCOUNTING',
   IT = 'INFORMATION_TECHNOLOGY',
   SALES = 'SALES',
   CUSTOMER_SUPPORT = 'CUSTOMER_SERVICE',

@@ -33,18 +33,14 @@ export class AuthAclController {
    * the `Role+` indicator.
    */
   @Get('permissions')
-  async getPermissions(
-    @User() user: UserWithDepartments,
-  ): Promise<{
+  async getPermissions(@User() user: UserWithDepartments): Promise<{
     permissions: EffectivePermission[];
     enhanced: boolean;
   }> {
-    const details = await this.permissionResolution.getEffectivePermissionDetails(
-      user,
-    );
-    const enhanced = await this.permissionResolution.hasEnhancedPermissions(
-      user,
-    );
+    const details =
+      await this.permissionResolution.getEffectivePermissionDetails(user);
+    const enhanced =
+      await this.permissionResolution.hasEnhancedPermissions(user);
 
     return {
       permissions: Array.from(details.values()),

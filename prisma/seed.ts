@@ -9,7 +9,12 @@
 //
 // Idempotent and batched: uses createMany + skipDuplicates to minimise the
 // number of round-trips to the database.
-import { PrismaClient, Role, PermissionType, DepartmentType } from '@prisma/client';
+import {
+  PrismaClient,
+  Role,
+  PermissionType,
+  DepartmentType,
+} from '@prisma/client';
 import { ALL_ROUTES } from '../src/auth/routes';
 
 const prisma = new PrismaClient({
@@ -95,9 +100,9 @@ async function main() {
     data: ALL_ROUTES.map((route) => {
       let departmentId: string | undefined;
       if (route.department) {
-        const deptType = (
-          Array.isArray(route.department) ? route.department[0] : route.department
-        ) as unknown as DepartmentType;
+        const deptType = (Array.isArray(route.department)
+          ? route.department[0]
+          : route.department) as unknown as DepartmentType;
         departmentId = departmentIdByType.get(deptType);
       }
       return {
@@ -145,7 +150,9 @@ async function main() {
     data: roleModulePermissions,
     skipDuplicates: true,
   });
-  console.log(`Role/module permissions seeded: ${roleModulePermissions.length}`);
+  console.log(
+    `Role/module permissions seeded: ${roleModulePermissions.length}`,
+  );
 
   console.log('Seeding complete.');
 }

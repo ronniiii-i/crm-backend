@@ -151,7 +151,10 @@ export class DashboardService {
         }),
         tx.supportTicket.count({ where: { tenantId: resolved } }),
         tx.supportTicket.count({
-          where: { tenantId: resolved, status: { notIn: ['CLOSED', 'RESOLVED'] } },
+          where: {
+            tenantId: resolved,
+            status: { notIn: ['CLOSED', 'RESOLVED'] },
+          },
         }),
         tx.project.groupBy({
           by: ['status'],
@@ -214,12 +217,7 @@ export class DashboardService {
       };
     } else {
       dashboardData = await this.prisma.withTenant(resolved, async (tx) => {
-        const [
-          rev,
-          exp,
-          openTickets,
-          projectStatuses,
-        ] = await Promise.all([
+        const [rev, exp, openTickets, projectStatuses] = await Promise.all([
           tx.payment.aggregate({
             _sum: { amount: true },
             where: {
@@ -300,39 +298,40 @@ export class DashboardService {
         const today = new Date();
         today.setHours(0, 0, 0, 0);
 
-        const [teamSalesPipeline, totalTasks, completedTasks, personalTasksDue] =
-          await Promise.all([
-            tx.deal.groupBy({
-              by: ['status'],
-              _sum: { amount: true },
-              _count: { id: true },
-              where: {
-                tenantId: resolved,
-                OR: [
-                  { userId },
-                  { assignedTo: { departmentId } },
-                ],
-              },
-            }),
-            tx.task.count({
-              where: { tenantId: resolved, assignedTo: { departmentId } },
-            }),
-            tx.task.count({
-              where: {
-                tenantId: resolved,
-                assignedTo: { departmentId },
-                status: 'Completed',
-              },
-            }),
-            tx.task.count({
-              where: {
-                tenantId: resolved,
-                assignedToId: userId,
-                status: { notIn: ['Completed', 'Cancelled'] },
-                dueDate: { lte: today },
-              },
-            }),
-          ]);
+        const [
+          teamSalesPipeline,
+          totalTasks,
+          completedTasks,
+          personalTasksDue,
+        ] = await Promise.all([
+          tx.deal.groupBy({
+            by: ['status'],
+            _sum: { amount: true },
+            _count: { id: true },
+            where: {
+              tenantId: resolved,
+              OR: [{ userId }, { assignedTo: { departmentId } }],
+            },
+          }),
+          tx.task.count({
+            where: { tenantId: resolved, assignedTo: { departmentId } },
+          }),
+          tx.task.count({
+            where: {
+              tenantId: resolved,
+              assignedTo: { departmentId },
+              status: 'Completed',
+            },
+          }),
+          tx.task.count({
+            where: {
+              tenantId: resolved,
+              assignedToId: userId,
+              status: { notIn: ['Completed', 'Cancelled'] },
+              dueDate: { lte: today },
+            },
+          }),
+        ]);
 
         return {
           departmentId,
@@ -391,7 +390,11 @@ export class DashboardService {
             tx.attendanceRecord.groupBy({
               by: ['status'],
               _count: { id: true },
-              where: { tenantId: resolved, userId, date: { gte: thirtyDaysAgo } },
+              where: {
+                tenantId: resolved,
+                userId,
+                date: { gte: thirtyDaysAgo },
+              },
             }),
             tx.supportTicket.findMany({
               where: {
@@ -713,7 +716,12 @@ export class DashboardService {
 
   // --- Example for Attendance Chart (filterable by period) ---
   async getAttendanceChart(
-    user: { role: Role; departmentId?: string; userId: string; tenantId?: string },
+    user: {
+      role: Role;
+      departmentId?: string;
+      userId: string;
+      tenantId?: string;
+    },
     period: 'week' | 'month' | 'year',
   ) {
     // This method needs to be refined based on how you store attendance dates

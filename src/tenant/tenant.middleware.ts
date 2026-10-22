@@ -11,7 +11,7 @@ export class TenantMiddleware implements NestMiddleware {
     let tenantId: string | undefined;
 
     try {
-      const authHeader = req.headers['authorization'] as string | undefined;
+      const authHeader = req.headers['authorization'];
       const cookieToken = (req as any).cookies?.['access_token'] as
         | string
         | undefined;
@@ -20,9 +20,7 @@ export class TenantMiddleware implements NestMiddleware {
         (authHeader?.startsWith('Bearer ') ? authHeader.slice(7) : null);
 
       if (token) {
-        const payload = this.jwtService.decode(token) as {
-          tenantId?: string;
-        } | null;
+        const payload = this.jwtService.decode(token);
         tenantId = payload?.tenantId;
       }
 

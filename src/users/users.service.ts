@@ -93,7 +93,9 @@ export class UsersService {
   }
 
   async updateUser(id: string, data: UpdateUserDto): Promise<User> {
-    const user = await this.scoped((db) => db.user.findUnique({ where: { id } }));
+    const user = await this.scoped((db) =>
+      db.user.findUnique({ where: { id } }),
+    );
     if (!user) {
       throw new NotFoundException(`User with ID ${id} not found`);
     }
@@ -117,7 +119,9 @@ export class UsersService {
   }
 
   async deleteUser(id: string): Promise<User> {
-    const user = await this.scoped((db) => db.user.findUnique({ where: { id } }));
+    const user = await this.scoped((db) =>
+      db.user.findUnique({ where: { id } }),
+    );
     if (!user) {
       throw new NotFoundException(`User with ID ${id} not found`);
     }
