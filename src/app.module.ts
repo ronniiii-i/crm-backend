@@ -28,6 +28,9 @@ import { ProfileModule } from './profile/profile.module';
 import { TenantModule } from './tenant/tenant.module';
 import { APP_INTERCEPTOR } from '@nestjs/core';
 import { TenantInterceptor } from './tenant/tenant.interceptor';
+import { ThrottlerModule } from '@nestjs/throttler';
+import { APP_GUARD } from '@nestjs/core';
+import { ThrottlerGuard } from '@nestjs/throttler';
 
 @Module({
   imports: [
@@ -35,28 +38,28 @@ import { TenantInterceptor } from './tenant/tenant.interceptor';
       isGlobal: true, // makes the ConfigModule available everywhere
     }),
     TenantModule,
-    // ThrottlerModule.forRoot([
-    //   {
-    //     name: 'default',
-    //     ttl: 60000, // 1 minute in milliseconds
-    //     limit: 100, // 100 requests per minute (general API limits)
-    //   },
-    //   {
-    //     name: 'short',
-    //     ttl: 10000, // 10 seconds in milliseconds
-    //     limit: 10, // 10 requests per 10 seconds (burst protection)
-    //   },
-    //   {
-    //     name: 'auth',
-    //     ttl: 3600000, // 1 hour in milliseconds
-    //     limit: 5, // 5 requests per hour (strict auth endpoints)
-    //   },
-    //   {
-    //     name: 'sensitive',
-    //     ttl: 86400000, // 24 hours in milliseconds
-    //     limit: 10, // 10 requests per day (for very sensitive ops)
-    //   },
-    // ]),
+    ThrottlerModule.forRoot([
+      {
+        name: 'default',
+        ttl: 60000, // 1 minute in milliseconds
+        limit: 100, // 100 requests per minute (general API limits)
+      },
+      {
+        name: 'short',
+        ttl: 10000, // 10 seconds in milliseconds
+        limit: 10, // 10 requests per 10 seconds (burst protection)
+      },
+      {
+        name: 'auth',
+        ttl: 3600000, // 1 hour in milliseconds
+        limit: 5, // 5 requests per hour (strict auth endpoints)
+      },
+      {
+        name: 'sensitive',
+        ttl: 86400000, // 24 hours in milliseconds
+        limit: 10, // 10 requests per day (for very sensitive ops)
+      },
+    ]),
     AuthModule,
     PrismaModule,
     ProjectsModule,
@@ -77,10 +80,10 @@ import { TenantInterceptor } from './tenant/tenant.interceptor';
   ],
   controllers: [AppController],
   providers: [
-    // {
-    //   provide: APP_GUARD,
-    //   useClass: ThrottlerGuard,
-    // },
+    {
+      provide: APP_GUARD,
+      useClass: ThrottlerGuard,
+    },
     {
       provide: APP_INTERCEPTOR,
       useClass: TenantInterceptor,

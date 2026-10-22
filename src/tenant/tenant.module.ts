@@ -4,13 +4,15 @@ import { TenantInterceptor } from './tenant.interceptor';
 import { TenantResolverService } from './tenant-resolver.service';
 import { PrismaModule } from '../prisma/prisma.module';
 import { JwtModule } from '@nestjs/jwt';
+import { requireEnv, optionalEnv } from '../config/env';
 
 @Module({
   imports: [
     PrismaModule,
     JwtModule.register({
-      secret: process.env.JWT_SECRET || 'supersecret',
-      signOptions: { expiresIn: '1h' },
+      // Validated at boot by env.validation.ts — no insecure fallback.
+      secret: requireEnv('JWT_SECRET'),
+      signOptions: { expiresIn: optionalEnv('JWT_EXPIRES_IN', '1h') },
     }),
   ],
   providers: [TenantMiddleware, TenantInterceptor, TenantResolverService],

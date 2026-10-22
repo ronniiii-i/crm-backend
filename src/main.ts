@@ -4,9 +4,13 @@ import * as cookieParser from 'cookie-parser';
 import { SwaggerModule, DocumentBuilder } from '@nestjs/swagger';
 import { ValidationPipe } from '@nestjs/common';
 import * as dotenv from 'dotenv';
+import { validateEnv } from './config/env.validation';
 dotenv.config();
 
 async function bootstrap() {
+  // Fail fast on a misconfigured or unsafe environment.
+  const env = validateEnv(process.env);
+
   const app = await NestFactory.create(AppModule);
 
   app.useGlobalPipes(
@@ -30,8 +34,8 @@ async function bootstrap() {
   SwaggerModule.setup('api', app, document);
 
   app.enableCors({
-    // origin: process.env.FRONTEND_URL,
     origin: [
+      env.FRONTEND_URL,
       'http://localhost:3000',
       'https://claspcrm.vercel.app',
       'https://claspcrm.onrender.com',
@@ -43,7 +47,7 @@ async function bootstrap() {
 
   app.use(cookieParser());
 
-  const PORT = process.env.PORT || 3030;
+  const PORT = env.PORT;
   await app.listen(PORT);
   console.log(`Listening on port: ${PORT}`);
 }

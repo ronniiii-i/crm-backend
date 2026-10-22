@@ -16,14 +16,16 @@ import { RouteRegistry } from './route-registry';
 import { FrontendAdapterService } from './frontend-adapter.service';
 import { TenantModule } from '../tenant/tenant.module';
 import { AclModule } from './acl.module';
+import { requireEnv, optionalEnv } from '../config/env';
 
 @Module({
   imports: [
     PassportModule,
     JwtModule.register({
-      secret: process.env.JWT_SECRET || 'supersecret',
-      signOptions: { expiresIn: '1h' },
-      // signOptions: { expiresIn: '5m' },
+      // Fail fast: the JWT secret is validated at boot by env.validation.ts,
+      // so there is no insecure fallback here.
+      secret: requireEnv('JWT_SECRET'),
+      signOptions: { expiresIn: optionalEnv('JWT_EXPIRES_IN', '1h') },
     }),
     CacheModule,
     TenantModule,
