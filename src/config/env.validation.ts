@@ -45,6 +45,12 @@ const envSchema = z.object({
   REDIS_HOST: z.string().default('localhost'),
   REDIS_PORT: z.coerce.number().int().positive().default(6379),
   REDIS_PASSWORD: z.string().optional(),
+  REDIS_TLS: z
+    .enum(['true', 'false', '1', '0', 'yes', 'no', 'on', 'off'])
+    .default('false'),
+  REDIS_DB: z.coerce.number().int().min(0).default(0),
+  REDIS_KEY_PREFIX: z.string().min(1).default('claspcrm'),
+  REDIS_CONNECT_TIMEOUT: z.coerce.number().int().positive().default(3000),
 
   FRONTEND_URL: z.string().default('http://localhost:3000'),
 

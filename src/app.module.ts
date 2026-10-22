@@ -4,10 +4,6 @@ import {
   NestModule,
   RequestMethod,
 } from '@nestjs/common';
-import { CacheModule } from '@nestjs/cache-manager';
-import * as redisStore from 'cache-manager-redis-store';
-// import { ThrottlerModule, ThrottlerGuard } from '@nestjs/throttler';
-// import { APP_GUARD } from '@nestjs/core';
 
 import { AppController } from './app.controller';
 import { AppService } from './app.service';
@@ -17,10 +13,8 @@ import { PrismaModule } from './prisma/prisma.module';
 import { MailService } from './mail/mail.service';
 import { ProjectsModule } from './projects/projects.module';
 import { CoreModule } from './core/core.module';
-// import { CacheService } from './cache/cache.service';
-// import { CacheModule } from './cache/cache.module';
+import { CacheModule } from './cache/cache.module';
 import { SessionMiddleware } from './auth/middleware/session.middleware';
-// import { JwtService } from '@nestjs/jwt';
 import { DashboardModule } from './dashboard/dashboard.module';
 import { ConfigModule } from '@nestjs/config';
 import { UsersModule } from './users/users.module';
@@ -64,17 +58,8 @@ import { ThrottlerGuard } from '@nestjs/throttler';
     PrismaModule,
     ProjectsModule,
     CoreModule,
-    // CacheModule,
     DashboardModule,
-    CacheModule.register({
-      store: redisStore,
-      host: process.env.REDIS_HOST || 'localhost',
-      port: Number(process.env.REDIS_PORT) || 6379,
-      password: process.env.REDIS_PASSWORD || undefined,
-      ttl: 300, // Default cache lifetime in seconds (e.g., 5 minutes)
-      // All cache keys are additionally prefixed with `tenant:{tenantId}:`
-      // by the services so tenants never share cached entries.
-    }),
+    CacheModule,
     UsersModule,
     ProfileModule,
   ],

@@ -24,7 +24,7 @@ export class FrontendAdapterService {
    */
   async getAccessibleModules(user: UserForAcl): Promise<AccessibleModule[]> {
     const cacheKey = this.getUserCacheKey(user.id);
-    const cached = this.cache.get(cacheKey) as AccessibleModule[] | undefined;
+    const cached = await this.cache.get<AccessibleModule[]>(cacheKey);
     if (cached) return cached;
 
     const effective = await this.permissions.getEffectivePermissions(user);
@@ -34,7 +34,7 @@ export class FrontendAdapterService {
       .map(([moduleId]) => moduleId);
 
     if (moduleIds.length === 0) {
-      this.cache.set(cacheKey, [], 3600);
+      await this.cache.set(cacheKey, [], 3600);
       return [];
     }
 
@@ -71,7 +71,7 @@ export class FrontendAdapterService {
         )
       : await this.prisma.module.findMany({ where, select });
 
-    this.cache.set(cacheKey, accessibleModules, 3600);
+    await this.cache.set(cacheKey, accessibleModules, 3600);
     return accessibleModules;
   }
 
@@ -84,7 +84,7 @@ export class FrontendAdapterService {
     return rawType as DepartmentType | undefined;
   }
 
-  clearUserCache(userId: string): void {
-    this.cache.del(this.getUserCacheKey(userId));
+  async clearUserCache(userId: string, tenantId?: string): Promise<void> {
+    await this.cache.invalidateUser(userId, tenantId);
   }
 }

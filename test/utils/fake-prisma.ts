@@ -40,7 +40,23 @@ const TENANT_COLUMN: Record<string, string> = {
   permissionGroupItem: 'tenantId',
   permissionGroupAssignment: 'tenantId',
   permissionOverride: 'tenantId',
+  contact: 'tenantId',
+  deal: 'tenantId',
+  supportTicket: 'tenantId',
+  project: 'tenantId',
+  invoice: 'tenantId',
+  payment: 'tenantId',
+  expense: 'tenantId',
+  attendanceRecord: 'tenantId',
+  department: 'tenantId',
+  user: 'tenantId',
+  team: 'tenantId',
+  teamMember: 'tenantId',
+  notification: 'tenantId',
+  module: 'tenantId',
 };
+
+void TENANT_COLUMN;
 
 /**
  * Builds a `PrismaService` double whose `withTenant()` scopes every read to

@@ -9,7 +9,10 @@
 
 import { createFakePrisma } from '../utils/fake-prisma';
 import { expectNoForeignRows } from '../utils/fail-closed';
-import { CacheService } from '../../src/cache/cache.service';
+import {
+  CacheService,
+  InMemoryRedisClient,
+} from '../../src/cache/cache.service';
 import { getTenantId, runWithTenant } from '../../src/tenant/tenant-context';
 
 const TENANT_A = 'aaaaaaaa-aaaa-aaaa-aaaa-aaaaaaaaaaaa';
@@ -98,8 +101,13 @@ describe('Tenant isolation', () => {
   describe('cache key scoping', () => {
     let cache: CacheService;
 
-    beforeEach(() => {
-      cache = new CacheService();
+    beforeEach(async () => {
+      cache = new CacheService(() => new InMemoryRedisClient());
+      await cache.onModuleInit();
+    });
+
+    afterEach(async () => {
+      await cache.onModuleDestroy();
     });
 
     it('prefixes every key with the tenant namespace', () => {
@@ -108,30 +116,52 @@ describe('Tenant isolation', () => {
       );
     });
 
-    it('never returns tenant A cached data for tenant B', () => {
-      cache.set(cache.tenantKey('user:1:modules', TENANT_A), ['dashboard']);
-      cache.set(cache.tenantKey('user:1:modules', TENANT_B), ['settings']);
-
-      expect(cache.get(cache.tenantKey('user:1:modules', TENANT_A))).toEqual([
+    it('never returns tenant A cached data for tenant B', async () => {
+      await cache.set(cache.tenantKey('user:1:modules', TENANT_A), [
         'dashboard',
       ]);
-      expect(cache.get(cache.tenantKey('user:1:modules', TENANT_B))).toEqual([
+      await cache.set(cache.tenantKey('user:1:modules', TENANT_B), [
         'settings',
       ]);
+
+      await expect(
+        cache.get(cache.tenantKey('user:1:modules', TENANT_A)),
+      ).resolves.toEqual(['dashboard']);
+      await expect(
+        cache.get(cache.tenantKey('user:1:modules', TENANT_B)),
+      ).resolves.toEqual(['settings']);
     });
 
-    it('invalidates only the target tenant', () => {
-      cache.set(cache.tenantKey('k', TENANT_A), 'a');
-      cache.set(cache.tenantKey('k', TENANT_B), 'b');
+    it('invalidates only the target tenant', async () => {
+      await cache.set(cache.tenantKey('k', TENANT_A), 'a');
+      await cache.set(cache.tenantKey('k', TENANT_B), 'b');
 
-      cache.flushTenant(TENANT_A);
+      await cache.flushTenant(TENANT_A);
 
-      expect(cache.get(cache.tenantKey('k', TENANT_A))).toBeUndefined();
-      expect(cache.get(cache.tenantKey('k', TENANT_B))).toBe('b');
+      await expect(
+        cache.get(cache.tenantKey('k', TENANT_A)),
+      ).resolves.toBeUndefined();
+      await expect(cache.get(cache.tenantKey('k', TENANT_B))).resolves.toBe(
+        'b',
+      );
     });
 
     it('produces a global namespace when no tenant is active', () => {
       expect(cache.tenantKey('k')).toBe('tenant:global:k');
+    });
+
+    it('keeps entries for different users in the same tenant isolated', async () => {
+      await cache.set(cache.tenantKey('user:1:modules', TENANT_A), 'one');
+      await cache.set(cache.tenantKey('user:2:modules', TENANT_A), 'two');
+
+      await cache.invalidateUser('1', TENANT_A);
+
+      await expect(
+        cache.get(cache.tenantKey('user:1:modules', TENANT_A)),
+      ).resolves.toBeUndefined();
+      await expect(
+        cache.get(cache.tenantKey('user:2:modules', TENANT_A)),
+      ).resolves.toBe('two');
     });
   });
 });

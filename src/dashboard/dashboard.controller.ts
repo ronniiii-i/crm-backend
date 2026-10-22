@@ -46,7 +46,7 @@ export class DashboardController {
    */
   @Get('widgets')
   @Roles(Role.ADMIN, Role.HOD, Role.LEAD, Role.STAFF)
-  async getWidgets(
+  getWidgets(
     @User()
     user: {
       id: string;

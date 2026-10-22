@@ -13,11 +13,11 @@
 //     base role must be reported as augmented)
 
 import { PermissionType, PermissionEffect } from '@prisma/client';
+import { PermissionResolutionService } from '../../src/auth/services/permission-resolution.service';
 import {
-  PermissionResolutionService,
-  EffectivePermission,
-} from '../../src/auth/services/permission-resolution.service';
-import { CacheService } from '../../src/cache/cache.service';
+  CacheService,
+  InMemoryRedisClient,
+} from '../../src/cache/cache.service';
 import {
   createFakePrisma,
   rolePermissionRow,
@@ -43,8 +43,13 @@ describe('PermissionResolutionService (hybrid ACL)', () => {
     managedDepartmentId: undefined,
   };
 
-  beforeEach(() => {
-    cache = new CacheService();
+  beforeEach(async () => {
+    cache = new CacheService(() => new InMemoryRedisClient());
+    await cache.onModuleInit();
+  });
+
+  afterEach(async () => {
+    await cache.onModuleDestroy();
   });
 
   const build = (state: Parameters<typeof createFakePrisma>[0]) => {

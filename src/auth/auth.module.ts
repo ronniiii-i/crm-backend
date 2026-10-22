@@ -2,8 +2,6 @@
 import { Module } from '@nestjs/common';
 import { JwtModule } from '@nestjs/jwt';
 import { PassportModule } from '@nestjs/passport';
-// import { CacheModule } from '@nestjs/cache-manager';
-// import * as redisStore from 'cache-manager-redis-store';
 import { AuthService } from './services/auth.service';
 import { MailService } from '../mail/mail.service';
 import { AuthController } from './controllers/auth.controller';
@@ -22,8 +20,6 @@ import { requireEnv, optionalEnv } from '../config/env';
   imports: [
     PassportModule,
     JwtModule.register({
-      // Fail fast: the JWT secret is validated at boot by env.validation.ts,
-      // so there is no insecure fallback here.
       secret: requireEnv('JWT_SECRET'),
       signOptions: { expiresIn: optionalEnv('JWT_EXPIRES_IN', '1h') },
     }),

@@ -75,18 +75,23 @@ export class PermissionResolutionService {
     const tenantId = user.tenantId ?? getTenantId() ?? undefined;
     const cacheKey = this.cacheKey(user.id, tenantId);
 
-    const cached = this.cache.get(cacheKey) as
-      | Map<string, EffectivePermission>
-      | undefined;
-    if (cached) return cached;
+    // The cache is JSON backed, so the map is stored as a flat array of
+    // entries and rebuilt on read.
+    const cached = await this.cache.get<EffectivePermission[]>(cacheKey);
+    if (cached) {
+      return new Map(
+        cached.map((permission) => [
+          `${permission.moduleId}:${permission.permissionType}`,
+          permission,
+        ]),
+      );
+    }
 
     const details = tenantId
-      ? await this.prisma.withTenant(tenantId, (tx) =>
-          this.compute(user, tx, tenantId),
-        )
-      : await this.compute(user, this.prisma, tenantId);
+      ? await this.prisma.withTenant(tenantId, (tx) => this.compute(user, tx))
+      : await this.compute(user, this.prisma);
 
-    this.cache.set(cacheKey, details, 300);
+    await this.cache.set(cacheKey, Array.from(details.values()), 300);
     return details;
   }
 
@@ -120,7 +125,6 @@ export class PermissionResolutionService {
   private async compute(
     user: UserForAcl,
     db: any,
-    tenantId?: string,
   ): Promise<Map<string, EffectivePermission>> {
     const details = new Map<string, EffectivePermission>();
 
@@ -210,13 +214,15 @@ export class PermissionResolutionService {
   }
 
   /** Drop cached effective permissions for a user. */
-  invalidateUserCache(userId: string, tenantId?: string): void {
-    this.cache.del(this.cacheKey(userId, tenantId));
-    this.cache.del(this.cache.tenantKey(`user:${userId}:modules`, tenantId));
+  async invalidateUserCache(userId: string, tenantId?: string): Promise<void> {
+    await this.cache.del(this.cacheKey(userId, tenantId));
+    await this.cache.del(
+      this.cache.tenantKey(`user:${userId}:modules`, tenantId),
+    );
   }
 
   /** Drop every cached entry for a tenant. */
-  invalidateTenantCache(tenantId: string): void {
-    this.cache.flushTenant(tenantId);
+  async invalidateTenantCache(tenantId: string): Promise<void> {
+    await this.cache.flushTenant(tenantId);
   }
 }

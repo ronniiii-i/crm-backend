@@ -1,27 +1,19 @@
-import { Injectable, Inject } from '@nestjs/common';
-import { CACHE_MANAGER } from '@nestjs/cache-manager';
+import { Injectable } from '@nestjs/common';
 import { PrismaService } from '../prisma/prisma.service'; // Adjust path if necessary
 import { Role, Prisma } from '@prisma/client'; // Import Role enum from your Prisma client
-import { Cache } from 'cache-manager'; // Import Cache type from cache-manager
 import { getTenantId } from '../tenant/tenant-context';
-
-interface DashboardUser {
-  role: Role;
-  departmentId?: string;
-  userId: string;
-  tenantId?: string;
-}
+import { CacheService } from '../cache/cache.service';
 
 @Injectable()
 export class DashboardService {
   constructor(
     private prisma: PrismaService,
-    @Inject(CACHE_MANAGER) private cacheManager: Cache, // Inject NestJS CacheManager
+    private cache: CacheService,
   ) {}
 
   /** Tenant-scoped cache key so tenants never share cached dashboards. */
   private tenantCacheKey(key: string, tenantId?: string): string {
-    return `tenant:${tenantId ?? getTenantId() ?? 'global'}:${key}`;
+    return this.cache.tenantKey(key, tenantId ?? getTenantId() ?? 'global');
   }
 
   /**
@@ -82,7 +74,7 @@ export class DashboardService {
 
   private async getAdminDashboard(tenantId?: string) {
     const cacheKey = this.tenantCacheKey('admin-dashboard', tenantId);
-    const cachedData = await this.cacheManager.get(cacheKey);
+    const cachedData = await this.cache.get(cacheKey);
     if (cachedData) {
       return cachedData;
     }
@@ -118,7 +110,7 @@ export class DashboardService {
         securityAlertsCount,
       };
 
-      await this.cacheManager.set(cacheKey, dashboardData);
+      await this.cache.set(cacheKey, dashboardData);
       return dashboardData;
     }
 
@@ -178,7 +170,7 @@ export class DashboardService {
       };
     });
 
-    await this.cacheManager.set(cacheKey, dashboardData);
+    await this.cache.set(cacheKey, dashboardData);
     return dashboardData;
   }
 
@@ -187,7 +179,7 @@ export class DashboardService {
       `hod-dashboard-${departmentId}`,
       tenantId,
     );
-    const cachedData = await this.cacheManager.get(cacheKey);
+    const cachedData = await this.cache.get(cacheKey);
     if (cachedData) {
       return cachedData;
     }
@@ -257,7 +249,7 @@ export class DashboardService {
       });
     }
 
-    await this.cacheManager.set(cacheKey, dashboardData);
+    await this.cache.set(cacheKey, dashboardData);
     return dashboardData;
   }
 
@@ -270,7 +262,7 @@ export class DashboardService {
       `lead-dashboard-${departmentId}-${userId}`,
       tenantId,
     );
-    const cachedData = await this.cacheManager.get(cacheKey);
+    const cachedData = await this.cache.get(cacheKey);
     if (cachedData) {
       return cachedData;
     }
@@ -344,7 +336,7 @@ export class DashboardService {
       });
     }
 
-    await this.cacheManager.set(cacheKey, dashboardData);
+    await this.cache.set(cacheKey, dashboardData);
     return dashboardData;
   }
 
@@ -357,7 +349,7 @@ export class DashboardService {
       `staff-dashboard-${departmentId}-${userId}`,
       tenantId,
     );
-    const cachedData = await this.cacheManager.get(cacheKey);
+    const cachedData = await this.cache.get(cacheKey);
     if (cachedData) {
       return cachedData;
     }
@@ -425,7 +417,7 @@ export class DashboardService {
       });
     }
 
-    await this.cacheManager.set(cacheKey, dashboardData);
+    await this.cache.set(cacheKey, dashboardData);
     return dashboardData;
   }
 
