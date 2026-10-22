@@ -19,10 +19,10 @@ export class AccessControlGuard extends AuthGuard('jwt') {
     const baseAuth = await super.canActivate(context);
     if (!baseAuth) return false;
 
-    return (
-      (await this.rolesGuard.canActivate(context)) &&
-      (await this.deptGuard.canActivate(context)) &&
-      this.permissionGuard.canActivate(context)
-    );
+    // Each guard is evaluated in turn; the first denial short-circuits.
+    // RolesGuard is synchronous, DepartmentGuard and PermissionGuard are not.
+    if (!this.rolesGuard.canActivate(context)) return false;
+    if (!(await this.deptGuard.canActivate(context))) return false;
+    return this.permissionGuard.canActivate(context);
   }
 }

@@ -26,11 +26,7 @@ import {
 import { PrismaService } from '../prisma/prisma.service';
 import { getTenantId } from '../tenant/tenant-context';
 
-export type WidgetScope =
-  | 'organization'
-  | 'department'
-  | 'team'
-  | 'individual';
+export type WidgetScope = 'organization' | 'department' | 'team' | 'individual';
 
 export type MetricFormat = 'currency' | 'percent' | 'number' | 'hours';
 
@@ -669,7 +665,9 @@ export class DashboardWidgetsService {
         select: {
           id: true,
           invoiceNumber: true,
-          customer: { select: { company: true, firstName: true, lastName: true } },
+          customer: {
+            select: { company: true, firstName: true, lastName: true },
+          },
         },
       }),
       tx.task.findMany({
@@ -730,7 +728,7 @@ export class DashboardWidgetsService {
     });
 
     const type = (department?.type ??
-    DepartmentType.ADMINISTRATION) as DepartmentType;
+      DepartmentType.ADMINISTRATION) as DepartmentType;
 
     switch (type) {
       case DepartmentType.FINANCE:
@@ -785,7 +783,12 @@ export class DashboardWidgetsService {
 
     const [revenueData, budgetData, auditLog] = await Promise.all([
       this.monthlyRevenue(tx, tenantId, paymentCustomerScope),
-      this.monthlyBudget(tx, tenantId, paymentCustomerScope, invoiceCustomerScope),
+      this.monthlyBudget(
+        tx,
+        tenantId,
+        paymentCustomerScope,
+        invoiceCustomerScope,
+      ),
       this.departmentAuditTrail(tx, tenantId, departmentId),
     ]);
 
@@ -944,9 +947,7 @@ export class DashboardWidgetsService {
         action: 'expense logged',
         entity: 'expense',
         target: expense.description,
-        timestamp: (
-          expense.incurredAt ?? expense.createdAt
-        ).toISOString(),
+        timestamp: (expense.incurredAt ?? expense.createdAt).toISOString(),
         initiator: expense.createdBy?.name ?? 'System',
       })),
       ...projects.map((project: any) => ({
@@ -1011,7 +1012,9 @@ export class DashboardWidgetsService {
       tx.user.count({ where: { tenantId, departmentId } }),
     ]);
 
-    const inventory = inventoryRows.map((item: any) => this.toInventoryItem(item));
+    const inventory = inventoryRows.map((item: any) =>
+      this.toInventoryItem(item),
+    );
     const resolvedTickets = tickets.filter(
       (ticket: any) => ticket.resolvedAt !== null,
     );
@@ -1104,8 +1107,8 @@ export class DashboardWidgetsService {
   }
 
   private toInventoryItem(item: any): WidgetInventoryItem {
-    const text = `${item.name ?? ''} ${item.description ?? ''} ${item.unit ?? ''}`
-      .toLowerCase();
+    const text =
+      `${item.name ?? ''} ${item.description ?? ''} ${item.unit ?? ''}`.toLowerCase();
     const softwareHints = [
       'software',
       'license',
@@ -1491,7 +1494,9 @@ export class DashboardWidgetsService {
     if (teams.length === 0) return [];
 
     const memberIds = [
-      ...new Set(teams.flatMap((team: any) => team.members.map((m: any) => m.userId))),
+      ...new Set(
+        teams.flatMap((team: any) => team.members.map((m: any) => m.userId)),
+      ),
     ];
 
     const tasks = await tx.task.findMany({
@@ -1501,7 +1506,10 @@ export class DashboardWidgetsService {
 
     const tasksByUser = new Map<string, { total: number; done: number }>();
     for (const task of tasks) {
-      const bucket = tasksByUser.get(task.assignedToId) ?? { total: 0, done: 0 };
+      const bucket = tasksByUser.get(task.assignedToId) ?? {
+        total: 0,
+        done: 0,
+      };
       bucket.total += 1;
       if (task.status === 'Completed') bucket.done += 1;
       tasksByUser.set(task.assignedToId, bucket);
@@ -1604,8 +1612,12 @@ export class DashboardWidgetsService {
         record.status === 'Present' ? 8 : record.status === 'On Leave' ? 0 : 0,
     }));
 
-    const completed = tasks.filter((task) => task.status === 'completed').length;
-    const present = attendance.filter((record) => record.status === 'present').length;
+    const completed = tasks.filter(
+      (task) => task.status === 'completed',
+    ).length;
+    const present = attendance.filter(
+      (record) => record.status === 'present',
+    ).length;
 
     return {
       scope: 'team',
@@ -1644,11 +1656,7 @@ export class DashboardWidgetsService {
           icon: 'Users',
         },
       ],
-      teamMetrics: await this.teamPerformance(
-        tx,
-        tenantId,
-        departmentId ?? '',
-      ),
+      teamMetrics: await this.teamPerformance(tx, tenantId, departmentId ?? ''),
       tasks,
       attendance,
     };
@@ -1665,11 +1673,11 @@ export class DashboardWidgetsService {
     };
 
     const status = statusMap[task.status] ?? 'not-started';
-    const progress = status === 'completed' ? 100 : status === 'in-progress' ? 50 : 0;
+    const progress =
+      status === 'completed' ? 100 : status === 'in-progress' ? 50 : 0;
     const dueDate = task.dueDate?.toISOString() ?? '';
     const dueSoon =
-      dueDate !== '' &&
-      new Date(dueDate).getTime() - Date.now() < 7 * DAY_MS;
+      dueDate !== '' && new Date(dueDate).getTime() - Date.now() < 7 * DAY_MS;
 
     return {
       id: task.id,
@@ -1738,7 +1746,9 @@ export class DashboardWidgetsService {
       ]);
 
     const tasks = taskRows.map((task: any) => this.toTask(task));
-    const completed = tasks.filter((task) => task.status === 'completed').length;
+    const completed = tasks.filter(
+      (task) => task.status === 'completed',
+    ).length;
     const presentDays = attendanceRows.filter(
       (record: any) => record.status === 'Present',
     ).length;
@@ -1784,7 +1794,9 @@ export class DashboardWidgetsService {
           value: completed,
           format: 'number',
           icon: 'CircleCheckBig',
-          progress: tasks.length ? Math.round((completed / tasks.length) * 100) : 0,
+          progress: tasks.length
+            ? Math.round((completed / tasks.length) * 100)
+            : 0,
         },
         {
           id: 'hoursWorked',
@@ -1826,13 +1838,16 @@ export class DashboardWidgetsService {
     return date;
   }
 
-  /** Index (0 = oldest) of the month a date belongs to, over the last N months. */
+  /**
+   * Index (0 = oldest) of the month a date belongs to, over the trailing 12
+   * month window that starts at {@link startOfMonthsAgo}. Dates outside the
+   * window are clamped into the first/last bucket.
+   */
   private monthIndex(date: Date): number {
-    const now = new Date();
     const start = this.startOfMonthsAgo(12);
     const months =
-      (now.getFullYear() - start.getFullYear()) * 12 +
-      (now.getMonth() - start.getMonth());
+      (date.getFullYear() - start.getFullYear()) * 12 +
+      (date.getMonth() - start.getMonth());
     return Math.min(Math.max(months, 0), 11);
   }
 

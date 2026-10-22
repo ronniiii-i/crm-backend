@@ -134,9 +134,7 @@ describe('RBAC matrix', () => {
   });
 
   describe('administrative modules', () => {
-    const adminOnly = ALL_ROUTES.filter(
-      (r) => r.path === '/user-management',
-    );
+    const adminOnly = ALL_ROUTES.filter((r) => r.path === '/user-management');
 
     it('restricts user management to ADMIN', () => {
       for (const route of adminOnly) {

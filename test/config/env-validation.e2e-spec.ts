@@ -38,9 +38,9 @@ describe('env validation', () => {
   });
 
   it('rejects a short JWT_SECRET', () => {
-    expect(() => validateEnv({ ...VALID_ENV, JWT_SECRET: 'short' } as any)).toThrow(
-      /at least 16 characters/,
-    );
+    expect(() =>
+      validateEnv({ ...VALID_ENV, JWT_SECRET: 'short' } as any),
+    ).toThrow(/at least 16 characters/);
   });
 
   it('rejects the legacy "supersecret" fallback', () => {
@@ -77,7 +77,9 @@ describe('env validation', () => {
   });
 
   it('rejects an out-of-range PORT', () => {
-    expect(() => validateEnv({ ...VALID_ENV, PORT: '-1' } as any)).toThrow(/PORT/);
+    expect(() => validateEnv({ ...VALID_ENV, PORT: '-1' } as any)).toThrow(
+      /PORT/,
+    );
   });
 });
 

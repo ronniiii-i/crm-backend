@@ -32,7 +32,6 @@ function createMockContext(
   path: string,
   user: Partial<UserWithDepartments>,
   requiredRoles: string[] = [],
-  requiredPermission?: Permission,
 ): ExecutionContext {
   const handler = () => undefined;
   Reflect.defineMetadata('roles', requiredRoles, handler);
@@ -51,7 +50,6 @@ function createMockContext(
 }
 
 describe('ACL System', () => {
-  let reflector: Reflector;
   let rolesGuard: RolesGuard;
 
   beforeAll(async () => {
@@ -63,7 +61,6 @@ describe('ACL System', () => {
       ],
     }).compile();
 
-    reflector = module.get<Reflector>(Reflector);
     rolesGuard = module.get<RolesGuard>(RolesGuard);
   });
 

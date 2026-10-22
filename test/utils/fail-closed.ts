@@ -13,9 +13,9 @@
  * Works for both promise rejections and synchronous throws.
  */
 export async function expectDenied(
-  operation: () => Promise<unknown> | unknown,
+  operation: () => unknown,
   message = 'expected the operation to be denied',
-): Promise<void> {
+): Promise<unknown> {
   let denied = false;
   let reason: unknown;
 
@@ -30,7 +30,7 @@ export async function expectDenied(
     throw new Error(message);
   }
 
-  return reason as never;
+  return reason;
 }
 
 /**
