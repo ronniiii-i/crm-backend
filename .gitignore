@@ -13,6 +13,10 @@ yarn-debug.log*
 yarn-error.log*
 lerna-debug.log*
 
+# Local scratch / tooling output
+lint*.json
+*.tsbuildinfo
+
 # OS
 .DS_Store
 
