@@ -9,34 +9,48 @@ datasource db {
 }
 
 model Tenant {
-  id                  String               @id @default(uuid())
-  name                String
-  slug                String               @unique
-  status              String               @default("ACTIVE")
-  createdAt           DateTime             @default(now())
-  updatedAt           DateTime             @updatedAt
-  attendanceRecords   AttendanceRecord[]
-  contacts            Contact[]
-  deals               Deal[]
-  departments         Department[]
-  expenses            Expense[]
-  inventoryItems      InventoryItem[]
-  invoices            Invoice[]
-  notifications       Notification[]
-  payments            Payment[]
-  projects            Project[]
-  projectFiles        ProjectFile[]
-  projectMembers      ProjectMember[]
-  quickActions        QuickAction[]
-  supportTickets      SupportTicket[]
-  tasks               Task[]
-  blacklistedTokens   BlacklistedToken[]
-  modules             Module[]
-  permissionGroups    PermissionGroup[]
-  permissionOverrides PermissionOverride[]
-  teamMembers         TeamMember[]
-  teams               Team[]
-  users               User[]
+  id                         String                      @id @default(uuid())
+  name                       String
+  slug                       String                      @unique
+  status                     TenantStatus                @default(TRIAL)
+  trialExpiresAt             DateTime?
+  gracePeriodEndsAt          DateTime?
+  suspendedAt                DateTime?
+  sessionVersion             Int                         @default(0)
+  ownerEmail                 String?
+  ownerName                  String?
+  billingEmail               String?
+  seatCount                  Int                         @default(0)
+  lastActivityAt             DateTime?
+  createdAt                  DateTime                    @default(now())
+  updatedAt                  DateTime                    @updatedAt
+  attendanceRecords          AttendanceRecord[]
+  contacts                   Contact[]
+  deals                      Deal[]
+  departments                Department[]
+  expenses                   Expense[]
+  inventoryItems             InventoryItem[]
+  invoices                   Invoice[]
+  notifications              Notification[]
+  payments                   Payment[]
+  projects                   Project[]
+  projectFiles               ProjectFile[]
+  projectMembers             ProjectMember[]
+  quickActions               QuickAction[]
+  supportTickets             SupportTicket[]
+  tasks                      Task[]
+  blacklistedTokens          BlacklistedToken[]
+  modules                    Module[]
+  permissionGroups           PermissionGroup[]
+  permissionGroupItems       PermissionGroupItem[]
+  permissionGroupAssignments PermissionGroupAssignment[]
+  permissionOverrides        PermissionOverride[]
+  teamMembers                TeamMember[]
+  teams                      Team[]
+  users                      User[]
+  roles                      Role[]
+  invitations                Invitation[]
+  lifecycleEvents            TenantLifecycleEvent[]
 
   @@map("tenants")
 }
@@ -46,16 +60,18 @@ model User {
   email                      String
   password                   String
   name                       String
-  role                       Role                        @default(STAFF)
+  roleId                     String
+  role                       Role                        @relation(fields: [roleId], references: [id], onDelete: Restrict)
   avatarUrl                  String?
   lastLoginAt                DateTime?
+  sessionVersion             Int                         @default(0)
   createdAt                  DateTime                    @default(now())
   updatedAt                  DateTime                    @updatedAt
   isVerified                 Boolean                     @default(false)
-  verifyToken                String?
-  verifyExpires              DateTime?
-  resetToken                 String?
-  resetExpires               DateTime?
+  verifyTokenHash            String?
+  verifyExpiresAt            DateTime?
+  resetTokenHash             String?
+  resetExpiresAt             DateTime?
   departmentId               String?                     @map("department")
   status                     EmploymentStatus            @default(ACTIVE)
   tenantId                   String
@@ -77,9 +93,13 @@ model User {
   ledTeams                   Team[]                      @relation("TeamLead")
   department                 Department?                 @relation("DepartmentMembers", fields: [departmentId], references: [id])
   tenant                     Tenant                      @relation(fields: [tenantId], references: [id])
+  invitationsSent            Invitation[]                @relation("InvitationsSent")
+  invitationsAccepted        Invitation[]                @relation("InvitationsAccepted")
 
   @@unique([tenantId, email])
   @@index([tenantId])
+  @@index([tenantId, roleId])
+  @@index([tenantId, departmentId])
   @@map("users")
 }
 
@@ -151,21 +171,25 @@ model Task {
 model Department {
   id                         String                      @id @default(uuid())
   name                       String
+  key                        String
   description                String?
-  type                       DepartmentType
+  isSystem                   Boolean                     @default(false)
+  sortOrder                  Int                         @default(0)
   managerId                  String?                     @unique
   tenantId                   String
   createdAt                  DateTime                    @default(now())
-  manager                    User?                       @relation("DepartmentManager", fields: [managerId], references: [id])
+  manager                    User?                       @relation("DepartmentManager", fields: [managerId], references: [id], onDelete: SetNull)
   tenant                     Tenant                      @relation(fields: [tenantId], references: [id])
   expenses                   Expense[]
   Module                     Module[]
   permissionGroupAssignments PermissionGroupAssignment[]
   teams                      Team[]
   members                    User[]                      @relation("DepartmentMembers")
+  invitations                Invitation[]
 
-  @@unique([tenantId, type])
+  @@unique([tenantId, key])
   @@index([tenantId])
+  @@index([tenantId, sortOrder])
 }
 
 model InventoryItem {
@@ -236,10 +260,10 @@ model BlacklistedToken {
   id        String   @id @default(cuid())
   token     String   @unique
   userId    String
-  tenantId  String?
+  tenantId  String
   expiresAt DateTime
   createdAt DateTime @default(now())
-  tenant    Tenant?  @relation(fields: [tenantId], references: [id])
+  tenant    Tenant   @relation(fields: [tenantId], references: [id])
   user      User     @relation(fields: [userId], references: [id])
 
   @@index([userId])
@@ -375,30 +399,40 @@ model Permission {
 model Module {
   id                    String                 @id @default(uuid())
   name                  String
+  key                   String
   path                  String
   icon                  String?
+  group                 String                 @default("Workspace")
+  order                 Int                    @default(0)
+  isNavigable           Boolean                @default(false)
+  description           String?
   departmentId          String?
-  tenantId              String?
+  tenantId              String
   department            Department?            @relation(fields: [departmentId], references: [id])
-  tenant                Tenant?                @relation(fields: [tenantId], references: [id])
+  tenant                Tenant                 @relation(fields: [tenantId], references: [id])
   permissionGroupItems  PermissionGroupItem[]
   permissionOverrides   PermissionOverride[]
   roleModulePermissions RoleModulePermission[]
 
+  @@unique([tenantId, key])
   @@unique([tenantId, path])
   @@index([tenantId])
+  @@index([tenantId, departmentId])
   @@map("modules")
 }
 
 model RoleModulePermission {
   id           String     @id @default(uuid())
-  role         Role
+  tenantId     String
+  roleId       String
   moduleId     String
   permissionId Int
+  role         Role       @relation(fields: [roleId], references: [id], onDelete: Cascade)
   module       Module     @relation(fields: [moduleId], references: [id])
   permission   Permission @relation(fields: [permissionId], references: [id])
 
-  @@unique([role, moduleId, permissionId])
+  @@unique([tenantId, roleId, moduleId, permissionId])
+  @@index([tenantId, roleId])
   @@map("role_module_permissions")
 }
 
@@ -475,49 +509,144 @@ model PermissionGroup {
 
 model PermissionGroupItem {
   id           String          @id @default(uuid())
+  tenantId     String
   groupId      String
   moduleId     String
   permissionId Int
+  tenant       Tenant          @relation(fields: [tenantId], references: [id])
   group        PermissionGroup @relation(fields: [groupId], references: [id])
   module       Module          @relation(fields: [moduleId], references: [id])
   permission   Permission      @relation(fields: [permissionId], references: [id])
 
-  @@unique([groupId, moduleId, permissionId])
+  @@unique([tenantId, groupId, moduleId, permissionId])
   @@map("permission_group_items")
 }
 
 model PermissionGroupAssignment {
   id           String          @id @default(uuid())
+  tenantId     String
   groupId      String
   userId       String?
   departmentId String?
   assignedAt   DateTime        @default(now())
+  tenant       Tenant          @relation(fields: [tenantId], references: [id])
   department   Department?     @relation(fields: [departmentId], references: [id])
   group        PermissionGroup @relation(fields: [groupId], references: [id])
   user         User?           @relation(fields: [userId], references: [id])
 
+  @@index([tenantId])
   @@index([groupId])
   @@index([userId])
   @@index([departmentId])
   @@map("permission_group_assignments")
 }
 
-enum Role {
-  ADMIN
-  HOD
-  LEAD
-  STAFF
+model Role {
+  id            String        @id @default(uuid())
+  tenantId      String
+  tenant        Tenant        @relation(fields: [tenantId], references: [id], onDelete: Cascade)
+  name          String
+  slug          String
+  description   String?
+  rank          Int           @default(100)
+  isSystem      Boolean       @default(false)
+  isTenantAdmin Boolean       @default(false)
+  dataScope     RoleDataScope @default(SELF)
+  createdAt     DateTime      @default(now())
+  updatedAt     DateTime      @updatedAt
+
+  users                 User[]
+  roleModulePermissions RoleModulePermission[]
+  invitations           Invitation[]
+
+  @@unique([tenantId, slug])
+  @@index([tenantId, rank])
+  @@map("roles")
 }
 
-enum DepartmentType {
-  ADMINISTRATION
-  HUMAN_RESOURCES
-  SALES
-  OPERATIONS
-  FINANCE
-  INFORMATION_TECHNOLOGY
-  CUSTOMER_SERVICE
-  ACCOUNTING
+model Invitation {
+  id               String           @id @default(uuid())
+  tenantId         String
+  tenant           Tenant           @relation(fields: [tenantId], references: [id], onDelete: Cascade)
+  email            String
+  tokenHash        String           @unique
+  status           InvitationStatus @default(PENDING)
+  roleId           String
+  role             Role             @relation(fields: [roleId], references: [id], onDelete: Restrict)
+  departmentId     String?
+  department       Department?      @relation(fields: [departmentId], references: [id], onDelete: SetNull)
+  invitedByUserId  String
+  invitedBy        User             @relation("InvitationsSent", fields: [invitedByUserId], references: [id], onDelete: Restrict)
+  acceptedByUserId String?
+  acceptedBy       User?            @relation("InvitationsAccepted", fields: [acceptedByUserId], references: [id], onDelete: SetNull)
+  expiresAt        DateTime
+  acceptedAt       DateTime?
+  revokedAt        DateTime?
+  lastSentAt       DateTime         @default(now())
+  sendCount        Int              @default(1)
+  createdAt        DateTime         @default(now())
+  updatedAt        DateTime         @updatedAt
+
+  @@index([tenantId, email])
+  @@index([tenantId, status])
+  @@map("invitations")
+}
+
+model SystemAdmin {
+  id          String          @id @default(uuid())
+  email       String          @unique
+  password    String
+  name        String
+  role        SystemAdminRole @default(SUPER_ADMIN)
+  isActive    Boolean         @default(true)
+  lastLoginAt DateTime?
+  createdAt   DateTime        @default(now())
+  updatedAt   DateTime        @updatedAt
+
+  lifecycleEvents TenantLifecycleEvent[]
+
+  @@map("system_admins")
+}
+
+model TenantLifecycleEvent {
+  id                 String       @id @default(uuid())
+  tenantId           String
+  tenant             Tenant       @relation(fields: [tenantId], references: [id], onDelete: Cascade)
+  actorSystemAdminId String
+  actor              SystemAdmin  @relation(fields: [actorSystemAdminId], references: [id], onDelete: Restrict)
+  fromStatus         TenantStatus
+  toStatus           TenantStatus
+  reason             String?
+  metadata           Json?
+  createdAt          DateTime     @default(now())
+
+  @@index([tenantId, createdAt])
+  @@map("tenant_lifecycle_events")
+}
+
+enum TenantStatus {
+  TRIAL
+  ACTIVE
+  PAST_DUE
+  SUSPENDED
+}
+
+enum RoleDataScope {
+  TENANT
+  DEPARTMENT
+  TEAM
+  SELF
+}
+
+enum InvitationStatus {
+  PENDING
+  ACCEPTED
+  REVOKED
+  EXPIRED
+}
+
+enum SystemAdminRole {
+  SUPER_ADMIN
 }
 
 enum EmploymentStatus {
