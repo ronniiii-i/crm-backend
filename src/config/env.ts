@@ -1,5 +1,3 @@
-// src/config/env.ts
-
 /**
  * Reads a required environment variable, failing fast when it is missing.
  *

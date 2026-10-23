@@ -32,6 +32,10 @@ import { ThrottlerGuard } from '@nestjs/throttler';
       isGlobal: true, // makes the ConfigModule available everywhere
     }),
     TenantModule,
+    // Both throttlers apply to every route. Stricter, auth-specific limits are
+    // opt-in per route with `@Throttle(...)`; putting them here would apply
+    // them to the whole API (a 5/hour "auth" limit previously throttled every
+    // dashboard and list request too).
     ThrottlerModule.forRoot([
       {
         name: 'default',
@@ -42,16 +46,6 @@ import { ThrottlerGuard } from '@nestjs/throttler';
         name: 'short',
         ttl: 10000, // 10 seconds in milliseconds
         limit: 10, // 10 requests per 10 seconds (burst protection)
-      },
-      {
-        name: 'auth',
-        ttl: 3600000, // 1 hour in milliseconds
-        limit: 5, // 5 requests per hour (strict auth endpoints)
-      },
-      {
-        name: 'sensitive',
-        ttl: 86400000, // 24 hours in milliseconds
-        limit: 10, // 10 requests per day (for very sensitive ops)
       },
     ]),
     AuthModule,

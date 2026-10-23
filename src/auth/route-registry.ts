@@ -1,4 +1,3 @@
-// src/auth/route-registry.ts
 import { Injectable } from '@nestjs/common';
 import { CacheService } from '../cache/cache.service';
 import { ProtectedRoute } from './permission-types';

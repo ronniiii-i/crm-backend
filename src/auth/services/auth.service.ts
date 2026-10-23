@@ -8,6 +8,8 @@ import { Role } from '@prisma/client';
 import { MailService } from '../../mail/mail.service';
 import { addHours } from 'date-fns';
 import { PermissionResolutionService } from './permission-resolution.service';
+import { CacheService } from '../../cache/cache.service';
+import { blacklistKey } from '../blacklist-key';
 
 interface DecodedToken {
   exp?: number;
@@ -23,6 +25,7 @@ export class AuthService {
     private frontendAdapter: FrontendAdapterService,
     private tenantResolver: TenantResolverService,
     private permissionResolution: PermissionResolutionService,
+    private cache: CacheService,
   ) {}
 
   async signup(email: string, password: string, name: string) {
@@ -195,6 +198,23 @@ export class AuthService {
     );
   }
 
+  /**
+   * Load the full user row inside an already-resolved tenant. Used by
+   * `/auth/verify`, which has the tenant id from the JWT and therefore skips
+   * the extra cross-tenant lookup performed by {@link findUserById}.
+   */
+  async findUserByIdInTenant(id: string, tenantId: string) {
+    return this.prisma.withTenant(tenantId, (tx) =>
+      tx.user.findUnique({
+        where: { id },
+        include: {
+          department: { select: { id: true, name: true, type: true } },
+          managedDepartment: { select: { id: true, name: true, type: true } },
+        },
+      }),
+    );
+  }
+
   // async login(email: string, password: string) {
   //   const user = await this.prisma.user.findUnique({
   //     where: { email },
@@ -322,7 +342,15 @@ export class AuthService {
       tenantId: user.tenantId,
       departmentId: user.department?.id || null,
       managedDepartmentId: user.managedDepartment?.id || null,
+      // The department *type* is needed by the hybrid ACL guards on every
+      // request. Embedding it lets JwtStrategy validate the session without a
+      // database round trip (see jwt.strategy.ts).
+      departmentType: user.department?.type ?? null,
+      managedDepartmentType: user.managedDepartment?.type ?? null,
       verified: user.isVerified,
+      // Token schema version: 2 means "claims are complete enough to trust".
+      // Tokens minted before this field existed fall back to a DB lookup.
+      tv: 2,
     };
 
     const token = this.jwtService.sign(payload);
@@ -393,24 +421,38 @@ export class AuthService {
     }
 
     if (token && userId && expiresAt) {
-      // Only attempt blacklisting if we have a valid token string and derived user/expiry
-      // Check if the token is already blacklisted to prevent duplicates
-      const existingBlacklistedToken =
-        await this.prisma.blacklistedToken.findUnique({
-          where: { token },
+      const tenantId =
+        typeof decodedToken?.tenantId === 'string'
+          ? decodedToken.tenantId
+          : 'global';
+      const ttlSeconds = Math.max(
+        1,
+        Math.floor((expiresAt.getTime() - Date.now()) / 1000),
+      );
+
+      // Revocation is authoritative in the cache (Redis in production, bounded
+      // in-process fallback otherwise) because that is what the guard checks on
+      // every request. The database row is kept as a durable audit trail, but a
+      // failure there (e.g. RLS/pooling) must never break logout.
+      await this.cache
+        .set(this.cache.tenantKey(blacklistKey(token), tenantId), true, ttlSeconds)
+        .catch(() => undefined);
+
+      try {
+        await this.prisma.blacklistedToken.create({
+          data: {
+            token,
+            userId,
+            tenantId: typeof decodedToken?.tenantId === 'string'
+              ? decodedToken.tenantId
+              : null,
+            expiresAt,
+          },
         });
-
-      if (existingBlacklistedToken) {
-        return { success: true, message: 'Token already invalidated.' };
+      } catch {
+        // Duplicate token or RLS rejection: the cache entry above is enough to
+        // invalidate the session for the current deployment.
       }
-
-      await this.prisma.blacklistedToken.create({
-        data: {
-          token,
-          userId, // Blacklist with the derived userId
-          expiresAt,
-        },
-      });
     }
     return { success: true, message: 'Logout successful!' };
   }

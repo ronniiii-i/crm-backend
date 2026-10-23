@@ -107,7 +107,9 @@ describe('CacheService', () => {
     });
 
     it('returns undefined for a missing key', async () => {
-      await expect(service.get('tenant:global:missing')).resolves.toBeUndefined();
+      await expect(
+        service.get('tenant:global:missing'),
+      ).resolves.toBeUndefined();
     });
 
     it('deletes an entry', async () => {
@@ -159,22 +161,63 @@ describe('CacheService', () => {
   });
 
   describe('graceful degradation', () => {
-    it('reports no cache hit when redis is unreachable', async () => {
+    it('reports no cache hit for a key that was never written', async () => {
       const unreachable = new CacheService(() => {
         throw new Error('redis unreachable');
       });
 
       await unreachable.onModuleInit();
 
-      await expect(unreachable.get('tenant:global:missing')).resolves.toBeUndefined();
       await expect(
-        unreachable.set('tenant:global:key', { a: 1 }, 60),
-      ).resolves.toBe(false);
-      await expect(unreachable.getStats()).toMatchObject({
-        connected: false,
-      });
+        unreachable.get('tenant:global:missing'),
+      ).resolves.toBeUndefined();
+      expect(unreachable.getStats().connected).toBe(false);
+      expect(unreachable.getStats().backend).toBe('memory');
 
       await unreachable.onModuleDestroy();
+    });
+
+    it('falls back to the in-process cache when redis is down', async () => {
+      const degraded = new CacheService(() => {
+        throw new Error('redis unreachable');
+      });
+      await degraded.onModuleInit();
+
+      const key = degraded.tenantKey('user:1:modules', 'tenant-a');
+
+      await expect(degraded.set(key, { modules: ['deals'] })).resolves.toBe(
+        true,
+      );
+      await expect(degraded.get(key)).resolves.toEqual({ modules: ['deals'] });
+
+      // In-process invalidation still works.
+      await degraded.invalidateUser('user-1', 'tenant-a');
+      await degraded.flushTenant('tenant-a');
+      await expect(degraded.get(key)).resolves.toBeUndefined();
+
+      await degraded.onModuleDestroy();
+    });
+
+    it('can disable the fallback entirely', async () => {
+      const previous = process.env.REDIS_FALLBACK_MEMORY;
+      process.env.REDIS_FALLBACK_MEMORY = 'false';
+      try {
+        const noop = new CacheService(() => {
+          throw new Error('redis unreachable');
+        });
+        await noop.onModuleInit();
+
+        await expect(noop.set('tenant:global:key', { a: 1 }, 60)).resolves.toBe(
+          false,
+        );
+        await expect(noop.get('tenant:global:key')).resolves.toBeUndefined();
+        expect(noop.getStats().backend).toBe('none');
+
+        await noop.onModuleDestroy();
+      } finally {
+        if (previous === undefined) delete process.env.REDIS_FALLBACK_MEMORY;
+        else process.env.REDIS_FALLBACK_MEMORY = previous;
+      }
     });
 
     it('does not throw when invalidating without a redis connection', async () => {

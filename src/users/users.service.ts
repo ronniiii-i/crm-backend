@@ -1,5 +1,3 @@
-// src/users/users.service.ts
-
 import { Injectable, NotFoundException } from '@nestjs/common';
 import { PrismaService } from '../prisma/prisma.service';
 import { User, Role, PermissionType, Prisma } from '@prisma/client'; // Import PermissionType

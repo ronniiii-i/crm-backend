@@ -1,4 +1,3 @@
-// src/config/env.validation.ts
 import { z } from 'zod';
 
 /**
@@ -51,6 +50,12 @@ const envSchema = z.object({
   REDIS_DB: z.coerce.number().int().min(0).default(0),
   REDIS_KEY_PREFIX: z.string().min(1).default('claspcrm'),
   REDIS_CONNECT_TIMEOUT: z.coerce.number().int().positive().default(3000),
+  /**
+   * When Redis is unreachable, serve a bounded in-process cache instead of
+   * disabling caching entirely. Entries are capped at 60s so a permission
+   * change is observed quickly even without cross-instance invalidation.
+   */
+  REDIS_FALLBACK_MEMORY: z.enum(['true', 'false']).default('true'),
 
   FRONTEND_URL: z.string().default('http://localhost:3000'),
 

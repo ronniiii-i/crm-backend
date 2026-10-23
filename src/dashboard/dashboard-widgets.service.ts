@@ -1,4 +1,3 @@
-// src/dashboard/dashboard-widgets.service.ts
 //
 // Real, tenant-scoped data for the dashboard widgets.
 //
@@ -24,6 +23,7 @@ import {
   TicketStatus,
 } from '@prisma/client';
 import { PrismaService } from '../prisma/prisma.service';
+import { CacheService } from '../cache/cache.service';
 import { getTenantId } from '../tenant/tenant-context';
 
 export type WidgetScope = 'organization' | 'department' | 'team' | 'individual';
@@ -264,7 +264,10 @@ const DAY_MS = 24 * 60 * 60 * 1000;
 
 @Injectable()
 export class DashboardWidgetsService {
-  constructor(private readonly prisma: PrismaService) {}
+  constructor(
+    private readonly prisma: PrismaService,
+    private readonly cache: CacheService,
+  ) {}
 
   /**
    * Builds the widget payload for the authenticated user.
@@ -289,7 +292,17 @@ export class DashboardWidgetsService {
         ? (user.managedDepartmentId ?? user.departmentId)
         : user.departmentId;
 
-    return this.prisma.withTenant(tenantId, async (tx) => {
+    // The widget payload is fully derived from (tenant, user, scope,
+    // department), so a short cache removes the repeated multi-second rebuild
+    // on every dashboard navigation without ever mixing tenants or users.
+    const cacheKey = this.cache.tenantKey(
+      `dashboard:widgets:${user.id}:${scope}:${departmentId ?? 'all'}`,
+      tenantId,
+    );
+    const cached = await this.cache.get<DashboardWidgetPayload>(cacheKey);
+    if (cached) return cached;
+
+    const payload = await this.prisma.withTenant(tenantId, async (tx) => {
       switch (scope) {
         case 'organization':
           return this.organizationScope(tx, tenantId);
@@ -301,6 +314,9 @@ export class DashboardWidgetsService {
           return this.individualScope(tx, tenantId, user.id);
       }
     });
+
+    await this.cache.set(cacheKey, payload, 45);
+    return payload;
   }
 
   private scopeForRole(role: Role): WidgetScope {

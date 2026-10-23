@@ -84,12 +84,7 @@ export class InMemoryRedisClient implements RedisLike {
   }
 
   keys(pattern: string): Promise<string[]> {
-    const regex = new RegExp(
-      `^${pattern
-        .replace(/[.+^${}()|[\]\\]/g, '\\$&')
-        .replace(/\*/g, '.*')
-        .replace(/\?/g, '.')}$`,
-    );
+    const regex = globToRegExp(pattern);
     return Promise.resolve(
       Array.from(this.store.keys()).filter((key) => regex.test(key)),
     );
@@ -119,8 +114,24 @@ export class InMemoryRedisClient implements RedisLike {
   }
 }
 
+/** Translate a Redis glob pattern (`*`, `?`) into an anchored RegExp. */
+function globToRegExp(pattern: string): RegExp {
+  return new RegExp(
+    `^${pattern
+      .replace(/[.+^${}()|[\]\\]/g, '\\$&')
+      .replace(/\*/g, '.*')
+      .replace(/\?/g, '.')}$`,
+  );
+}
+
+interface MemoryEntry {
+  value: string;
+  /** Epoch millis at which the entry expires. */
+  expiresAt: number;
+}
+
 /**
- * Tenant-scoped cache backed by Redis.
+ * Tenant-scoped cache backed by Redis, with a bounded in-process fallback.
  *
  * Multi-tenancy rules for cache keys:
  *
@@ -133,16 +144,33 @@ export class InMemoryRedisClient implements RedisLike {
  *  * The Redis connection is shared across application instances, so a
  *    multi-instance deployment behaves identically to a single instance.
  *
- * If Redis is unreachable the service degrades to a no-op cache rather than
- * failing the request: caching is an optimisation, never a source of truth.
+ * Availability:
+ *
+ *  * If Redis is unreachable the service degrades to a bounded in-process
+ *    cache instead of a no-op. This keeps single-node deployments fast (the
+ *    database is often hundreds of milliseconds away) at the cost of
+ *    cross-instance invalidation.
+ *  * In-process entries are capped at {@link MEMORY_TTL_CAP_MS} so a
+ *    permission change is observed within a minute even when no other
+ *    instance can invalidate this one. Set `REDIS_FALLBACK_MEMORY=false` to
+ *    disable the fallback entirely.
+ *  * Caching is always an optimisation, never a source of truth; every
+ *    failure path falls through to the database.
  */
 @Injectable()
 export class CacheService implements OnModuleInit, OnModuleDestroy {
+  /** Never serve an in-process entry for longer than this. */
+  private static readonly MEMORY_TTL_CAP_MS = 60_000;
+  /** Upper bound on in-process entries to keep memory usage predictable. */
+  private static readonly MEMORY_MAX_ENTRIES = 1_000;
+
   private readonly logger = new Logger(CacheService.name);
   private client: RedisLike | undefined;
   private connected = false;
   private readonly keyPrefix: string;
   private readonly clientFactory: RedisClientFactory;
+  private readonly memoryFallback: boolean;
+  private readonly memory = new Map<string, MemoryEntry>();
 
   constructor(
     @Optional()
@@ -151,6 +179,8 @@ export class CacheService implements OnModuleInit, OnModuleDestroy {
   ) {
     this.clientFactory = clientFactory ?? defaultRedisClientFactory;
     this.keyPrefix = buildRedisConfig().keyPrefix;
+    this.memoryFallback =
+      (process.env.REDIS_FALLBACK_MEMORY ?? 'true').toLowerCase() !== 'false';
   }
 
   async onModuleInit(): Promise<void> {
@@ -180,7 +210,7 @@ export class CacheService implements OnModuleInit, OnModuleDestroy {
     } catch (error) {
       this.connected = false;
       this.logger.warn(
-        `Redis cache could not be reached, continuing without cache: ${
+        `Redis cache could not be reached, continuing with the in-process fallback: ${
           error instanceof Error ? error.message : String(error)
         }`,
       );
@@ -188,6 +218,7 @@ export class CacheService implements OnModuleInit, OnModuleDestroy {
   }
 
   async onModuleDestroy(): Promise<void> {
+    this.memory.clear();
     if (!this.client) return;
     try {
       await this.client.quit();
@@ -212,60 +243,127 @@ export class CacheService implements OnModuleInit, OnModuleDestroy {
     return `${this.keyPrefix}:${key}`;
   }
 
+  private get redisReady(): boolean {
+    return this.connected && !!this.client;
+  }
+
   async get<T = any>(key: string): Promise<T | undefined> {
-    if (!this.connected || !this.client) return undefined;
+    if (this.redisReady) {
+      try {
+        const raw = await this.client!.get(this.fullKey(key));
+        if (raw !== null && raw !== undefined) return JSON.parse(raw) as T;
+      } catch (error) {
+        this.logger.warn(
+          `Cache read failed for ${key}: ${
+            error instanceof Error ? error.message : String(error)
+          }`,
+        );
+      }
+    }
+
+    if (!this.memoryFallback) return undefined;
+
+    const entry = this.memory.get(this.fullKey(key));
+    if (!entry) return undefined;
+    if (entry.expiresAt <= Date.now()) {
+      this.memory.delete(this.fullKey(key));
+      return undefined;
+    }
     try {
-      const raw = await this.client.get(this.fullKey(key));
-      if (raw === null || raw === undefined) return undefined;
-      return JSON.parse(raw) as T;
-    } catch (error) {
-      this.logger.warn(
-        `Cache read failed for ${key}: ${
-          error instanceof Error ? error.message : String(error)
-        }`,
-      );
+      return JSON.parse(entry.value) as T;
+    } catch {
       return undefined;
     }
   }
 
   async set(key: string, value: any, ttl?: number): Promise<boolean> {
-    if (!this.connected || !this.client) return false;
-    try {
-      const serialized = JSON.stringify(value ?? null);
-      if (ttl && ttl > 0) {
-        await this.client.set(this.fullKey(key), serialized, { EX: ttl });
-      } else {
-        await this.client.set(this.fullKey(key), serialized);
+    const serialized = JSON.stringify(value ?? null);
+    let stored = false;
+
+    if (this.redisReady) {
+      try {
+        if (ttl && ttl > 0) {
+          await this.client!.set(this.fullKey(key), serialized, { EX: ttl });
+        } else {
+          await this.client!.set(this.fullKey(key), serialized);
+        }
+        stored = true;
+      } catch (error) {
+        this.logger.warn(
+          `Cache write failed for ${key}: ${
+            error instanceof Error ? error.message : String(error)
+          }`,
+        );
       }
-      return true;
-    } catch (error) {
-      this.logger.warn(
-        `Cache write failed for ${key}: ${
-          error instanceof Error ? error.message : String(error)
-        }`,
-      );
-      return false;
+    }
+
+    if (this.memoryFallback) {
+      this.setMemory(key, serialized, ttl);
+      stored = true;
+    }
+
+    return stored;
+  }
+
+  private setMemory(key: string, serialized: string, ttl?: number): void {
+    const ttlMs = Math.min(
+      ttl && ttl > 0 ? ttl * 1000 : CacheService.MEMORY_TTL_CAP_MS,
+      CacheService.MEMORY_TTL_CAP_MS,
+    );
+    const fullKey = this.fullKey(key);
+
+    // Refresh insertion order so the eviction below is LRU-ish.
+    this.memory.delete(fullKey);
+    this.memory.set(fullKey, {
+      value: serialized,
+      expiresAt: Date.now() + ttlMs,
+    });
+
+    if (this.memory.size > CacheService.MEMORY_MAX_ENTRIES) {
+      const oldest = this.memory.keys().next().value;
+      if (oldest !== undefined) this.memory.delete(oldest);
     }
   }
 
   async del(key: string): Promise<number> {
-    if (!this.connected || !this.client) return 0;
+    let removed = 0;
+    if (this.redisReady) {
+      try {
+        removed = await this.client!.del(this.fullKey(key));
+      } catch {
+        removed = 0;
+      }
+    }
+    if (this.memory.delete(this.fullKey(key))) removed += 1;
+    return removed;
+  }
+
+  /** Remove every in-process key matching a Redis glob pattern. */
+  private deleteMemoryByPattern(pattern: string): number {
+    const regex = globToRegExp(this.fullKey(pattern));
+    let removed = 0;
+    for (const key of Array.from(this.memory.keys())) {
+      if (regex.test(key)) {
+        this.memory.delete(key);
+        removed += 1;
+      }
+    }
+    return removed;
+  }
+
+  private async deleteRedisByPattern(pattern: string): Promise<void> {
+    if (!this.redisReady) return;
     try {
-      const removed = await this.client.del(this.fullKey(key));
-      return removed;
+      const keys = await this.client!.keys(this.fullKey(pattern));
+      if (keys.length > 0) await this.client!.del(keys);
     } catch {
-      return 0;
+      // Ignore - invalidation is best effort.
     }
   }
 
   async flush(): Promise<void> {
-    if (!this.connected || !this.client) return;
-    try {
-      const keys = await this.client.keys(this.fullKey('*'));
-      if (keys.length > 0) await this.client.del(keys);
-    } catch {
-      // Ignore - flushing is best effort.
-    }
+    this.memory.clear();
+    await this.deleteRedisByPattern('*');
   }
 
   // Call this when routes change
@@ -275,49 +373,40 @@ export class CacheService implements OnModuleInit, OnModuleDestroy {
 
   // Call this when all routes need refreshing
   async invalidateAllRoutes(): Promise<void> {
-    if (!this.connected || !this.client) return;
-    try {
-      const keys = await this.client.keys(this.fullKey('tenant:*:route:*'));
-      if (keys.length > 0) await this.client.del(keys);
-    } catch {
-      // Ignore - invalidation is best effort.
-    }
+    this.deleteMemoryByPattern('tenant:*:route:*');
+    await this.deleteRedisByPattern('tenant:*:route:*');
   }
 
   /** Drop every cache entry belonging to a tenant (e.g. on tenant purge). */
   async flushTenant(
     tenantId: string = getTenantId() ?? 'global',
   ): Promise<void> {
-    if (!this.connected || !this.client) return;
-    try {
-      const keys = await this.client.keys(this.fullKey(`tenant:${tenantId}:*`));
-      if (keys.length > 0) await this.client.del(keys);
-    } catch {
-      // Ignore - invalidation is best effort.
-    }
+    this.deleteMemoryByPattern(`tenant:${tenantId}:*`);
+    await this.deleteRedisByPattern(`tenant:${tenantId}:*`);
   }
 
   /** Remove every cache entry for a specific user inside the tenant. */
   async invalidateUser(userId: string, tenantId?: string): Promise<void> {
     const resolved = tenantId ?? getTenantId() ?? 'global';
-    if (!this.connected || !this.client) return;
-    try {
-      const keys = await this.client.keys(
-        this.fullKey(`tenant:${resolved}:user:${userId}:*`),
-      );
-      if (keys.length > 0) await this.client.del(keys);
-    } catch {
-      // Ignore - invalidation is best effort.
-    }
+    this.deleteMemoryByPattern(`tenant:${resolved}:user:${userId}:*`);
+    await this.deleteRedisByPattern(`tenant:${resolved}:user:${userId}:*`);
   }
 
   getStats(): {
     connected: boolean;
+    backend: 'redis' | 'memory' | 'none';
     keyPrefix: string;
+    memoryEntries: number;
   } {
     return {
       connected: this.connected,
+      backend: this.redisReady
+        ? 'redis'
+        : this.memoryFallback
+          ? 'memory'
+          : 'none',
       keyPrefix: this.keyPrefix,
+      memoryEntries: this.memory.size,
     };
   }
 }
