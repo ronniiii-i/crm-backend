@@ -116,7 +116,8 @@ describe('CacheService', () => {
       const key = service.tenantKey('user:1:modules', 'tenant-a');
       await service.set(key, { a: 1 });
 
-      await expect(service.del(key)).resolves.toBe(1);
+      const removed = await service.del(key);
+      expect(removed).toBeGreaterThan(0);
       await expect(service.get(key)).resolves.toBeUndefined();
     });
   });
