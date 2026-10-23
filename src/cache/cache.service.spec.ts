@@ -1,5 +1,9 @@
 import { Test, TestingModule } from '@nestjs/testing';
-import { CacheService } from './cache.service';
+import {
+  CacheService,
+  InMemoryRedisClient,
+  REDIS_CLIENT_FACTORY,
+} from './cache.service';
 import { buildRedisConfig, buildRedisUrl } from './redis.config';
 
 describe('CacheService', () => {
@@ -7,10 +11,17 @@ describe('CacheService', () => {
 
   beforeEach(async () => {
     const module: TestingModule = await Test.createTestingModule({
-      providers: [CacheService],
+      providers: [
+        {
+          provide: REDIS_CLIENT_FACTORY,
+          useValue: () => new InMemoryRedisClient(),
+        },
+        CacheService,
+      ],
     }).compile();
 
     service = module.get<CacheService>(CacheService);
+    await service.onModuleInit();
   });
 
   afterEach(async () => {
@@ -83,18 +94,87 @@ describe('CacheService', () => {
     });
   });
 
-  describe('graceful degradation', () => {
-    it('reports no cache hit when redis is unreachable', async () => {
-      // The client was never connected in the test environment.
-      await expect(
-        service.get('tenant:global:missing'),
-      ).resolves.toBeUndefined();
+  describe('read / write', () => {
+    it('stores and retrieves a JSON value', async () => {
+      const key = service.tenantKey('user:1:modules', 'tenant-a');
+
+      await expect(service.set(key, { modules: ['contacts'] })).resolves.toBe(
+        true,
+      );
+      await expect(service.get(key)).resolves.toEqual({
+        modules: ['contacts'],
+      });
     });
 
-    it('does not throw when writing without a redis connection', async () => {
+    it('returns undefined for a missing key', async () => {
+      await expect(service.get('tenant:global:missing')).resolves.toBeUndefined();
+    });
+
+    it('deletes an entry', async () => {
+      const key = service.tenantKey('user:1:modules', 'tenant-a');
+      await service.set(key, { a: 1 });
+
+      await expect(service.del(key)).resolves.toBe(1);
+      await expect(service.get(key)).resolves.toBeUndefined();
+    });
+  });
+
+  describe('tenant isolation', () => {
+    it('never returns a tenant A entry for tenant B', async () => {
+      const keyA = service.tenantKey('user:1:modules', 'tenant-a');
+      const keyB = service.tenantKey('user:1:modules', 'tenant-b');
+
+      await service.set(keyA, { modules: ['contacts'] });
+
+      await expect(service.get(keyB)).resolves.toBeUndefined();
+    });
+
+    it('invalidates only the requested tenant', async () => {
+      const keyA = service.tenantKey('user:1:modules', 'tenant-a');
+      const keyB = service.tenantKey('user:1:modules', 'tenant-b');
+
+      await service.set(keyA, { modules: ['contacts'] });
+      await service.set(keyB, { modules: ['deals'] });
+
+      await service.flushTenant('tenant-a');
+
+      await expect(service.get(keyA)).resolves.toBeUndefined();
+      await expect(service.get(keyB)).resolves.toEqual({
+        modules: ['deals'],
+      });
+    });
+
+    it('invalidates only the requested user', async () => {
+      const keyOne = service.tenantKey('user:user-1:modules', 'tenant-a');
+      const keyTwo = service.tenantKey('user:user-2:modules', 'tenant-a');
+
+      await service.set(keyOne, { a: 1 });
+      await service.set(keyTwo, { b: 2 });
+
+      await service.invalidateUser('user-1', 'tenant-a');
+
+      await expect(service.get(keyOne)).resolves.toBeUndefined();
+      await expect(service.get(keyTwo)).resolves.toEqual({ b: 2 });
+    });
+  });
+
+  describe('graceful degradation', () => {
+    it('reports no cache hit when redis is unreachable', async () => {
+      const unreachable = new CacheService(() => {
+        throw new Error('redis unreachable');
+      });
+
+      await unreachable.onModuleInit();
+
+      await expect(unreachable.get('tenant:global:missing')).resolves.toBeUndefined();
       await expect(
-        service.set('tenant:global:key', { a: 1 }, 60),
+        unreachable.set('tenant:global:key', { a: 1 }, 60),
       ).resolves.toBe(false);
+      await expect(unreachable.getStats()).toMatchObject({
+        connected: false,
+      });
+
+      await unreachable.onModuleDestroy();
     });
 
     it('does not throw when invalidating without a redis connection', async () => {

@@ -1,8 +1,10 @@
 import {
+  Inject,
   Injectable,
   Logger,
   OnModuleDestroy,
   OnModuleInit,
+  Optional,
 } from '@nestjs/common';
 import { createClient } from 'redis';
 import { getTenantId } from '../tenant/tenant-context';
@@ -32,6 +34,26 @@ type RedisLike = {
  * in-memory double instead of requiring a live Redis server.
  */
 export type RedisClientFactory = (url: string) => RedisLike;
+
+/**
+ * Injection token for {@link RedisClientFactory}.
+ *
+ * A function type cannot be resolved by Nest's injector on its own, so it is
+ * exposed under an explicit token. The dependency is optional: when the token
+ * is not provided the service falls back to the default `redis` client.
+ */
+export const REDIS_CLIENT_FACTORY = 'REDIS_CLIENT_FACTORY';
+
+/** Default factory: a real `redis` client pointed at the configured server. */
+export const defaultRedisClientFactory: RedisClientFactory = (url: string) =>
+  createClient({
+    url,
+    // Fail fast instead of hanging the boot when Redis is unreachable.
+    socket: {
+      connectTimeout: Number(process.env.REDIS_CONNECT_TIMEOUT ?? 3000),
+      reconnectStrategy: false,
+    },
+  }) as unknown as RedisLike;
 
 /**
  * In-memory Redis double used by the test suites. It implements the subset of
@@ -120,18 +142,14 @@ export class CacheService implements OnModuleInit, OnModuleDestroy {
   private client: RedisLike | undefined;
   private connected = false;
   private readonly keyPrefix: string;
+  private readonly clientFactory: RedisClientFactory;
 
   constructor(
-    private readonly clientFactory: RedisClientFactory = (url: string) =>
-      createClient({
-        url,
-        // Fail fast instead of hanging the boot when Redis is unreachable.
-        socket: {
-          connectTimeout: Number(process.env.REDIS_CONNECT_TIMEOUT ?? 3000),
-          reconnectStrategy: false,
-        },
-      }) as unknown as RedisLike,
+    @Optional()
+    @Inject(REDIS_CLIENT_FACTORY)
+    clientFactory?: RedisClientFactory,
   ) {
+    this.clientFactory = clientFactory ?? defaultRedisClientFactory;
     this.keyPrefix = buildRedisConfig().keyPrefix;
   }
 
