@@ -2,6 +2,7 @@ import { Module, MiddlewareConsumer, NestModule } from '@nestjs/common';
 import { TenantMiddleware } from './tenant.middleware';
 import { TenantInterceptor } from './tenant.interceptor';
 import { TenantResolverService } from './tenant-resolver.service';
+import { TenantProvisioningService } from './tenant-provisioning.service';
 import { PrismaModule } from '../prisma/prisma.module';
 import { JwtModule } from '@nestjs/jwt';
 import { requireEnv, optionalEnv } from '../config/env';
@@ -15,8 +16,17 @@ import { requireEnv, optionalEnv } from '../config/env';
       signOptions: { expiresIn: optionalEnv('JWT_EXPIRES_IN', '1h') },
     }),
   ],
-  providers: [TenantMiddleware, TenantInterceptor, TenantResolverService],
-  exports: [TenantInterceptor, TenantResolverService],
+  providers: [
+    TenantMiddleware,
+    TenantInterceptor,
+    TenantResolverService,
+    TenantProvisioningService,
+  ],
+  exports: [
+    TenantInterceptor,
+    TenantResolverService,
+    TenantProvisioningService,
+  ],
 })
 export class TenantModule implements NestModule {
   configure(consumer: MiddlewareConsumer) {
