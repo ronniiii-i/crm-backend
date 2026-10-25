@@ -33,6 +33,9 @@ import { DepartmentsModule } from './departments/departments.module';
 import { AccessControlModule } from './access-control/access-control.module';
 import { InvitationsModule } from './invitations/invitations.module';
 import { PublicModule } from './public/public.module';
+import { BillingModule } from './billing/billing.module';
+import { TenantSettingsController } from './tenant/tenant-settings.controller';
+import { TenantSettingsService } from './tenant/tenant-settings.service';
 
 @Module({
   imports: [
@@ -66,7 +69,10 @@ import { PublicModule } from './public/public.module';
     AccessControlModule,
     InvitationsModule,
     PublicModule,
+    BillingModule,
   ],
+  controllers: [AppController, TenantSettingsController],
+  providers: [AppService, PrismaService, MailService, TenantSettingsService],
   controllers: [AppController],
   providers: [
     {
