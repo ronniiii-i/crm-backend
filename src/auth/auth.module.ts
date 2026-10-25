@@ -1,4 +1,3 @@
-// src/auth/auth.module.ts
 import { Module } from '@nestjs/common';
 import { JwtModule } from '@nestjs/jwt';
 import { PassportModule } from '@nestjs/passport';
@@ -12,16 +11,20 @@ import { DataFilterService } from '../core/data-filter.service';
 import { CacheModule } from '../cache/cache.module';
 import { RouteRegistry } from './route-registry';
 import { FrontendAdapterService } from './frontend-adapter.service';
+import { TenantModule } from '../tenant/tenant.module';
+import { AclModule } from './acl.module';
+import { requireEnv, optionalEnv } from '../config/env';
 
 @Module({
   imports: [
     PassportModule,
     JwtModule.register({
-      secret: process.env.JWT_SECRET || 'supersecret',
-      signOptions: { expiresIn: '1h' },
-      // signOptions: { expiresIn: '5m' },
+      secret: requireEnv('JWT_SECRET'),
+      signOptions: { expiresIn: optionalEnv('JWT_EXPIRES_IN', '1h') },
     }),
     CacheModule,
+    TenantModule,
+    AclModule,
   ],
   providers: [
     AuthService,
@@ -33,6 +36,12 @@ import { FrontendAdapterService } from './frontend-adapter.service';
     FrontendAdapterService,
   ],
   controllers: [AuthController, AuthAclController],
-  exports: [GuardsModule, RouteRegistry, FrontendAdapterService],
+  exports: [
+    GuardsModule,
+    RouteRegistry,
+    FrontendAdapterService,
+    JwtModule,
+    AclModule,
+  ],
 })
 export class AuthModule {}

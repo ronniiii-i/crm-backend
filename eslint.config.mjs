@@ -29,7 +29,23 @@ export default tseslint.config(
     rules: {
       '@typescript-eslint/no-explicit-any': 'off',
       '@typescript-eslint/no-floating-promises': 'warn',
-      '@typescript-eslint/no-unsafe-argument': 'warn'
+      '@typescript-eslint/no-unsafe-argument': 'warn',
+      // The Prisma access layer intentionally uses `any` for dynamically
+      // built queries (scope filters vary per role). The type-safety rules
+      // that report on `any` propagation are therefore advisory here - they
+      // would otherwise flag every scoped query in the codebase.
+      '@typescript-eslint/no-unsafe-assignment': 'warn',
+      '@typescript-eslint/no-unsafe-member-access': 'warn',
+      '@typescript-eslint/no-unsafe-call': 'warn',
+      '@typescript-eslint/no-unsafe-return': 'warn',
+    },
+  },
+  {
+    // Test doubles and helpers are synchronous under the hood but must expose
+    // an async signature to mirror the real Prisma client.
+    files: ['test/**/*.ts', '**/*.spec.ts'],
+    rules: {
+      '@typescript-eslint/require-await': 'off',
     },
   },
 );

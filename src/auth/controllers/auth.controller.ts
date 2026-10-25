@@ -17,10 +17,10 @@ import { SignupDto } from '../dto/signup.dto';
 import { LoginDto } from '../dto/login.dto';
 import { JwtAuthGuard } from '../guards/jwt-auth.guard';
 // import { Throttle, ThrottlerGuard } from '@nestjs/throttler';
+import { Throttle } from '@nestjs/throttler';
 import { PrismaService } from '../../prisma/prisma.service';
 import { JwtService } from '@nestjs/jwt';
 import { User } from '../decorators/user.decorator';
-import { Department } from '../permission-types';
 
 @Controller('auth')
 // @UseGuards(ThrottlerGuard)
@@ -37,6 +37,7 @@ export class AuthController {
   //   const { email, password, name } = signupDto;
   //   return await this.authService.signup(email, password, name);
   // }
+  @Throttle({ default: { limit: 10, ttl: 900000 } })
   @Post('register')
   @HttpCode(HttpStatus.CREATED)
   async register(@Body() body: SignupDto) {
@@ -129,6 +130,7 @@ export class AuthController {
   //   };
   // }
 
+  @Throttle({ default: { limit: 10, ttl: 900000 } })
   @Post('login')
   @HttpCode(HttpStatus.OK)
   async login(
@@ -328,9 +330,7 @@ export class AuthController {
     if (token) {
       await this.authService.logout(token);
     } else {
-      console.log(
-        'Logout: No token found in Authorization header for blacklisting.',
-      );
+      // Handle case where no token is provided
     }
 
     // Define consistent cookie options for clearing. MUST match login options.
@@ -342,23 +342,25 @@ export class AuthController {
     };
 
     response.clearCookie('access_token', clearCookieOptions);
-    console.log('Logout: Attempted to clear access_token cookie.');
 
     return { success: true, message: 'Logged out successfully' };
   }
 
+  @Throttle({ default: { limit: 10, ttl: 900000 } })
   @Post('verify-email')
   @HttpCode(HttpStatus.OK)
   async verifyEmail(@Body() body: { token: string }) {
     return this.authService.verifyEmail(body.token);
   }
 
+  @Throttle({ default: { limit: 10, ttl: 900000 } })
   @Post('request-password-reset')
   @HttpCode(HttpStatus.OK)
   async forgotPassword(@Body() body: { email: string }) {
     return this.authService.requestPasswordReset(body.email);
   }
 
+  @Throttle({ default: { limit: 10, ttl: 900000 } })
   @Post('reset-password')
   @HttpCode(HttpStatus.OK)
   async resetPassword(@Body() body: { token: string; newPassword: string }) {
@@ -371,22 +373,33 @@ export class AuthController {
   refresh(
     @User()
     user: {
-      sub: string;
+      id?: string;
+      sub?: string;
       email: string;
       role: string;
+      tenantId?: string;
       departmentId?: string;
       managedDepartmentId?: string;
+      department?: { type?: string } | null;
+      managedDepartment?: { type?: string } | null;
       verified?: boolean;
+      isVerified?: boolean;
     },
     @Res({ passthrough: true }) response: Response,
   ) {
     const newToken = this.authService.generateTokenFromPayload({
-      sub: user.sub,
+      // `@User()` is the validated session object, which exposes `id`; older
+      // code read `sub`, which made refreshed tokens carry `sub: undefined`.
+      sub: user.id ?? user.sub,
       email: user.email,
       role: user.role,
+      tenantId: user.tenantId,
       departmentId: user.departmentId,
       managedDepartmentId: user.managedDepartmentId,
-      verified: user.verified,
+      departmentType: user.department?.type ?? null,
+      managedDepartmentType: user.managedDepartment?.type ?? null,
+      verified: user.isVerified ?? user.verified ?? false,
+      tv: 2,
     });
 
     response.cookie('access_token', newToken, {
@@ -404,13 +417,22 @@ export class AuthController {
   @HttpCode(HttpStatus.OK)
   async verify(
     @User()
-    userPayload: {
-      sub: string;
+    currentUser: {
+      id?: string;
       [key: string]: any;
     },
   ) {
-    // Fetch full user details from DB to ensure up-to-date department info etc.
-    const user = await this.authService.findUserById(userPayload.sub);
+    if (!currentUser?.id || !currentUser.tenantId) {
+      throw new NotFoundException('User not found');
+    }
+
+    // Claims carry ids/types (enough for guards) but not display names. The
+    // frontend needs names, so load the full row once per session. The tenant
+    // id comes from the verified JWT, so no extra cross-tenant lookup.
+    const user = await this.authService.findUserByIdInTenant(
+      currentUser.id,
+      currentUser.tenantId,
+    );
 
     if (!user) {
       throw new NotFoundException('User not found');
@@ -419,16 +441,22 @@ export class AuthController {
     // Get accessible modules using the frontend adapter, as this is used by useAuth to populate initial state
     const userForAcl = {
       id: user.id,
-      role: user.role as 'ADMIN' | 'HOD' | 'LEAD' | 'STAFF',
+      role: user.role as string,
       department: user.department
-        ? { name: user.department.name as Department }
+        ? { type: user.department.type as string }
         : undefined,
       managedDepartment: user.managedDepartment
-        ? { name: user.managedDepartment.name as Department }
+        ? { type: user.managedDepartment.type as string }
         : undefined,
     };
     const accessibleModules =
       await this.authService['frontendAdapter'].getAccessibleModules(
+        userForAcl,
+      );
+
+    // `Role+` indicator, consistent with the login response.
+    const roleEnhanced =
+      await this.authService['permissionResolution'].hasEnhancedPermissions(
         userForAcl,
       );
 
@@ -438,7 +466,9 @@ export class AuthController {
         email: user.email,
         name: user.name,
         role: user.role,
+        roleEnhanced,
         isVerified: user.isVerified,
+        tenantId: user.tenantId,
         department: user.department,
         managedDepartment: user.managedDepartment,
         accessibleModules: accessibleModules,

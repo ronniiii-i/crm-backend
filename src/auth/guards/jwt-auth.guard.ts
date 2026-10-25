@@ -5,12 +5,15 @@ import {
 } from '@nestjs/common';
 import { AuthGuard } from '@nestjs/passport';
 import { JwtService } from '@nestjs/jwt';
-import { PrismaService } from '../../prisma/prisma.service';
+import { CacheService } from '../../cache/cache.service';
+import { blacklistKey } from '../blacklist-key';
 import { Request } from 'express';
 
 interface JwtPayload {
-  userId: string;
+  sub: string;
+  userId?: string;
   email: string;
+  tenantId?: string;
 }
 
 interface AuthenticatedRequest extends Request {
@@ -21,7 +24,7 @@ interface AuthenticatedRequest extends Request {
 export class JwtAuthGuard extends AuthGuard('jwt') {
   constructor(
     private readonly jwtService: JwtService,
-    private readonly prisma: PrismaService,
+    private readonly cache: CacheService,
   ) {
     super();
   }
@@ -30,37 +33,32 @@ export class JwtAuthGuard extends AuthGuard('jwt') {
     const request = context.switchToHttp().getRequest<AuthenticatedRequest>();
     const token = this.extractTokenFromHeader(request);
 
-    console.error('DEBUG: Authentication Request Details');
-    console.error('Request Headers:', request.headers);
-    console.error('Token being verified:', token);
-    console.error('Current time:', new Date());
-    console.error('Request URL:', request.url);
-    console.error('Request Method:', request.method);
-
     if (!token) {
-      console.error('ERROR: No token provided');
       throw new UnauthorizedException('No token provided');
     }
 
-    // Check if token is blacklisted
-    const isBlacklisted = await this.prisma.blacklistedToken.findUnique({
-      where: { token },
-    });
-
-    console.error('Is token blacklisted?', !!isBlacklisted);
-
-    if (isBlacklisted) {
-      console.error('ERROR: Token has been invalidated');
-      throw new UnauthorizedException('Token has been invalidated');
-    }
-
+    let payload: JwtPayload;
     try {
-      const payload = await this.jwtService.verifyAsync<JwtPayload>(token);
-      request.user = payload;
-      return super.canActivate(context) as Promise<boolean>;
+      payload = await this.jwtService.verifyAsync<JwtPayload>(token);
     } catch {
       throw new UnauthorizedException('Invalid token');
     }
+
+    // Revocation is stored in the cache (Redis when available, bounded
+    // in-process fallback otherwise). The previous implementation queried
+    // `blacklisted_tokens` on EVERY request; with RLS enabled and no tenant
+    // context set that lookup always returned null, so it was both ineffective
+    // and four extra round trips per request.
+    const key = this.cache.tenantKey(
+      blacklistKey(token),
+      payload.tenantId ?? 'global',
+    );
+    if (await this.cache.get<boolean>(key)) {
+      throw new UnauthorizedException('Token has been invalidated');
+    }
+
+    request.user = payload;
+    return super.canActivate(context) as Promise<boolean>;
   }
 
   private extractTokenFromHeader(request: Request): string | undefined {

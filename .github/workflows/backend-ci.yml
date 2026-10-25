@@ -1,0 +1,67 @@
+name: Backend CI
+
+on:
+  push:
+    branches: [main, new-dev]
+  pull_request:
+    branches: [main, new-dev]
+
+jobs:
+  build:
+    name: Build & Test
+    runs-on: ubuntu-latest
+
+    services:
+      postgres:
+        image: postgres:16
+        env:
+          POSTGRES_USER: crm_app
+          POSTGRES_PASSWORD: crm_app
+          POSTGRES_DB: crm_test
+        ports:
+          - 5432:5432
+        options: >-
+          --health-cmd pg_isready
+          --health-interval 10s
+          --health-timeout 5s
+          --health-retries 5
+
+      redis:
+        image: redis:7
+        ports:
+          - 6379:6379
+        options: >-
+          --health-cmd "redis-cli ping"
+          --health-interval 10s
+          --health-timeout 5s
+          --health-retries 5
+
+    steps:
+      - uses: actions/checkout@v4
+
+      - uses: actions/setup-node@v4
+        with:
+          node-version: 20
+          cache: npm
+
+      - name: Install dependencies
+        run: npm ci
+
+      - name: Generate Prisma client
+        run: npx prisma generate
+
+      - name: Build
+        run: npm run build
+
+      - name: Lint
+        run: npm run lint
+
+      - name: Unit & integration tests
+        run: npm run test:e2e -- --runInBand
+        env:
+          NODE_ENV: test
+          DATABASE_URL: postgresql://crm_app:crm_app@localhost:5432/crm_test
+          DIRECT_URL: postgresql://postgres:postgres@localhost:5432/crm_test
+          JWT_SECRET: ci-only-secret-value-not-used-in-production
+          REDIS_HOST: localhost
+          REDIS_PORT: 6379

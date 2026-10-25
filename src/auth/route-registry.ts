@@ -1,4 +1,3 @@
-// src/auth/route-registry.ts
 import { Injectable } from '@nestjs/common';
 import { CacheService } from '../cache/cache.service';
 import { ProtectedRoute } from './permission-types';
@@ -212,26 +211,19 @@ export class RouteRegistry {
   constructor(private readonly cache: CacheService) {}
 
   findRoute(path: string): Promise<ProtectedRoute | undefined> {
-    const cacheKey = `route:${path}`;
-    const cached = this.cache.get(cacheKey) as ProtectedRoute | undefined;
-    if (cached) return Promise.resolve(cached);
+    const cacheKey = this.cache.tenantKey(`route:${path}`);
+    return this.cache.get<ProtectedRoute>(cacheKey).then(async (cached) => {
+      if (cached) return cached;
 
-    const route = this.ALL_ROUTES.find((r) => r.path === path);
-    if (route) this.cache.set(cacheKey, route, 3600);
+      const route = this.ALL_ROUTES.find((r) => r.path === path);
+      if (route) await this.cache.set(cacheKey, route, 3600);
 
-    return Promise.resolve(route);
+      return route;
+    });
   }
 
   async clearCache(): Promise<void> {
-    const keys: string[] = Array.isArray(this.cache.getStats().keys)
-      ? Array.isArray(this.cache.getStats().keys)
-        ? ((Array.isArray(this.cache.getStats().keys)
-            ? this.cache.getStats().keys
-            : []) as string[])
-        : []
-      : [];
-    await Promise.all(
-      keys.filter((k) => k.startsWith('route:')).map((k) => this.cache.del(k)),
-    );
+    // Clear route cache for current tenant namespace
+    await this.cache.invalidateAllRoutes();
   }
 }

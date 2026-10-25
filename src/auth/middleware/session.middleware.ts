@@ -1,4 +1,3 @@
-// src/auth/middleware/session.middleware.ts
 import { Injectable, NestMiddleware } from '@nestjs/common';
 import { Request, Response, NextFunction } from 'express';
 import { JwtService } from '@nestjs/jwt';
@@ -16,7 +15,7 @@ export class SessionMiddleware implements NestMiddleware {
       try {
         this.jwtService.verify(token);
         next();
-      } catch (error) {
+      } catch {
         const clearCookieOptions = {
           httpOnly: true,
           secure: process.env.NODE_ENV === 'production',
@@ -24,10 +23,7 @@ export class SessionMiddleware implements NestMiddleware {
           path: '/',
         };
         res.clearCookie('access_token', clearCookieOptions);
-        console.error('SessionMiddleware: Token verification failed:', error);
-        console.warn(
-          'SessionMiddleware: Invalid token detected. Cleared access_token cookie, returning 401.',
-        );
+
         return res.status(401).json({ message: 'Session expired' });
       }
     } else {

@@ -1,4 +1,3 @@
-// src/core/core.module.ts
 import { Module } from '@nestjs/common';
 import { PrismaService } from '../prisma/prisma.service';
 import { DataFilterService } from './data-filter.service';

@@ -1,246 +1,167 @@
-/* eslint-disable @typescript-eslint/no-misused-promises */
-/* eslint-disable @typescript-eslint/no-unused-vars */
-import { PrismaClient, Role } from '@prisma/client';
-// import { DepartmentType } from '@prisma/client'; // Ensure proper import
-import { hash } from 'bcryptjs';
+// prisma/seed.ts
+//
+// Tenant-aware seed.
+//
+// Connects with the migration/admin connection (DIRECT_URL / owner role) because
+// it creates the initial tenant and the global permission catalogue that must
+// exist before any tenant context can be resolved. The owner role bypasses RLS,
+// which is required for creating the very first tenant row.
+//
+// Idempotent and batched: uses createMany + skipDuplicates to minimise the
+// number of round-trips to the database.
+import {
+  PrismaClient,
+  Role,
+  PermissionType,
+  DepartmentType,
+} from '@prisma/client';
+import { ALL_ROUTES } from '../src/auth/routes';
 
-const prisma = new PrismaClient();
+const prisma = new PrismaClient({
+  datasources: {
+    db: { url: process.env.DIRECT_URL ?? process.env.DATABASE_URL },
+  },
+});
+
+const DEFAULT_TENANT_SLUG = process.env.DEFAULT_TENANT_SLUG ?? 'default';
+const DEFAULT_TENANT_NAME = process.env.DEFAULT_TENANT_NAME ?? 'Default Tenant';
+
+const DEPARTMENT_TYPES: DepartmentType[] = [
+  DepartmentType.ADMINISTRATION,
+  DepartmentType.HUMAN_RESOURCES,
+  DepartmentType.SALES,
+  DepartmentType.OPERATIONS,
+  DepartmentType.FINANCE,
+  DepartmentType.INFORMATION_TECHNOLOGY,
+  DepartmentType.CUSTOMER_SERVICE,
+  DepartmentType.ACCOUNTING,
+];
+
+const ALL_ROLES: Role[] = [Role.ADMIN, Role.HOD, Role.LEAD, Role.STAFF];
+
+const ALL_PERMISSIONS: PermissionType[] = [
+  PermissionType.VIEW,
+  PermissionType.CREATE,
+  PermissionType.EDIT,
+  PermissionType.DELETE,
+];
+
+function titleCase(enumValue: string): string {
+  return enumValue
+    .split('_')
+    .map((w) => w.charAt(0) + w.slice(1).toLowerCase())
+    .join(' ');
+}
 
 async function main() {
-  // Hash passwords
-  const defaultPassword = await hash('password123', 12);
+  // 1. Default tenant ----------------------------------------------------------
+  const tenant = await prisma.tenant.upsert({
+    where: { slug: DEFAULT_TENANT_SLUG },
+    update: { name: DEFAULT_TENANT_NAME },
+    create: { name: DEFAULT_TENANT_NAME, slug: DEFAULT_TENANT_SLUG },
+  });
+  console.log(`Tenant: ${tenant.name} (${tenant.id})`);
 
-  // 1. Create admin user (won't be assigned as department manager)
-  const admin = await prisma.user.create({
-    data: {
-      email: 'admin@crm.com',
-      password: await hash('admin123', 12),
-      name: 'System Admin',
-      role: Role.ADMIN,
-      isVerified: true,
-      avatarUrl: 'https://picsum.photos/200/200?random=1',
-    },
+  // 2. Global permission catalogue (not tenant-scoped) -------------------------
+  await prisma.permission.createMany({
+    data: ALL_PERMISSIONS.map((type) => ({ type })),
+    skipDuplicates: true,
   });
 
-  // 2. Create departments without managers first
-  const departments = await Promise.all([
-    prisma.department.create({
-      data: {
-        name: 'Administration',
-        description: 'Company administration',
-        type: 'ADMINISTRATION',
-      },
-    }),
-    prisma.department.create({
-      data: {
-        name: 'Human Resources',
-        description: 'HR department',
-        type: 'HUMAN_RESOURCES',
-      },
-    }),
-    prisma.department.create({
-      data: {
-        name: 'Sales',
-        description: 'Sales and marketing',
-        type: 'SALES',
-      },
-    }),
-    prisma.department.create({
-      data: {
-        name: 'Operations',
-        description: 'Business operations',
-        type: 'OPERATIONS',
-      },
-    }),
-    prisma.department.create({
-      data: {
-        name: 'Finance',
-        description: 'Financial department',
-        type: 'FINANCE',
-      },
-    }),
-    prisma.department.create({
-      data: {
-        name: 'IT',
-        description: 'Information technology',
-        type: 'INFORMATION_TECHNOLOGY',
-      },
-    }),
-    prisma.department.create({
-      data: {
-        name: 'Customer Service',
-        description: 'Customer support',
-        type: 'CUSTOMER_SERVICE',
-      },
-    }),
-  ]);
+  const permissions = await prisma.permission.findMany();
+  const permIdByType = new Map(permissions.map((p) => [p.type, p.id] as const));
+  for (const type of ALL_PERMISSIONS) {
+    if (permIdByType.get(type) === undefined) {
+      throw new Error(`Failed to seed permission: ${type}`);
+    }
+  }
 
-  // 3. Create department managers and assign them
-  const [hrManager, salesManager, opsManager, financeManager, itManager] =
-    await Promise.all([
-      prisma.user.create({
-        data: {
-          email: 'hr.hod@example.com',
-          password: defaultPassword,
-          name: 'Jane Smith',
-          role: Role.HOD,
-          isVerified: true,
-          avatarUrl: 'https://picsum.photos/200/200?random=2',
-          department: { connect: { id: departments[1].id } }, // HR
-        },
-      }),
-      prisma.user.create({
-        data: {
-          email: 'sales.hod@example.com',
-          password: defaultPassword,
-          name: 'Mike Johnson',
-          role: Role.HOD,
-          isVerified: true,
-          avatarUrl: 'https://picsum.photos/200/200?random=3',
-          department: { connect: { id: departments[2].id } }, // Sales
-        },
-      }),
-      prisma.user.create({
-        data: {
-          email: 'ops.hod@example.com',
-          password: defaultPassword,
-          name: 'Sarah Williams',
-          role: Role.HOD,
-          isVerified: true,
-          avatarUrl: 'https://picsum.photos/200/200?random=4',
-          department: { connect: { id: departments[3].id } }, // Operations
-        },
-      }),
-      prisma.user.create({
-        data: {
-          email: 'finance.hod@example.com',
-          password: defaultPassword,
-          name: 'David Brown',
-          role: Role.HOD,
-          isVerified: true,
-          avatarUrl: 'https://picsum.photos/200/200?random=5',
-          department: { connect: { id: departments[4].id } }, // Finance
-        },
-      }),
-      prisma.user.create({
-        data: {
-          email: 'it.hod@example.com',
-          password: defaultPassword,
-          name: 'Alex Chen',
-          role: Role.HOD,
-          isVerified: true,
-          avatarUrl: 'https://picsum.photos/200/200?random=6',
-          department: { connect: { id: departments[5].id } }, // IT
-        },
-      }),
-    ]);
-
-  // 4. Update departments with their managers
-  await Promise.all([
-    prisma.department.update({
-      where: { id: departments[1].id }, // HR
-      data: { managerId: hrManager.id },
-    }),
-    prisma.department.update({
-      where: { id: departments[2].id }, // Sales
-      data: { managerId: salesManager.id },
-    }),
-    prisma.department.update({
-      where: { id: departments[3].id }, // Operations
-      data: { managerId: opsManager.id },
-    }),
-    prisma.department.update({
-      where: { id: departments[4].id }, // Finance
-      data: { managerId: financeManager.id },
-    }),
-    prisma.department.update({
-      where: { id: departments[5].id }, // IT
-      data: { managerId: itManager.id },
-    }),
-  ]);
-
-  const [hrUser, salesUser, opsUser, financeUser] = await Promise.all([
-    prisma.user.create({
-      data: {
-        email: 'hr.staff@example.com',
-        password: defaultPassword,
-        name: 'Emily Davis',
-        role: Role.STAFF,
-        isVerified: true,
-        avatarUrl: 'https://picsum.photos/200/200?random=7',
-        department: { connect: { id: departments[1].id } }, // HR
-      },
-    }),
-    prisma.user.create({
-      data: {
-        email: 'sales.staff@example.com',
-        password: defaultPassword,
-        name: 'Robert Wilson',
-        role: Role.STAFF,
-        isVerified: true,
-        avatarUrl: 'https://picsum.photos/200/200?random=8',
-        department: { connect: { id: departments[2].id } }, // Sales
-      },
-    }),
-    prisma.user.create({
-      data: {
-        email: 'ops.staff@example.com',
-        password: defaultPassword,
-        name: 'Lisa Taylor',
-        role: Role.STAFF,
-        isVerified: true,
-        avatarUrl: 'https://picsum.photos/200/200?random=9',
-        department: { connect: { id: departments[3].id } }, // Operations
-      },
-    }),
-    prisma.user.create({
-      data: {
-        email: 'finance.staff@example.com',
-        password: defaultPassword,
-        name: 'Michael Scott',
-        role: Role.STAFF,
-        isVerified: true,
-        avatarUrl: 'https://picsum.photos/200/200?random=10',
-        department: { connect: { id: departments[4].id } }, // Finance
-      },
-    }),
-  ]);
-
-  // 6. Create sample projects and tasks
-  const salesProject = await prisma.project.create({
-    data: {
-      name: 'Sales Portal Redesign',
-      description: 'Redesign of customer sales portal',
-      status: 'Active',
-      userId: salesManager.id,
-      teamMembers: {
-        create: [
-          { userId: salesManager.id, role: 'Manager' },
-          { userId: salesUser.id, role: 'Member' },
-          { userId: salesUser?.id, role: 'Member' },
-        ],
-      },
-    },
+  // 3. Departments for the tenant (one batched insert) -------------------------
+  await prisma.department.createMany({
+    data: DEPARTMENT_TYPES.map((type) => ({
+      tenantId: tenant.id,
+      type,
+      name: titleCase(type),
+    })),
+    skipDuplicates: true,
   });
 
-  await prisma.task.create({
-    data: {
-      title: 'Design wireframes',
-      description: 'Create initial wireframes for new portal',
-      status: 'In Progress',
-      projectId: salesProject.id,
-      assignedToId: salesUser?.id,
-    },
+  const departments = await prisma.department.findMany({
+    where: { tenantId: tenant.id },
+    select: { id: true, type: true },
+  });
+  const departmentIdByType = new Map(
+    departments.map((d) => [d.type, d.id] as const),
+  );
+  console.log(`Departments seeded: ${departments.length}`);
+
+  // 4. Modules for the tenant (one batched insert) -----------------------------
+  await prisma.module.createMany({
+    data: ALL_ROUTES.map((route) => {
+      let departmentId: string | undefined;
+      if (route.department) {
+        const deptType = (Array.isArray(route.department)
+          ? route.department[0]
+          : route.department) as unknown as DepartmentType;
+        departmentId = departmentIdByType.get(deptType);
+      }
+      return {
+        tenantId: tenant.id,
+        name: route.name,
+        path: route.path,
+        icon: route.icon ?? null,
+        departmentId: departmentId ?? null,
+      };
+    }),
+    skipDuplicates: true,
   });
 
-  console.log('Database seeded successfully!');
+  const modules = await prisma.module.findMany({
+    where: { tenantId: tenant.id },
+    select: { id: true, path: true },
+  });
+  const moduleIdByPath = new Map(modules.map((m) => [m.path, m.id] as const));
+  console.log(`Modules seeded: ${modules.length}`);
+
+  // 5. Role -> module -> permission grants (one batched insert) ----------------
+  const roleModulePermissions: {
+    role: Role;
+    moduleId: string;
+    permissionId: number;
+  }[] = [];
+
+  for (const route of ALL_ROUTES) {
+    const moduleId = moduleIdByPath.get(route.path);
+    if (!moduleId) continue;
+
+    for (const role of ALL_ROLES) {
+      const granted = route.permissions[role] ?? [];
+      for (const permission of granted) {
+        const permissionId = permIdByType.get(
+          permission as unknown as PermissionType,
+        );
+        if (permissionId === undefined) continue;
+        roleModulePermissions.push({ role, moduleId, permissionId });
+      }
+    }
+  }
+
+  await prisma.roleModulePermission.createMany({
+    data: roleModulePermissions,
+    skipDuplicates: true,
+  });
+  console.log(
+    `Role/module permissions seeded: ${roleModulePermissions.length}`,
+  );
+
+  console.log('Seeding complete.');
 }
 
 main()
-  .catch((e) => {
+  .catch((e: unknown) => {
     console.error(e);
     process.exit(1);
   })
-  .finally(async () => {
-    await prisma.$disconnect();
+  .finally(() => {
+    prisma.$disconnect().catch(() => undefined);
   });

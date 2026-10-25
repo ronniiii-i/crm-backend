@@ -1,61 +1,90 @@
-// src/auth/frontend-adapter.service.ts
 import { Injectable } from '@nestjs/common';
-import { RouteRegistry } from './route-registry';
+import { PrismaService } from '../prisma/prisma.service';
 import { CacheService } from '../cache/cache.service';
-import {
-  //   Department,
-  //   Permission,
-  ProtectedRoute,
-  UserWithDepartments,
-} from './permission-types';
+import { DepartmentType } from '@prisma/client';
+import { AccessibleModule, UserForAcl } from './permission-types';
+import { PermissionResolutionService } from './services/permission-resolution.service';
 
 @Injectable()
 export class FrontendAdapterService {
   constructor(
-    private readonly routeRegistry: RouteRegistry,
+    private readonly prisma: PrismaService,
     private readonly cache: CacheService,
+    private readonly permissions: PermissionResolutionService,
   ) {}
 
   private getUserCacheKey(userId: string): string {
-    return `user:${userId}:modules`;
+    return this.cache.tenantKey(`user:${userId}:modules`);
   }
 
-  async getAccessibleModules(
-    user: UserWithDepartments,
-  ): Promise<ProtectedRoute[]> {
+  /**
+   * Modules the user can view, derived from their effective permissions
+   * (role base + groups + overrides) and restricted to their department
+   * unless they are an admin.
+   */
+  async getAccessibleModules(user: UserForAcl): Promise<AccessibleModule[]> {
     const cacheKey = this.getUserCacheKey(user.id);
-    const cached = (await this.cache.get(cacheKey)) as ProtectedRoute[] | null;
+    const cached = await this.cache.get<AccessibleModule[]>(cacheKey);
     if (cached) return cached;
 
-    const modules = this.routeRegistry.ALL_ROUTES.filter((module) => {
-      if (user.role === 'ADMIN') return true;
+    const effective = await this.permissions.getEffectivePermissions(user);
 
-      if (module.department) {
-        if (Array.isArray(module.department)) {
-          if (
-            !user.department?.name ||
-            !module.department.includes(user.department.name)
-          ) {
-            return false;
-          }
-        } else {
-          if (
-            !user.department?.name ||
-            module.department !== user.department.name
-          ) {
-            return false;
-          }
-        }
-      }
+    const moduleIds = Array.from(effective.entries())
+      .filter(([, permissions]) => permissions.has('VIEW'))
+      .map(([moduleId]) => moduleId);
 
-      return module.permissions[user.role]?.length > 0;
-    });
+    if (moduleIds.length === 0) {
+      await this.cache.set(cacheKey, [], 3600);
+      return [];
+    }
 
-    this.cache.set(cacheKey, modules, 3600);
-    return modules;
+    const baseFilter = { id: { in: moduleIds } };
+
+    const where =
+      user.role === 'ADMIN'
+        ? baseFilter
+        : {
+            AND: [
+              baseFilter,
+              {
+                OR: [
+                  { departmentId: null },
+                  ...(this.getDepartmentType(user)
+                    ? [{ department: { type: this.getDepartmentType(user) } }]
+                    : []),
+                ],
+              },
+            ],
+          };
+
+    const select = {
+      id: true,
+      name: true,
+      path: true,
+      icon: true,
+    } as const;
+
+    const tenantId = user.tenantId ?? undefined;
+    const accessibleModules = tenantId
+      ? await this.prisma.withTenant(tenantId, (tx) =>
+          tx.module.findMany({ where, select }),
+        )
+      : await this.prisma.module.findMany({ where, select });
+
+    await this.cache.set(cacheKey, accessibleModules, 3600);
+    return accessibleModules;
   }
 
-  clearUserCache(userId: string): void {
-    this.cache.del(this.getUserCacheKey(userId));
+  private getDepartmentType(user: UserForAcl): DepartmentType | undefined {
+    const rawType =
+      user.role === 'HOD'
+        ? user.managedDepartment?.type
+        : user.department?.type;
+
+    return rawType as DepartmentType | undefined;
+  }
+
+  async clearUserCache(userId: string, tenantId?: string): Promise<void> {
+    await this.cache.invalidateUser(userId, tenantId);
   }
 }

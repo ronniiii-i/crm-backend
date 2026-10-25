@@ -1,9 +1,17 @@
-// src/cache/cache.module.ts
-import { Module } from '@nestjs/common';
-import { CacheService } from './cache.service';
+import { Global, Module } from '@nestjs/common';
+import {
+  CacheService,
+  REDIS_CLIENT_FACTORY,
+  defaultRedisClientFactory,
+} from './cache.service';
 
+@Global()
 @Module({
-  providers: [CacheService],
+  imports: [],
+  providers: [
+    { provide: REDIS_CLIENT_FACTORY, useValue: defaultRedisClientFactory },
+    CacheService,
+  ],
   exports: [CacheService],
 })
 export class CacheModule {}

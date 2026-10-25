@@ -1,33 +1,39 @@
-// src/auth/roles.guard.ts
-import { Injectable, CanActivate, ExecutionContext } from '@nestjs/common';
-import { RouteRegistry } from '../route-registry';
+import {
+  Injectable,
+  CanActivate,
+  ExecutionContext,
+  ForbiddenException,
+} from '@nestjs/common';
+import { Reflector } from '@nestjs/core';
+import { Request } from 'express';
+
+interface AuthenticatedRequest extends Request {
+  user?: { role: string };
+}
 
 @Injectable()
 export class RolesGuard implements CanActivate {
-  constructor(private routeRegistry: RouteRegistry) {}
+  constructor(private reflector: Reflector) {}
 
-  async canActivate(context: ExecutionContext): Promise<boolean> {
-    const request: {
-      route?: { path?: string };
-      url: string;
-      user: { role: string };
-    } = context.switchToHttp().getRequest();
-    const routePath = this.getRoutePath(request);
+  canActivate(context: ExecutionContext): boolean {
+    const requiredRoles = this.reflector.getAllAndOverride<string[]>('roles', [
+      context.getHandler(),
+      context.getClass(),
+    ]);
+
+    if (!requiredRoles || requiredRoles.length === 0) return true;
+
+    const request = context.switchToHttp().getRequest<AuthenticatedRequest>();
     const { user } = request;
 
-    const routeConfig = await this.routeRegistry.findRoute(routePath);
-    if (!routeConfig) return false;
+    if (!user) throw new ForbiddenException('Not authenticated');
 
-    return !!routeConfig.permissions[user.role];
-  }
-
-  private getRoutePath(request: {
-    route?: { path?: string };
-    url: string;
-  }): string {
-    if (request.route?.path) {
-      return request.route.path;
+    if (!requiredRoles.includes(user.role)) {
+      throw new ForbiddenException(
+        `Access denied. Required role(s): ${requiredRoles.join(', ')}`,
+      );
     }
-    return request.url.split('?')[0];
+
+    return true;
   }
 }
