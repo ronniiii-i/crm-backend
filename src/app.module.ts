@@ -31,6 +31,8 @@ import { SystemAdminModule } from './system-admin/system-admin.module';
 import { RolesModule } from './roles/roles.module';
 import { DepartmentsModule } from './departments/departments.module';
 import { AccessControlModule } from './access-control/access-control.module';
+import { InvitationsModule } from './invitations/invitations.module';
+import { PublicModule } from './public/public.module';
 
 @Module({
   imports: [
@@ -62,6 +64,8 @@ import { AccessControlModule } from './access-control/access-control.module';
     RolesModule,
     DepartmentsModule,
     AccessControlModule,
+    InvitationsModule,
+    PublicModule,
   ],
   controllers: [AppController],
   providers: [
