@@ -1,23 +1,34 @@
 import { Module } from '@nestjs/common';
 import { Reflector } from '@nestjs/core';
-import { AccessControlGuard } from './access-control.guard';
-import { RolesGuard } from './roles.guard';
-import { DepartmentGuard } from './department.guard';
 import { PermissionGuard } from './permission.guard';
+import { JwtAuthGuard } from './jwt-auth.guard';
+import { TenantLifecycleGuard } from '../../tenant/tenant-lifecycle.guard';
 import { RouteRegistry } from '../route-registry';
 import { CacheModule } from '../../cache/cache.module';
 import { AclModule } from '../acl.module';
+import { TenantModule } from '../../tenant/tenant.module';
+import { JwtModule } from '@nestjs/jwt';
+import { requireEnv, optionalEnv } from '../../config/env';
+import { AuthModule } from '../auth.module';
 
 @Module({
-  imports: [CacheModule, AclModule],
+  imports: [
+    CacheModule,
+    AclModule,
+    TenantModule,
+    AuthModule,
+    JwtModule.register({
+      secret: requireEnv('JWT_SECRET'),
+      signOptions: { expiresIn: optionalEnv('JWT_EXPIRES_IN', '1h') },
+    }),
+  ],
   providers: [
     Reflector,
-    RolesGuard,
-    DepartmentGuard,
     PermissionGuard,
-    AccessControlGuard,
+    JwtAuthGuard,
+    TenantLifecycleGuard,
     RouteRegistry,
   ],
-  exports: [AccessControlGuard, RolesGuard, DepartmentGuard, PermissionGuard],
+  exports: [PermissionGuard, JwtAuthGuard, TenantLifecycleGuard, Reflector],
 })
 export class GuardsModule {}

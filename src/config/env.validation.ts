@@ -31,6 +31,8 @@ const envSchema = z.object({
   // CLI, but validated when present so a typo is caught early.
   DIRECT_URL: z.string().min(1).optional(),
 
+  SYSTEM_DATABASE_URL: z.string().min(1).optional(),
+
   JWT_SECRET: z
     .string()
     .min(16, 'JWT_SECRET must be at least 16 characters')
@@ -38,6 +40,15 @@ const envSchema = z.object({
       message:
         'JWT_SECRET still uses a placeholder value — generate a unique secret',
     }),
+
+  SYSTEM_JWT_SECRET: z
+    .string()
+    .min(16, 'SYSTEM_JWT_SECRET must be at least 16 characters')
+    .refine((value) => !PLACEHOLDER_SECRETS.includes(value.toLowerCase()), {
+      message:
+        'SYSTEM_JWT_SECRET still uses a placeholder value — generate a unique secret',
+    })
+    .optional(),
 
   JWT_EXPIRES_IN: z.string().default('1h'),
 

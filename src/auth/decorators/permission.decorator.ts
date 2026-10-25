@@ -1,5 +1,12 @@
 import { SetMetadata } from '@nestjs/common';
-import { Permission } from '../permission-types';
 
-export const Permissions = (permission: Permission) =>
-  SetMetadata('permission', permission);
+export const PERMISSION_KEY = 'permission';
+export interface PermissionMetadata {
+  moduleKey: string;
+  action: 'VIEW' | 'CREATE' | 'EDIT' | 'DELETE';
+}
+
+export const RequirePermission = (
+  moduleKey: string,
+  action: PermissionMetadata['action'],
+) => SetMetadata(PERMISSION_KEY, { moduleKey, action } as PermissionMetadata);

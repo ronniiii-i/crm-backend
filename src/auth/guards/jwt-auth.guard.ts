@@ -1,54 +1,59 @@
 import {
   Injectable,
+  CanActivate,
   ExecutionContext,
   UnauthorizedException,
+  SetMetadata,
 } from '@nestjs/common';
+import { Reflector } from '@nestjs/core';
 import { AuthGuard } from '@nestjs/passport';
 import { JwtService } from '@nestjs/jwt';
 import { CacheService } from '../../cache/cache.service';
 import { blacklistKey } from '../blacklist-key';
-import { Request } from 'express';
+import { PUBLIC_KEY } from '../decorators/public.decorator';
+import { SessionStateService } from '../services/session-state.service';
 
-interface JwtPayload {
-  sub: string;
-  userId?: string;
-  email: string;
-  tenantId?: string;
-}
-
-interface AuthenticatedRequest extends Request {
-  user: JwtPayload;
-}
+export const SKIP_JWT_GUARD = 'skipJwtGuard';
 
 @Injectable()
-export class JwtAuthGuard extends AuthGuard('jwt') {
+export class JwtAuthGuard extends AuthGuard('jwt') implements CanActivate {
   constructor(
+    private readonly reflector: Reflector,
     private readonly jwtService: JwtService,
     private readonly cache: CacheService,
+    private readonly sessionState: SessionStateService,
   ) {
     super();
   }
 
   async canActivate(context: ExecutionContext): Promise<boolean> {
-    const request = context.switchToHttp().getRequest<AuthenticatedRequest>();
+    const isPublic = this.reflector.getAllAndOverride<boolean>(PUBLIC_KEY, [
+      context.getHandler(),
+      context.getClass(),
+    ]);
+
+    if (isPublic) {
+      return true;
+    }
+
+    const request = context.switchToHttp().getRequest();
     const token = this.extractTokenFromHeader(request);
 
     if (!token) {
       throw new UnauthorizedException('No token provided');
     }
 
-    let payload: JwtPayload;
+    let payload: any;
     try {
-      payload = await this.jwtService.verifyAsync<JwtPayload>(token);
+      payload = await this.jwtService.verifyAsync(token);
     } catch {
       throw new UnauthorizedException('Invalid token');
     }
 
-    // Revocation is stored in the cache (Redis when available, bounded
-    // in-process fallback otherwise). The previous implementation queried
-    // `blacklisted_tokens` on EVERY request; with RLS enabled and no tenant
-    // context set that lookup always returned null, so it was both ineffective
-    // and four extra round trips per request.
+    if (payload?.scope === 'system') {
+      throw new UnauthorizedException('Invalid token');
+    }
+
     const key = this.cache.tenantKey(
       blacklistKey(token),
       payload.tenantId ?? 'global',
@@ -57,12 +62,23 @@ export class JwtAuthGuard extends AuthGuard('jwt') {
       throw new UnauthorizedException('Token has been invalidated');
     }
 
+    try {
+      await this.sessionState.assertFresh(payload);
+    } catch (error: any) {
+      throw new UnauthorizedException(error?.message ?? 'SESSION_REVOKED');
+    }
+
     request.user = payload;
-    return super.canActivate(context) as Promise<boolean>;
+    const activated = await super.canActivate(context);
+    return activated as boolean;
   }
 
-  private extractTokenFromHeader(request: Request): string | undefined {
-    const [type, token] = request.headers.authorization?.split(' ') ?? [];
+  private extractTokenFromHeader(request: any): string | undefined {
+    const auth = request.headers?.authorization;
+    if (typeof auth !== 'string') {
+      return undefined;
+    }
+    const [type, token] = auth.split(' ');
     return type === 'Bearer' ? token : undefined;
   }
 

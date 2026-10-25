@@ -14,6 +14,8 @@ import { FrontendAdapterService } from './frontend-adapter.service';
 import { TenantModule } from '../tenant/tenant.module';
 import { AclModule } from './acl.module';
 import { requireEnv, optionalEnv } from '../config/env';
+import { PermissionResolutionService } from './services/permission-resolution.service';
+import { SessionStateService } from './services/session-state.service';
 
 @Module({
   imports: [
@@ -34,6 +36,8 @@ import { requireEnv, optionalEnv } from '../config/env';
     DataFilterService,
     RouteRegistry,
     FrontendAdapterService,
+    PermissionResolutionService,
+    SessionStateService,
   ],
   controllers: [AuthController, AuthAclController],
   exports: [
@@ -42,6 +46,8 @@ import { requireEnv, optionalEnv } from '../config/env';
     FrontendAdapterService,
     JwtModule,
     AclModule,
+    PermissionResolutionService,
+    SessionStateService,
   ],
 })
 export class AuthModule {}
