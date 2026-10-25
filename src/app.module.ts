@@ -28,6 +28,9 @@ import { TenantLifecycleGuard } from './tenant/tenant-lifecycle.guard';
 import { PermissionGuard } from './auth/guards/permission.guard';
 import { SystemAdminGuard } from './system-admin/guards/system-admin.guard';
 import { SystemAdminModule } from './system-admin/system-admin.module';
+import { RolesModule } from './roles/roles.module';
+import { DepartmentsModule } from './departments/departments.module';
+import { AccessControlModule } from './access-control/access-control.module';
 
 @Module({
   imports: [
@@ -56,6 +59,9 @@ import { SystemAdminModule } from './system-admin/system-admin.module';
     UsersModule,
     ProfileModule,
     SystemAdminModule,
+    RolesModule,
+    DepartmentsModule,
+    AccessControlModule,
   ],
   controllers: [AppController],
   providers: [

@@ -141,8 +141,13 @@ export class PermissionResolutionService {
     };
 
     // 1. Base role permissions
+    const roleId = (user as any).roleId || (user as any).role?.id;
+    if (!roleId) {
+      return details;
+    }
+
     const rolePermissions = await db.roleModulePermission.findMany({
-      where: { role: user.role },
+      where: { roleId, ...(user.tenantId || tenantId ? { tenantId: user.tenantId || tenantId } : {}) },
       include: { permission: true },
     });
 
