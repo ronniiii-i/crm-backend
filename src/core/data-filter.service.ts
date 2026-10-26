@@ -1,7 +1,23 @@
 import { Injectable } from '@nestjs/common';
 import { PrismaService } from '../prisma/prisma.service';
-import { Role, Project, User, Prisma } from '@prisma/client';
+import { Project, User, Prisma } from '@prisma/client';
 import { getTenantId } from '../tenant/tenant-context';
+
+/**
+ * Minimal user shape accepted by DataFilterService.
+ * Accepts either the old string-slug role (Phase 1 compatibility) or a
+ * Phase 2 role object.  `dataScope` drives the actual filtering logic.
+ */
+interface FilterUser {
+  id: string;
+  /** Role slug string (e.g. 'department_head') or stringified role for compat. */
+  role?: string | { slug?: string; dataScope?: string } | null;
+  /** Phase 2: role data scope from JWT or user object. */
+  dataScope?: string;
+  tenantId?: string;
+  departmentId?: string;
+  managedDepartmentId?: string;
+}
 
 @Injectable()
 export class DataFilterService {
@@ -18,37 +34,60 @@ export class DataFilterService {
   }
 
   /**
-   * Filters projects based on user's access rights
+   * Resolve effective data scope string from either Phase 1 role strings or
+   * Phase 2 role objects / dataScope fields.
    */
-  async filterProjects(user: {
-    id: string;
-    role: Role;
-    tenantId?: string;
-    departmentId?: string;
-    managedDepartmentId?: string;
-  }): Promise<Project[]> {
+  private resolveScope(user: FilterUser): string {
+    // Phase 2: explicit dataScope wins
+    if (user.dataScope) return user.dataScope;
+
+    // Phase 2: role object with dataScope
+    if (user.role && typeof user.role === 'object' && user.role.dataScope) {
+      return user.role.dataScope;
+    }
+
+    // Phase 1 / legacy string-role compatibility
+    const slug =
+      typeof user.role === 'string'
+        ? user.role
+        : typeof user.role === 'object' && user.role?.slug
+          ? user.role.slug
+          : null;
+
+    if (!slug) return 'SELF';
+
+    const upper = slug.toUpperCase();
+    if (upper === 'ADMIN' || upper === 'TENANT_ADMIN') return 'TENANT';
+    if (upper === 'HOD' || upper === 'DEPARTMENT_HEAD') return 'DEPARTMENT';
+    if (upper === 'LEAD' || upper === 'TEAM_LEAD') return 'TEAM';
+    return 'SELF';
+  }
+
+  /**
+   * Filters projects based on user's access rights.
+   */
+  async filterProjects(user: FilterUser): Promise<Project[]> {
+    const scope = this.resolveScope(user);
     const whereConditions: any[] = [];
 
-    // Staff can see their own projects
+    // Every user can see projects they are directly on
     whereConditions.push({
       OR: [{ userId: user.id }, { teamMembers: { some: { userId: user.id } } }],
     });
 
-    // HODs can see department projects
-    if (user.role === 'HOD' && user.managedDepartmentId) {
+    // Department-scoped: see all projects from managed/own department
+    if (
+      (scope === 'DEPARTMENT' || scope === 'TEAM') &&
+      (user.managedDepartmentId || user.departmentId)
+    ) {
+      const deptId = user.managedDepartmentId ?? user.departmentId;
       whereConditions.push({
-        teamMembers: {
-          some: {
-            user: {
-              departmentId: user.managedDepartmentId,
-            },
-          },
-        },
+        teamMembers: { some: { user: { departmentId: deptId } } },
       });
     }
 
-    // Admins bypass all filters (but remain tenant-scoped by RLS)
-    if (user.role === 'ADMIN') {
+    // Tenant-wide: bypass all user filters (RLS still scopes to tenant)
+    if (scope === 'TENANT') {
       return this.scoped(user.tenantId, (db) => db.project.findMany());
     }
 
@@ -60,53 +99,46 @@ export class DataFilterService {
   }
 
   /**
-   * Filters users based on hierarchy
+   * Filters users based on hierarchy.
    */
-  async filterUsers(viewer: {
-    id: string;
-    role: Role;
-    tenantId?: string;
-    departmentId?: string;
-    managedDepartmentId?: string;
-  }): Promise<User[]> {
+  async filterUsers(user: FilterUser): Promise<User[]> {
+    const scope = this.resolveScope(user);
     const baseConditions: Array<any> = [];
 
-    // HODs see their department members
-    const hodDeptId = viewer.managedDepartmentId || viewer.departmentId;
-    if (viewer.role === 'HOD' && hodDeptId) {
+    // Tenant-wide: see everyone (RLS remains the authority)
+    if (scope === 'TENANT') {
+      return this.scoped(user.tenantId, (db) => db.user.findMany());
+    }
+
+    // Department-scoped: see own department members
+    if (scope === 'DEPARTMENT') {
+      const deptId = user.managedDepartmentId || user.departmentId;
+      if (deptId) {
+        baseConditions.push({ departmentId: deptId });
+      }
+    }
+
+    // Team-scoped: see team members led by this user
+    if (scope === 'TEAM') {
       baseConditions.push({
-        departmentId: hodDeptId,
+        teamMemberships: { some: { team: { leadUserId: user.id } } },
       });
     }
 
-    // Team Leads see their team members (via TeamMember relation)
-    if (viewer.role === 'LEAD') {
-      baseConditions.push({
-        teamMemberships: { some: { team: { leadUserId: viewer.id } } },
-      });
-    }
-
-    // Staff can only see themselves
-    if (viewer.role === 'STAFF') {
-      return this.scoped(viewer.tenantId, (db) =>
-        db.user.findMany({
-          where: { id: viewer.id },
-        }),
+    // Self-scoped: only themselves
+    if (scope === 'SELF') {
+      return this.scoped(user.tenantId, (db) =>
+        db.user.findMany({ where: { id: user.id } }),
       );
-    }
-
-    // Admins see everyone (but remain tenant-scoped by RLS)
-    if (viewer.role === 'ADMIN') {
-      return this.scoped(viewer.tenantId, (db) => db.user.findMany());
     }
 
     if (baseConditions.length === 0) {
-      return this.scoped(viewer.tenantId, (db) =>
-        db.user.findMany({ where: { id: viewer.id } }),
+      return this.scoped(user.tenantId, (db) =>
+        db.user.findMany({ where: { id: user.id } }),
       );
     }
 
-    return this.scoped(viewer.tenantId, (db) =>
+    return this.scoped(user.tenantId, (db) =>
       db.user.findMany({
         where: { OR: baseConditions },
       }),

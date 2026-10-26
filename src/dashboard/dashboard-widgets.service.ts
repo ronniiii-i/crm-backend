@@ -17,9 +17,7 @@
 
 import { Injectable } from '@nestjs/common';
 import {
-  DepartmentType,
   EmploymentStatus,
-  Role,
   TicketStatus,
 } from '@prisma/client';
 import { PrismaService } from '../prisma/prisma.service';
@@ -239,7 +237,10 @@ export interface DashboardWidgetPayload {
 
 export interface WidgetRequestUser {
   id: string;
-  role: Role;
+  /** Phase 2: data scope from role (TENANT | DEPARTMENT | TEAM | SELF). */
+  dataScope?: string;
+  /** Phase 2: true when role.isTenantAdmin. */
+  isTenantAdmin?: boolean;
   tenantId?: string;
   departmentId?: string;
   managedDepartmentId?: string;
@@ -280,17 +281,17 @@ export class DashboardWidgetsService {
 
     if (!tenantId) {
       return {
-        scope: this.scopeForRole(user.role),
+        scope: this.scopeForDataScope(user),
         generatedAt: new Date().toISOString(),
         metrics: [],
       };
     }
 
-    const scope = this.scopeForRole(user.role);
+    const scope = this.scopeForDataScope(user);
     const departmentId =
-      user.role === Role.HOD
-        ? (user.managedDepartmentId ?? user.departmentId)
-        : user.departmentId;
+      (user.isTenantAdmin || user.dataScope === 'TENANT')
+        ? undefined
+        : (user.managedDepartmentId ?? user.departmentId);
 
     // The widget payload is fully derived from (tenant, user, scope,
     // department), so a short cache removes the repeated multi-second rebuild
@@ -319,13 +320,12 @@ export class DashboardWidgetsService {
     return payload;
   }
 
-  private scopeForRole(role: Role): WidgetScope {
-    switch (role) {
-      case Role.ADMIN:
-        return 'organization';
-      case Role.HOD:
+  private scopeForDataScope(user: WidgetRequestUser): WidgetScope {
+    if (user.isTenantAdmin || user.dataScope === 'TENANT') return 'organization';
+    switch (user.dataScope) {
+      case 'DEPARTMENT':
         return 'department';
-      case Role.LEAD:
+      case 'TEAM':
         return 'team';
       default:
         return 'individual';
@@ -740,23 +740,23 @@ export class DashboardWidgetsService {
 
     const department = await tx.department.findUnique({
       where: { id: departmentId },
-      select: { id: true, name: true, type: true },
+      select: { id: true, name: true, key: true },
     });
 
-    const type = (department?.type ??
-      DepartmentType.ADMINISTRATION) as DepartmentType;
+    const key = department?.key ?? 'administration';
 
-    switch (type) {
-      case DepartmentType.FINANCE:
-      case DepartmentType.ACCOUNTING:
-        return this.financeScope(tx, tenantId, departmentId, type);
-      case DepartmentType.INFORMATION_TECHNOLOGY:
+    switch (key) {
+      case 'finance':
+      case 'accounting':
+        return this.financeScope(tx, tenantId, departmentId, key);
+      case 'information_technology':
         return this.itScope(tx, tenantId, departmentId);
-      case DepartmentType.HUMAN_RESOURCES:
+      case 'human_resources':
         return this.hrScope(tx, tenantId, departmentId);
-      case DepartmentType.SALES:
+      case 'sales':
         return this.salesScope(tx, tenantId, departmentId);
-      case DepartmentType.CUSTOMER_SERVICE:
+      case 'customer_support':
+      case 'customer_service':
         return this.supportScope(tx, tenantId, departmentId);
       default:
         return this.genericDepartmentScope(tx, tenantId, departmentId);
@@ -767,7 +767,7 @@ export class DashboardWidgetsService {
     tx: any,
     tenantId: string,
     departmentId: string,
-    type: DepartmentType,
+    key: string,
   ): Promise<DashboardWidgetPayload> {
     const paymentCustomerScope = {
       invoice: { customer: { createdBy: { departmentId } } },
@@ -810,7 +810,7 @@ export class DashboardWidgetsService {
 
     const totalRevenue = revenue._sum.amount ?? 0;
     const totalExpenses = expenses._sum.amount ?? 0;
-    const isAccounting = type === DepartmentType.ACCOUNTING;
+    const isAccounting = key === 'accounting';
 
     return {
       scope: 'department',

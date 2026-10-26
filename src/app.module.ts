@@ -72,9 +72,11 @@ import { TenantSettingsService } from './tenant/tenant-settings.service';
     BillingModule,
   ],
   controllers: [AppController, TenantSettingsController],
-  providers: [AppService, PrismaService, MailService, TenantSettingsService],
-  controllers: [AppController],
   providers: [
+    AppService,
+    PrismaService,
+    MailService,
+    TenantSettingsService,
     {
       provide: APP_GUARD,
       useClass: ThrottlerGuard,
@@ -99,9 +101,6 @@ import { TenantSettingsService } from './tenant/tenant-settings.service';
       provide: APP_INTERCEPTOR,
       useClass: TenantInterceptor,
     },
-    AppService,
-    PrismaService,
-    MailService,
   ],
 })
 export class AppModule implements NestModule {

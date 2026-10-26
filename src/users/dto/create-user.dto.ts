@@ -2,10 +2,8 @@ import {
   IsEmail,
   IsString,
   IsOptional,
-  IsEnum,
   IsBoolean,
 } from 'class-validator';
-import { Role } from '@prisma/client';
 
 export class CreateUserDto {
   @IsEmail()
@@ -17,9 +15,10 @@ export class CreateUserDto {
   @IsString()
   name: string;
 
+  /** Phase 2: role is assigned by roleId (UUID), not an enum. */
   @IsOptional()
-  @IsEnum(Role)
-  role?: Role;
+  @IsString()
+  roleId?: string;
 
   @IsOptional()
   @IsString()

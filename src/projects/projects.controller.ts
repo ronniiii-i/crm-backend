@@ -5,46 +5,54 @@ import {
   Param,
   ForbiddenException,
 } from '@nestjs/common';
-import { AccessControlGuard } from '../auth/guards/access-control.guard';
-import { Roles } from '../auth/decorators/roles.decorator';
+import { JwtAuthGuard } from '../auth/guards/jwt-auth.guard';
+import { RequirePermission } from '../auth/decorators/permission.decorator';
 import { User } from '../auth/decorators/user.decorator';
 import { DataFilterService } from '../core/data-filter.service';
-import { Role } from '@prisma/client';
 
 @Controller('projects')
-@UseGuards(AccessControlGuard)
+@UseGuards(JwtAuthGuard)
 export class ProjectsController {
   constructor(private dataFilter: DataFilterService) {}
 
   @Get()
-  @Roles('ADMIN', 'HOD', 'STAFF') // Requires these roles
+  @RequirePermission('projects', 'VIEW')
   async getAllProjects(
     @User()
     user: {
-      sub: string;
-      role: Role;
+      sub?: string;
+      id?: string;
+      dataScope?: string;
+      isTenantAdmin?: boolean;
       departmentId?: string;
       managedDepartmentId?: string;
+      tenantId?: string;
     },
   ) {
-    return this.dataFilter.filterProjects({ ...user, id: user.sub });
+    return this.dataFilter.filterProjects({
+      ...user,
+      id: user.id ?? user.sub ?? '',
+    });
   }
 
   @Get(':id')
-  @Roles('ADMIN', 'HOD', 'STAFF')
+  @RequirePermission('projects', 'VIEW')
   async getProject(
     @Param('id') id: string,
     @User()
     user: {
-      sub: string;
-      role: Role;
+      sub?: string;
+      id?: string;
+      dataScope?: string;
+      isTenantAdmin?: boolean;
       departmentId?: string;
       managedDepartmentId?: string;
+      tenantId?: string;
     },
   ) {
     const projects = await this.dataFilter.filterProjects({
       ...user,
-      id: user.sub,
+      id: user.id ?? user.sub ?? '',
     });
     const project = projects.find((p) => p.id === id);
 

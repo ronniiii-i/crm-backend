@@ -22,6 +22,18 @@ export interface EffectivePermission {
   sources: PermissionSource[];
 }
 
+export interface HasPermissionParams {
+  userId: string;
+  tenantId: string;
+  moduleKey: string;
+  action: PermissionType;
+  roleId: string;
+  departmentId: string | null;
+  managedDepartmentId: string | null;
+  dataScope: string;
+  isTenantAdmin: boolean;
+}
+
 /**
  * Resolves the effective permission set for a user using the hybrid ACL model:
  *
@@ -94,12 +106,52 @@ export class PermissionResolutionService {
     return details;
   }
 
+  /**
+   * Check whether a user has a specific permission.
+   * Supports either:
+   *   1. HasPermissionParams (key-based, used by PermissionGuard)
+   *   2. (user, moduleId, permissionType) (id-based, used by legacy check-permission API)
+   */
+  async hasPermission(params: HasPermissionParams): Promise<boolean>;
   async hasPermission(
     user: UserForAcl,
     moduleId: string,
     permissionType: PermissionType,
+  ): Promise<boolean>;
+  async hasPermission(
+    paramsOrUser: HasPermissionParams | UserForAcl,
+    moduleId?: string,
+    permissionType?: PermissionType,
   ): Promise<boolean> {
-    const details = await this.getEffectivePermissionDetails(user);
+    if ('moduleKey' in paramsOrUser) {
+      const { userId, tenantId, moduleKey, action, roleId, isTenantAdmin } =
+        paramsOrUser;
+
+      // Tenant admins always have all permissions
+      if (isTenantAdmin) return true;
+
+      // Resolve moduleId from key within the tenant
+      const module = await this.prisma.withTenant(tenantId, (tx) =>
+        tx.module.findFirst({
+          where: { tenantId, key: moduleKey },
+          select: { id: true },
+        }),
+      );
+      if (!module) return false;
+
+      const user: UserForAcl = {
+        id: userId,
+        role: roleId, // satisfies UserForAcl.role (string)
+        tenantId,
+        departmentId: paramsOrUser.departmentId,
+        managedDepartmentId: paramsOrUser.managedDepartmentId,
+      };
+
+      const details = await this.getEffectivePermissionDetails(user);
+      return details.get(`${module.id}:${action}`)?.granted ?? false;
+    }
+
+    const details = await this.getEffectivePermissionDetails(paramsOrUser);
     return details.get(`${moduleId}:${permissionType}`)?.granted ?? false;
   }
 
@@ -141,13 +193,13 @@ export class PermissionResolutionService {
     };
 
     // 1. Base role permissions
-    const roleId = (user as any).roleId || (user as any).role?.id;
+    const roleId = (user as any).roleId || (user as any).role?.id || user.role;
     if (!roleId) {
       return details;
     }
 
     const rolePermissions = await db.roleModulePermission.findMany({
-      where: { roleId, ...(user.tenantId || tenantId ? { tenantId: user.tenantId || tenantId } : {}) },
+      where: { roleId, ...(user.tenantId ? { tenantId: user.tenantId } : {}) },
       include: { permission: true },
     });
 
