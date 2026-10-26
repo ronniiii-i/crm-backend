@@ -4,9 +4,10 @@ import { BillingService } from './billing.service';
 import { PrismaModule } from '../prisma/prisma.module';
 import { MailService } from '../mail/mail.service';
 import { TenantModule } from '../tenant/tenant.module';
+import { AuthModule } from '../auth/auth.module';
 
 @Module({
-  imports: [PrismaModule, TenantModule],
+  imports: [PrismaModule, TenantModule, AuthModule],
   controllers: [BillingController],
   providers: [BillingService, MailService],
 })

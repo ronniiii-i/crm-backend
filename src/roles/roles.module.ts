@@ -4,9 +4,10 @@ import { RolesService } from './roles.service';
 import { PrismaModule } from '../prisma/prisma.module';
 import { CacheModule } from '../cache/cache.module';
 import { TenantModule } from '../tenant/tenant.module';
+import { AuthModule } from '../auth/auth.module';
 
 @Module({
-  imports: [PrismaModule, CacheModule, TenantModule],
+  imports: [PrismaModule, CacheModule, TenantModule, AuthModule],
   controllers: [RolesController],
   providers: [RolesService],
   exports: [RolesService],
