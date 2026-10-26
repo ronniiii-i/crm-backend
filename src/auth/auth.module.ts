@@ -6,7 +6,6 @@ import { MailService } from '../mail/mail.service';
 import { AuthController } from './controllers/auth.controller';
 import { AuthAclController } from './controllers/access-control.controller';
 import { JwtStrategy } from './jwt.strategy';
-import { GuardsModule } from './guards/guards.module';
 import { DataFilterService } from '../core/data-filter.service';
 import { CacheModule } from '../cache/cache.module';
 import { RouteRegistry } from './route-registry';
@@ -32,7 +31,6 @@ import { SessionStateService } from './services/session-state.service';
     AuthService,
     JwtStrategy,
     MailService,
-    GuardsModule,
     DataFilterService,
     RouteRegistry,
     FrontendAdapterService,
@@ -41,7 +39,7 @@ import { SessionStateService } from './services/session-state.service';
   ],
   controllers: [AuthController, AuthAclController],
   exports: [
-    GuardsModule,
+    PassportModule,
     RouteRegistry,
     FrontendAdapterService,
     JwtModule,

@@ -1,9 +1,8 @@
-import { Module } from '@nestjs/common';
+import { Module, forwardRef } from '@nestjs/common';
 import { Reflector } from '@nestjs/core';
 import { PermissionGuard } from './permission.guard';
 import { JwtAuthGuard } from './jwt-auth.guard';
 import { TenantLifecycleGuard } from '../../tenant/tenant-lifecycle.guard';
-import { RouteRegistry } from '../route-registry';
 import { CacheModule } from '../../cache/cache.module';
 import { AclModule } from '../acl.module';
 import { TenantModule } from '../../tenant/tenant.module';
@@ -16,19 +15,13 @@ import { AuthModule } from '../auth.module';
     CacheModule,
     AclModule,
     TenantModule,
-    AuthModule,
+    forwardRef(() => AuthModule),
     JwtModule.register({
       secret: requireEnv('JWT_SECRET'),
       signOptions: { expiresIn: optionalEnv('JWT_EXPIRES_IN', '1h') },
     }),
   ],
-  providers: [
-    Reflector,
-    PermissionGuard,
-    JwtAuthGuard,
-    TenantLifecycleGuard,
-    RouteRegistry,
-  ],
+  providers: [Reflector, PermissionGuard, JwtAuthGuard, TenantLifecycleGuard],
   exports: [PermissionGuard, JwtAuthGuard, TenantLifecycleGuard, Reflector],
 })
 export class GuardsModule {}
