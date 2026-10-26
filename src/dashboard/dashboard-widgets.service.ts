@@ -16,10 +16,7 @@
 //     or query parameter.
 
 import { Injectable } from '@nestjs/common';
-import {
-  EmploymentStatus,
-  TicketStatus,
-} from '@prisma/client';
+import { EmploymentStatus, TicketStatus } from '@prisma/client';
 import { PrismaService } from '../prisma/prisma.service';
 import { CacheService } from '../cache/cache.service';
 import { getTenantId } from '../tenant/tenant-context';
@@ -289,7 +286,7 @@ export class DashboardWidgetsService {
 
     const scope = this.scopeForDataScope(user);
     const departmentId =
-      (user.isTenantAdmin || user.dataScope === 'TENANT')
+      user.isTenantAdmin || user.dataScope === 'TENANT'
         ? undefined
         : (user.managedDepartmentId ?? user.departmentId);
 
@@ -321,7 +318,8 @@ export class DashboardWidgetsService {
   }
 
   private scopeForDataScope(user: WidgetRequestUser): WidgetScope {
-    if (user.isTenantAdmin || user.dataScope === 'TENANT') return 'organization';
+    if (user.isTenantAdmin || user.dataScope === 'TENANT')
+      return 'organization';
     switch (user.dataScope) {
       case 'DEPARTMENT':
         return 'department';

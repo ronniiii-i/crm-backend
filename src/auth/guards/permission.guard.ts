@@ -8,7 +8,10 @@ import { Reflector } from '@nestjs/core';
 import { PUBLIC_KEY } from '../decorators/public.decorator';
 import { SYSTEM_ADMIN_ROUTE_KEY } from '../decorators/system-admin-route.decorator';
 import { TENANT_ADMIN_ONLY_KEY } from '../decorators/tenant-admin.decorator';
-import { PERMISSION_KEY, PermissionMetadata } from '../decorators/permission.decorator';
+import {
+  PERMISSION_KEY,
+  PermissionMetadata,
+} from '../decorators/permission.decorator';
 import { PermissionResolutionService } from '../services/permission-resolution.service';
 import { getTenantId } from '../../tenant/tenant-context';
 

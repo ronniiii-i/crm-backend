@@ -9,7 +9,10 @@ import { AuthGuard } from '@nestjs/passport';
 import { SYSTEM_ADMIN_ROUTE_KEY } from '../../auth/decorators/system-admin-route.decorator';
 
 @Injectable()
-export class SystemAdminGuard extends AuthGuard('system-admin') implements CanActivate {
+export class SystemAdminGuard
+  extends AuthGuard('system-admin')
+  implements CanActivate
+{
   constructor(private readonly reflector: Reflector) {
     super();
   }

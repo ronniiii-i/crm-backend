@@ -30,13 +30,20 @@ export class PublicController {
 
   @Public()
   @Get('invitations/:token')
-  getInvitation(@Param('token') token: string, @Headers('x-tenant-slug') slug: string) {
+  getInvitation(
+    @Param('token') token: string,
+    @Headers('x-tenant-slug') slug: string,
+  ) {
     return this.invitationsService.getPublic(token, slug);
   }
 
   @Public()
   @Post('invitations/:token/accept')
-  acceptInvitation(@Param('token') token: string, @Headers('x-tenant-slug') slug: string, @Body() body: any) {
+  acceptInvitation(
+    @Param('token') token: string,
+    @Headers('x-tenant-slug') slug: string,
+    @Body() body: any,
+  ) {
     return this.invitationsService.accept(token, slug, body);
   }
 }

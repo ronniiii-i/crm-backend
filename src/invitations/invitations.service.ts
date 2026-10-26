@@ -1,4 +1,10 @@
-import { Injectable, BadRequestException, ConflictException, ForbiddenException, NotFoundException } from '@nestjs/common';
+import {
+  Injectable,
+  BadRequestException,
+  ConflictException,
+  ForbiddenException,
+  NotFoundException,
+} from '@nestjs/common';
 import { PrismaService } from '../prisma/prisma.service';
 import { MailService } from '../mail/mail.service';
 import { JwtService } from '@nestjs/jwt';
@@ -23,7 +29,11 @@ export class InvitationsService {
   async list(tenantId: string) {
     const invitations = await this.prisma.invitation.findMany({
       where: { tenantId },
-      include: { role: true, department: true, invitedBy: { select: { id: true, name: true, email: true } } },
+      include: {
+        role: true,
+        department: true,
+        invitedBy: { select: { id: true, name: true, email: true } },
+      },
       orderBy: { createdAt: 'desc' },
     });
     return { success: true, invitations };
@@ -35,11 +45,15 @@ export class InvitationsService {
     const existingUser = await this.prisma.withTenant(tenantId, (tx) =>
       tx.user.findFirst({ where: { email } }),
     );
-    if (existingUser) throw new ConflictException('User already exists in tenant');
+    if (existingUser)
+      throw new ConflictException('User already exists in tenant');
 
-    const role = await this.prisma.role.findFirst({ where: { id: dto.roleId, tenantId } });
+    const role = await this.prisma.role.findFirst({
+      where: { id: dto.roleId, tenantId },
+    });
     if (!role) throw new NotFoundException('Role not found');
-    if (role.isTenantAdmin) throw new ForbiddenException('Cannot invite tenant admin');
+    if (role.isTenantAdmin)
+      throw new ForbiddenException('Cannot invite tenant admin');
 
     if (!inviter?.isTenantAdmin) {
       if (!inviter?.roleRank || role.rank > inviter.roleRank) {
@@ -49,14 +63,20 @@ export class InvitationsService {
 
     if (dto.departmentId) {
       if (!inviter?.isTenantAdmin) {
-        const allowed = inviter.departmentId === dto.departmentId || inviter.managedDepartmentId === dto.departmentId;
-        if (!allowed) throw new ForbiddenException('Cannot invite outside your department');
+        const allowed =
+          inviter.departmentId === dto.departmentId ||
+          inviter.managedDepartmentId === dto.departmentId;
+        if (!allowed)
+          throw new ForbiddenException('Cannot invite outside your department');
       }
     }
 
-    const tenant = await this.prisma.tenant.findUnique({ where: { id: tenantId } });
+    const tenant = await this.prisma.tenant.findUnique({
+      where: { id: tenantId },
+    });
     if (!tenant) throw new NotFoundException('Tenant not found');
-    if (tenant.status === 'SUSPENDED') throw new ForbiddenException('Tenant is suspended');
+    if (tenant.status === 'SUSPENDED')
+      throw new ForbiddenException('Tenant is suspended');
 
     await this.prisma.withTenant(tenantId, (tx) =>
       tx.invitation.updateMany({
@@ -84,31 +104,57 @@ export class InvitationsService {
     );
 
     try {
-      await (this.mailService as any).sendInvitationEmail?.(email, tenant.name, token, tenant.slug) || console.log(`Invite: ${email} -> ${token}`);
+      (await (this.mailService as any).sendInvitationEmail?.(
+        email,
+        tenant.name,
+        token,
+        tenant.slug,
+      )) || console.log(`Invite: ${email} -> ${token}`);
     } catch {
       console.log(`Invite: ${email} -> ${token}`);
     }
 
-    return { success: true, invitation, token: process.env.NODE_ENV === 'development' ? token : undefined };
+    return {
+      success: true,
+      invitation,
+      token: process.env.NODE_ENV === 'development' ? token : undefined,
+    };
   }
 
   async resend(tenantId: string, inviter: any, id: string) {
-    const invitation = await this.prisma.invitation.findFirst({ where: { id, tenantId } });
+    const invitation = await this.prisma.invitation.findFirst({
+      where: { id, tenantId },
+    });
     if (!invitation) throw new NotFoundException('Invitation not found');
-    if (invitation.status !== 'PENDING') throw new BadRequestException('Invitation not pending');
+    if (invitation.status !== 'PENDING')
+      throw new BadRequestException('Invitation not pending');
 
     const token = randomBytes(32).toString('hex');
     const tokenHash = hashToken(token);
 
     await this.prisma.invitation.update({
       where: { id },
-      data: { tokenHash, expiresAt: addDays(new Date(), 7), lastSentAt: new Date(), sendCount: { increment: 1 } },
+      data: {
+        tokenHash,
+        expiresAt: addDays(new Date(), 7),
+        lastSentAt: new Date(),
+        sendCount: { increment: 1 },
+      },
     });
 
-    const tenant = await this.prisma.tenant.findUnique({ where: { id: tenantId } });
+    const tenant = await this.prisma.tenant.findUnique({
+      where: { id: tenantId },
+    });
     try {
-      await (this.mailService as any).sendInvitationEmail?.(invitation.email, tenant?.name || '', token, tenant?.slug || '') || console.log(`Invite: ${invitation.email} -> ${token}`);
-    } catch { console.log(`Invite: ${invitation.email} -> ${token}`); }
+      (await (this.mailService as any).sendInvitationEmail?.(
+        invitation.email,
+        tenant?.name || '',
+        token,
+        tenant?.slug || '',
+      )) || console.log(`Invite: ${invitation.email} -> ${token}`);
+    } catch {
+      console.log(`Invite: ${invitation.email} -> ${token}`);
+    }
 
     return { success: true };
   }
@@ -129,11 +175,20 @@ export class InvitationsService {
     const invitation = await this.prisma.withTenant(tenant.id, (tx) =>
       tx.invitation.findFirst({
         where: { tokenHash },
-        include: { role: true, department: true, invitedBy: { select: { name: true, email: true } }, tenant: true },
+        include: {
+          role: true,
+          department: true,
+          invitedBy: { select: { name: true, email: true } },
+          tenant: true,
+        },
       }),
     );
 
-    if (!invitation || invitation.status !== 'PENDING' || invitation.expiresAt < new Date()) {
+    if (
+      !invitation ||
+      invitation.status !== 'PENDING' ||
+      invitation.expiresAt < new Date()
+    ) {
       throw new NotFoundException('Invalid or expired invitation');
     }
 
@@ -153,7 +208,8 @@ export class InvitationsService {
   async accept(token: string, tenantSlug: string, dto: any) {
     const tenant = await this.tenantResolver.resolveTenantBySlug(tenantSlug);
     if (!tenant) throw new NotFoundException('Invalid invitation');
-    if (tenant.status === 'SUSPENDED') throw new ForbiddenException('Tenant is suspended');
+    if (tenant.status === 'SUSPENDED')
+      throw new ForbiddenException('Tenant is suspended');
 
     const tokenHash = hashToken(token);
     const invitation = await this.prisma.withTenant(tenant.id, (tx) =>
@@ -163,7 +219,11 @@ export class InvitationsService {
       }),
     );
 
-    if (!invitation || invitation.status !== 'PENDING' || invitation.expiresAt < new Date()) {
+    if (
+      !invitation ||
+      invitation.status !== 'PENDING' ||
+      invitation.expiresAt < new Date()
+    ) {
       throw new NotFoundException('Invalid or expired invitation');
     }
 
@@ -190,9 +250,16 @@ export class InvitationsService {
       });
       await tx.invitation.update({
         where: { id: invitation.id },
-        data: { status: 'ACCEPTED', acceptedByUserId: created.id, acceptedAt: new Date() },
+        data: {
+          status: 'ACCEPTED',
+          acceptedByUserId: created.id,
+          acceptedAt: new Date(),
+        },
       });
-      await tx.tenant.update({ where: { id: tenant.id }, data: { seatCount: { increment: 1 }, lastActivityAt: new Date() } });
+      await tx.tenant.update({
+        where: { id: tenant.id },
+        data: { seatCount: { increment: 1 }, lastActivityAt: new Date() },
+      });
       return created;
     });
 
@@ -217,6 +284,15 @@ export class InvitationsService {
     };
 
     const accessToken = this.jwtService.sign(payload);
-    return { success: true, accessToken, user: { id: user.id, email: user.email, name: user.name, role: user.role } };
+    return {
+      success: true,
+      accessToken,
+      user: {
+        id: user.id,
+        email: user.email,
+        name: user.name,
+        role: user.role,
+      },
+    };
   }
 }

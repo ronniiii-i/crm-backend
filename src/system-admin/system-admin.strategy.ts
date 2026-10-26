@@ -14,7 +14,10 @@ interface SystemJwtPayload {
 }
 
 @Injectable()
-export class SystemAdminStrategy extends PassportStrategy(Strategy, 'system-admin') {
+export class SystemAdminStrategy extends PassportStrategy(
+  Strategy,
+  'system-admin',
+) {
   constructor() {
     super({
       jwtFromRequest: ExtractJwt.fromAuthHeaderAsBearerToken(),

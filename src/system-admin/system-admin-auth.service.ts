@@ -23,7 +23,10 @@ export class SystemAdminAuthService {
       throw new UnauthorizedException('Invalid credentials');
     }
 
-    const valid = await bcrypt.compare(password, (admin as any).passwordHash || (admin as any).password);
+    const valid = await bcrypt.compare(
+      password,
+      (admin as any).passwordHash || (admin as any).password,
+    );
     if (!valid) {
       throw new UnauthorizedException('Invalid credentials');
     }

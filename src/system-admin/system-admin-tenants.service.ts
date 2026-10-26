@@ -36,8 +36,12 @@ export class SystemAdminTenantsService {
       where: { id },
       data: {
         status: body.status,
-        trialExpiresAt: body.trialExpiresAt ? new Date(body.trialExpiresAt) : undefined,
-        gracePeriodEndsAt: body.gracePeriodEndsAt ? new Date(body.gracePeriodEndsAt) : undefined,
+        trialExpiresAt: body.trialExpiresAt
+          ? new Date(body.trialExpiresAt)
+          : undefined,
+        gracePeriodEndsAt: body.gracePeriodEndsAt
+          ? new Date(body.gracePeriodEndsAt)
+          : undefined,
         suspendedAt: body.status === 'SUSPENDED' ? new Date() : undefined,
         sessionVersion: { increment: 1 },
       },

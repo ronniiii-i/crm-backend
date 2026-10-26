@@ -1,4 +1,13 @@
-import { Controller, Get, Post, Body, Patch, Delete, Param, UseGuards } from '@nestjs/common';
+import {
+  Controller,
+  Get,
+  Post,
+  Body,
+  Patch,
+  Delete,
+  Param,
+  UseGuards,
+} from '@nestjs/common';
 import { DepartmentsService } from './departments.service';
 import { JwtAuthGuard } from '../auth/guards/jwt-auth.guard';
 import { TenantAdminOnly } from '../auth/decorators/tenant-admin.decorator';
@@ -37,7 +46,11 @@ export class DepartmentsController {
 
   @Patch(':id')
   @TenantAdminOnly()
-  update(@User() user: any, @Param('id') id: string, @Body() dto: UpdateDepartmentDto) {
+  update(
+    @User() user: any,
+    @Param('id') id: string,
+    @Body() dto: UpdateDepartmentDto,
+  ) {
     return this.service.update(user.tenantId, id, dto);
   }
 

@@ -19,7 +19,11 @@ import { requireEnv, optionalEnv } from '../config/env';
     }),
   ],
   controllers: [SystemAdminAuthController, SystemAdminTenantsController],
-  providers: [SystemAdminAuthService, SystemAdminTenantsService, SystemAdminStrategy],
+  providers: [
+    SystemAdminAuthService,
+    SystemAdminTenantsService,
+    SystemAdminStrategy,
+  ],
   exports: [SystemAdminAuthService],
 })
 export class SystemAdminModule {}

@@ -6,8 +6,13 @@ export class TenantSettingsService {
   constructor(private readonly prisma: PrismaService) {}
 
   async get(tenantId: string) {
-    const tenant = await this.prisma.tenant.findUnique({ where: { id: tenantId } });
-    return { success: true, settings: { name: tenant?.name, slug: tenant?.slug } };
+    const tenant = await this.prisma.tenant.findUnique({
+      where: { id: tenantId },
+    });
+    return {
+      success: true,
+      settings: { name: tenant?.name, slug: tenant?.slug },
+    };
   }
 
   async update(tenantId: string, body: any) {
@@ -15,6 +20,9 @@ export class TenantSettingsService {
       where: { id: tenantId },
       data: { name: body?.name },
     });
-    return { success: true, settings: { name: updated.name, slug: updated.slug } };
+    return {
+      success: true,
+      settings: { name: updated.name, slug: updated.slug },
+    };
   }
 }

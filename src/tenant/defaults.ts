@@ -160,12 +160,7 @@ function module(
   order: number,
   options: ModuleOptions = {},
 ): DefaultModule {
-  const {
-    icon,
-    departmentKey,
-    isNavigable = false,
-    overrides = {},
-  } = options;
+  const { icon, departmentKey, isNavigable = false, overrides = {} } = options;
 
   return {
     key,
@@ -240,22 +235,14 @@ export const DEFAULT_MODULES: DefaultModule[] = [
   }),
 
   // Finance -----------------------------------------------------------------
-  module(
-    'invoices',
-    'Invoices',
-    '/finance/invoices',
-    'Finance',
-    10,
-    { icon: 'FileText', departmentKey: 'finance' },
-  ),
-  module(
-    'payments',
-    'Payments',
-    '/finance/payments',
-    'Finance',
-    11,
-    { icon: 'CreditCard', departmentKey: 'finance' },
-  ),
+  module('invoices', 'Invoices', '/finance/invoices', 'Finance', 10, {
+    icon: 'FileText',
+    departmentKey: 'finance',
+  }),
+  module('payments', 'Payments', '/finance/payments', 'Finance', 11, {
+    icon: 'CreditCard',
+    departmentKey: 'finance',
+  }),
   module(
     'expense-tracking',
     'Expense Tracking',
@@ -324,14 +311,10 @@ export const DEFAULT_MODULES: DefaultModule[] = [
   ),
 
   // Sales -------------------------------------------------------------------
-  module(
-    'leads-management',
-    'Leads',
-    '/sales/leads-management',
-    'Sales',
-    30,
-    { icon: 'UserPlus', departmentKey: 'sales' },
-  ),
+  module('leads-management', 'Leads', '/sales/leads-management', 'Sales', 30, {
+    icon: 'UserPlus',
+    departmentKey: 'sales',
+  }),
   module(
     'opportunities-deals',
     'Opportunities & Deals',

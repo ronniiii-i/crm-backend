@@ -1,4 +1,10 @@
-import { Injectable, BadRequestException, ConflictException, ForbiddenException, NotFoundException } from '@nestjs/common';
+import {
+  Injectable,
+  BadRequestException,
+  ConflictException,
+  ForbiddenException,
+  NotFoundException,
+} from '@nestjs/common';
 import { PrismaService } from '../prisma/prisma.service';
 import { CacheService } from '../cache/cache.service';
 import { CreateRoleDto } from './dto/create-role.dto';
@@ -23,7 +29,13 @@ export class RolesService {
     const roles = await this.prisma.role.findMany({
       where: { tenantId },
       include: {
-        _count: { select: { users: true, roleModulePermissions: true, invitations: true } },
+        _count: {
+          select: {
+            users: true,
+            roleModulePermissions: true,
+            invitations: true,
+          },
+        },
       },
       orderBy: [{ isTenantAdmin: 'desc' }, { rank: 'asc' }, { name: 'asc' }],
     });
@@ -59,7 +71,9 @@ export class RolesService {
     }
 
     const slug = slugify(dto.name);
-    const existing = await this.prisma.role.findFirst({ where: { tenantId, slug } });
+    const existing = await this.prisma.role.findFirst({
+      where: { tenantId, slug },
+    });
     if (existing) throw new ConflictException('Role already exists');
 
     const role = await this.prisma.role.create({
@@ -86,9 +100,11 @@ export class RolesService {
       if (dto.rank !== undefined || dto.dataScope !== undefined) {
         throw new BadRequestException('Tenant admin role is immutable');
       }
-      if (dto.name) throw new BadRequestException('Tenant admin role cannot be renamed');
+      if (dto.name)
+        throw new BadRequestException('Tenant admin role cannot be renamed');
     }
-    if (role.isSystem && dto.name) throw new BadRequestException('System role name cannot be changed');
+    if (role.isSystem && dto.name)
+      throw new BadRequestException('System role name cannot be changed');
     if (dto.dataScope === 'TENANT' && !role.isTenantAdmin) {
       throw new BadRequestException('Custom roles cannot use TENANT scope');
     }
@@ -104,9 +120,15 @@ export class RolesService {
     });
 
     if (dto.dataScope && dto.dataScope !== role.dataScope) {
-      const users = await this.prisma.user.findMany({ where: { tenantId, roleId: id }, select: { id: true } });
+      const users = await this.prisma.user.findMany({
+        where: { tenantId, roleId: id },
+        select: { id: true },
+      });
       for (const u of users) {
-        await this.prisma.user.update({ where: { id: u.id }, data: { sessionVersion: { increment: 1 } } });
+        await this.prisma.user.update({
+          where: { id: u.id },
+          data: { sessionVersion: { increment: 1 } },
+        });
       }
       await this.cache.del(`acl:modules:${tenantId}:*`);
     }
@@ -115,12 +137,21 @@ export class RolesService {
   }
 
   async remove(tenantId: string, id: string) {
-    const role = await this.prisma.role.findFirst({ where: { id, tenantId }, include: { _count: { select: { users: true, invitations: true } } } });
+    const role = await this.prisma.role.findFirst({
+      where: { id, tenantId },
+      include: { _count: { select: { users: true, invitations: true } } },
+    });
     if (!role) throw new NotFoundException('Role not found');
-    if (role.isTenantAdmin) throw new ForbiddenException('Tenant admin role cannot be deleted');
-    if (role.isSystem) throw new ForbiddenException('System role cannot be deleted');
+    if (role.isTenantAdmin)
+      throw new ForbiddenException('Tenant admin role cannot be deleted');
+    if (role.isSystem)
+      throw new ForbiddenException('System role cannot be deleted');
     if (role._count.users > 0 || role._count.invitations > 0) {
-      throw new ConflictException({ message: 'Role has assigned users or pending invitations', users: role._count.users, invitations: role._count.invitations });
+      throw new ConflictException({
+        message: 'Role has assigned users or pending invitations',
+        users: role._count.users,
+        invitations: role._count.invitations,
+      });
     }
 
     await this.prisma.role.delete({ where: { id } });

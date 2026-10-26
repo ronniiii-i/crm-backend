@@ -56,7 +56,12 @@ export class AuthService {
     email: string,
     password: string,
     tenantSlug: string,
-  ): Promise<{ success: boolean; message: string; user: any; accessToken: string }> {
+  ): Promise<{
+    success: boolean;
+    message: string;
+    user: any;
+    accessToken: string;
+  }> {
     const normalizedEmail = email.trim().toLowerCase();
     const workspace = await this.tenantResolver.resolveTenantBySlug(tenantSlug);
 
@@ -146,7 +151,9 @@ export class AuthService {
 
     const accessToken = this.jwtService.sign(payload);
 
-    const access = await (this.frontendAdapter as any).getSessionAccess?.(refreshedUser) || {};
+    const access =
+      (await (this.frontendAdapter as any).getSessionAccess?.(refreshedUser)) ||
+      {};
     const userPayload = {
       id: refreshedUser.id,
       email: refreshedUser.email,
@@ -219,10 +226,7 @@ export class AuthService {
     return { success: true, message: 'Email verified successfully!' };
   }
 
-  async requestPasswordReset(
-    email: string,
-    tenantSlug: string,
-  ): Promise<any> {
+  async requestPasswordReset(email: string, tenantSlug: string): Promise<any> {
     const workspace = await this.tenantResolver.resolveTenantBySlug(tenantSlug);
     if (!workspace) {
       return {
@@ -353,7 +357,9 @@ export class AuthService {
     };
 
     const accessToken = this.jwtService.sign(payload);
-    const access = await (this.frontendAdapter as any).getSessionAccess?.(sessionUser) || {};
+    const access =
+      (await (this.frontendAdapter as any).getSessionAccess?.(sessionUser)) ||
+      {};
 
     return {
       success: true,
@@ -415,7 +421,8 @@ export class AuthService {
   }
 
   async getAclPermissions(user: any): Promise<any> {
-    const access = await (this.frontendAdapter as any).getSessionAccess?.(user) || {};
+    const access =
+      (await (this.frontendAdapter as any).getSessionAccess?.(user)) || {};
     return access?.permissions ?? {};
   }
 

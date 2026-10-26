@@ -24,7 +24,15 @@ export class AccessControlController {
 
   @Put('roles/:id/permissions')
   @TenantAdminOnly()
-  updateRolePermissions(@User() user: any, @Param('id') id: string, @Body() body: any) {
-    return this.service.updateRolePermissions(user.tenantId, id, body?.grants ?? body);
+  updateRolePermissions(
+    @User() user: any,
+    @Param('id') id: string,
+    @Body() body: any,
+  ) {
+    return this.service.updateRolePermissions(
+      user.tenantId,
+      id,
+      body?.grants ?? body,
+    );
   }
 }

@@ -13,9 +13,17 @@ export class BillingService {
 
   async getBilling(tenantId: string) {
     const state = await this.tenantState.getState(tenantId);
-    const tenant = await this.prisma.tenant.findUnique({ where: { id: tenantId } });
+    const tenant = await this.prisma.tenant.findUnique({
+      where: { id: tenantId },
+    });
     const daysRemaining = state.trialExpiresAt
-      ? Math.max(0, Math.ceil((state.trialExpiresAt.getTime() - Date.now()) / (1000 * 60 * 60 * 24)))
+      ? Math.max(
+          0,
+          Math.ceil(
+            (state.trialExpiresAt.getTime() - Date.now()) /
+              (1000 * 60 * 60 * 24),
+          ),
+        )
       : null;
 
     return {

@@ -53,7 +53,10 @@ export class SessionStateService {
       throw new UnauthorizedException('SESSION_REVOKED');
     }
 
-    if (user.sessionVersion !== payload.sv || tenant.sessionVersion !== payload.tsv) {
+    if (
+      user.sessionVersion !== payload.sv ||
+      tenant.sessionVersion !== payload.tsv
+    ) {
       throw new UnauthorizedException('SESSION_REVOKED');
     }
 

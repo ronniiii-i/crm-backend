@@ -1,4 +1,8 @@
-import { Injectable, NestMiddleware, UnauthorizedException } from '@nestjs/common';
+import {
+  Injectable,
+  NestMiddleware,
+  UnauthorizedException,
+} from '@nestjs/common';
 import { Request, Response, NextFunction } from 'express';
 import { JwtService } from '@nestjs/jwt';
 import { runWithTenant } from './tenant-context';
@@ -19,8 +23,9 @@ export class TenantMiddleware implements NestMiddleware {
 
     try {
       const authHeader = req.headers['authorization'];
-      const token =
-        authHeader?.startsWith('Bearer ') ? authHeader.slice(7) : null;
+      const token = authHeader?.startsWith('Bearer ')
+        ? authHeader.slice(7)
+        : null;
 
       if (token) {
         const payload = this.jwtService.verify(token);

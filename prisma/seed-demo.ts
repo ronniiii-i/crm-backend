@@ -17,10 +17,7 @@ import { EmploymentStatus, PrismaClient } from '@prisma/client';
 import * as bcrypt from 'bcryptjs';
 import { randomUUID } from 'node:crypto';
 import { TenantProvisioningService } from '../src/tenant/tenant-provisioning.service';
-import {
-  ensurePermissionCatalogue,
-  RoleSlug,
-} from './seed/defaults';
+import { ensurePermissionCatalogue, RoleSlug } from './seed/defaults';
 
 const DEMO_PASSWORD = 'Password123!';
 const provisioning = new TenantProvisioningService();

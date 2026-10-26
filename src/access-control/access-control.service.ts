@@ -1,4 +1,8 @@
-import { Injectable, BadRequestException, ForbiddenException } from '@nestjs/common';
+import {
+  Injectable,
+  BadRequestException,
+  ForbiddenException,
+} from '@nestjs/common';
 import { PrismaService } from '../prisma/prisma.service';
 import { CacheService } from '../cache/cache.service';
 
@@ -39,7 +43,9 @@ export class AccessControlService {
   }
 
   async rolePermissions(tenantId: string, roleId: string) {
-    const role = await this.prisma.role.findFirst({ where: { id: roleId, tenantId } });
+    const role = await this.prisma.role.findFirst({
+      where: { id: roleId, tenantId },
+    });
     if (!role) throw new BadRequestException('Role not found');
 
     const modules = await this.prisma.module.findMany({ where: { tenantId } });
@@ -48,14 +54,18 @@ export class AccessControlService {
       where: { tenantId, roleId },
     });
 
-    const grantSet = new Set(grants.map((g) => `${g.moduleId}:${g.permissionId}`));
-    const result = modules.map((m) => {
-      return perms.map((p) => ({
-        moduleKey: m.key,
-        action: p.type,
-        granted: role.isTenantAdmin ? true : grantSet.has(`${m.id}:${p.id}`),
-      }));
-    }).flat();
+    const grantSet = new Set(
+      grants.map((g) => `${g.moduleId}:${g.permissionId}`),
+    );
+    const result = modules
+      .map((m) => {
+        return perms.map((p) => ({
+          moduleKey: m.key,
+          action: p.type,
+          granted: role.isTenantAdmin ? true : grantSet.has(`${m.id}:${p.id}`),
+        }));
+      })
+      .flat();
 
     return {
       success: true,
@@ -66,17 +76,24 @@ export class AccessControlService {
   }
 
   async updateRolePermissions(tenantId: string, roleId: string, grants: any[]) {
-    const role = await this.prisma.role.findFirst({ where: { id: roleId, tenantId } });
+    const role = await this.prisma.role.findFirst({
+      where: { id: roleId, tenantId },
+    });
     if (!role) throw new BadRequestException('Role not found');
-    if (role.isTenantAdmin) throw new ForbiddenException('Tenant admin permissions are immutable');
+    if (role.isTenantAdmin)
+      throw new ForbiddenException('Tenant admin permissions are immutable');
 
     await this.prisma.$transaction(async (tx) => {
       await tx.roleModulePermission.deleteMany({ where: { tenantId, roleId } });
 
       for (const g of grants || []) {
         if (!g.granted) continue;
-        const module = await tx.module.findFirst({ where: { tenantId, key: g.moduleKey } });
-        const permission = await tx.permission.findFirst({ where: { type: g.action } });
+        const module = await tx.module.findFirst({
+          where: { tenantId, key: g.moduleKey },
+        });
+        const permission = await tx.permission.findFirst({
+          where: { type: g.action },
+        });
         if (!module || !permission) continue;
         await tx.roleModulePermission.create({
           data: {

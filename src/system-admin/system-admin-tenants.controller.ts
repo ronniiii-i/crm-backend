@@ -1,4 +1,13 @@
-import { Controller, Get, Param, Patch, Post, Query, UseGuards, Req } from '@nestjs/common';
+import {
+  Controller,
+  Get,
+  Param,
+  Patch,
+  Post,
+  Query,
+  UseGuards,
+  Req,
+} from '@nestjs/common';
 import { SystemAdminGuard } from './guards/system-admin.guard';
 import { SystemAdminRoute } from '../auth/decorators/system-admin-route.decorator';
 import { SystemAdminTenantsService } from './system-admin-tenants.service';
@@ -36,7 +45,11 @@ export class SystemAdminTenantsController {
 
   @Post(':id/suspend')
   suspend(@Param('id') id: string, @Req() req: any) {
-    return this.service.updateLifecycle(id, { status: 'SUSPENDED', reason: req.body?.reason }, req.user);
+    return this.service.updateLifecycle(
+      id,
+      { status: 'SUSPENDED', reason: req.body?.reason },
+      req.user,
+    );
   }
 
   @Post(':id/reactivate')

@@ -2,7 +2,11 @@ import { Injectable } from '@nestjs/common';
 import { CacheService } from '../cache/cache.service';
 import { PrismaService } from '../prisma/prisma.service';
 
-export type EffectiveTenantStatus = 'TRIAL' | 'ACTIVE' | 'PAST_DUE' | 'SUSPENDED';
+export type EffectiveTenantStatus =
+  | 'TRIAL'
+  | 'ACTIVE'
+  | 'PAST_DUE'
+  | 'SUSPENDED';
 
 export interface TenantState {
   id: string;
@@ -23,7 +27,10 @@ const STATE_CACHE_TTL_MS = 30 * 1000;
 
 @Injectable()
 export class TenantStateService {
-  private readonly cache = new Map<string, { value: TenantState; expiresAt: number }>();
+  private readonly cache = new Map<
+    string,
+    { value: TenantState; expiresAt: number }
+  >();
 
   constructor(
     private readonly prisma: PrismaService,
@@ -98,11 +105,7 @@ export class TenantStateService {
       }
     }
 
-    if (
-      status === 'PAST_DUE' &&
-      gracePeriodEndsAt &&
-      gracePeriodEndsAt < now
-    ) {
+    if (status === 'PAST_DUE' && gracePeriodEndsAt && gracePeriodEndsAt < now) {
       const updated = await this.prisma.$transaction(async (tx) => {
         const current = await tx.tenant.findUnique({ where: { id: tenantId } });
         if (!current || current.status !== 'PAST_DUE') {

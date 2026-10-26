@@ -58,7 +58,9 @@ export class TenantProvisioningService {
     const ownerEmail = normalizeEmail(params.ownerEmail);
 
     if (!tenantId || !slug || !workspaceName || !ownerName || !ownerEmail) {
-      throw new Error('Tenant provisioning requires id, slug, name, and owner.');
+      throw new Error(
+        'Tenant provisioning requires id, slug, name, and owner.',
+      );
     }
 
     const permissions = await tx.permission.findMany({
@@ -133,7 +135,9 @@ export class TenantProvisioningService {
     const tenantAdminRole = roles.find((role) => role.isTenantAdmin);
 
     if (!tenantAdminRole) {
-      throw new Error('Tenant provisioning did not create a Tenant Admin role.');
+      throw new Error(
+        'Tenant provisioning did not create a Tenant Admin role.',
+      );
     }
 
     await tx.module.createMany({

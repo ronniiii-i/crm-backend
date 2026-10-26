@@ -56,7 +56,9 @@ export class DashboardService {
       }
       case 'TEAM': {
         if (!user.departmentId || !userId) {
-          throw new Error('Team-scoped user must have departmentId and userId.');
+          throw new Error(
+            'Team-scoped user must have departmentId and userId.',
+          );
         }
         return this.getLeadDashboard(user.departmentId, userId, user.tenantId);
       }

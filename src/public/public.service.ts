@@ -1,4 +1,8 @@
-import { Injectable, BadRequestException, ConflictException } from '@nestjs/common';
+import {
+  Injectable,
+  BadRequestException,
+  ConflictException,
+} from '@nestjs/common';
 import { PrismaService } from '../prisma/prisma.service';
 import { TenantResolverService } from '../tenant/tenant-resolver.service';
 import { MailService } from '../mail/mail.service';
@@ -14,7 +18,14 @@ export class PublicService {
   async getWorkspace(slug: string) {
     const tenant = await this.tenantResolver.resolveTenantBySlug(slug);
     if (!tenant) return { success: false };
-    return { success: true, workspace: { slug: tenant.slug, name: tenant.name, status: tenant.status } };
+    return {
+      success: true,
+      workspace: {
+        slug: tenant.slug,
+        name: tenant.name,
+        status: tenant.status,
+      },
+    };
   }
 
   async createWorkspace(body: any) {
@@ -29,8 +40,13 @@ export class PublicService {
       if (exists) throw new ConflictException('Slug not available');
     }
 
-    const trialDays = Number.parseInt(process.env.WORKSPACE_TRIAL_DAYS || '14', 10);
-    const trialExpiresAt = new Date(Date.now() + trialDays * 24 * 60 * 60 * 1000);
+    const trialDays = Number.parseInt(
+      process.env.WORKSPACE_TRIAL_DAYS || '14',
+      10,
+    );
+    const trialExpiresAt = new Date(
+      Date.now() + trialDays * 24 * 60 * 60 * 1000,
+    );
 
     const result = await this.prisma.$transaction(async (tx: any) => {
       const tenant = await tx.tenant.create({
@@ -46,7 +62,9 @@ export class PublicService {
         },
       });
 
-      const tenantAdminRole = await tx.role.findFirst({ where: { tenantId: tenant.id, isTenantAdmin: true } });
+      const tenantAdminRole = await tx.role.findFirst({
+        where: { tenantId: tenant.id, isTenantAdmin: true },
+      });
       if (tenantAdminRole) {
         const bcrypt = require('bcryptjs');
         const hashed = await bcrypt.hash(password, 10);
@@ -67,9 +85,16 @@ export class PublicService {
 
     try {
       if ((this.mailService as any).sendWorkspaceVerificationEmail) {
-        await (this.mailService as any).sendWorkspaceVerificationEmail(ownerEmail, ownerName, result.slug);
+        await (this.mailService as any).sendWorkspaceVerificationEmail(
+          ownerEmail,
+          ownerName,
+          result.slug,
+        );
       } else if ((this.mailService as any).sendVerificationEmail) {
-        await (this.mailService as any).sendVerificationEmail(ownerEmail, ownerName);
+        await (this.mailService as any).sendVerificationEmail(
+          ownerEmail,
+          ownerName,
+        );
       }
     } catch {}
 
