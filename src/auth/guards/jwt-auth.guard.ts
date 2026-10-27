@@ -40,7 +40,9 @@ export class JwtAuthGuard extends AuthGuard('jwt') implements CanActivate {
     const token = this.extractTokenFromHeader(request);
 
     if (!token) {
-      throw new UnauthorizedException('No token provided');
+      // Let Passport attempt to authenticate; if it fails, handleRequest will throw
+      const activated = await super.canActivate(context);
+      return activated as boolean;
     }
 
     let payload: any;
