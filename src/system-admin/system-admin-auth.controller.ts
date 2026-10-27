@@ -3,11 +3,13 @@ import { SystemAdminAuthService } from './system-admin-auth.service';
 import { SystemLoginDto } from './dto/system-login.dto';
 import { SystemAdminGuard } from './guards/system-admin.guard';
 import { SystemAdminRoute } from '../auth/decorators/system-admin-route.decorator';
+import { Public } from '../auth/decorators/public.decorator';
 
 @Controller('system-admin/auth')
 export class SystemAdminAuthController {
   constructor(private readonly auth: SystemAdminAuthService) {}
 
+  @Public()
   @Post('login')
   async login(@Body() dto: SystemLoginDto) {
     return this.auth.login(dto.email, dto.password);
