@@ -54,9 +54,11 @@ export class TenantStateService {
       return cachedFromRedis;
     }
 
-    const tenant = await this.prisma.tenant.findUnique({
-      where: { id: tenantId },
-    });
+    const tenant = await this.prisma.withTenant(tenantId, (tx) =>
+      tx.tenant.findUnique({
+        where: { id: tenantId },
+      }),
+    );
 
     if (!tenant) {
       throw new Error(`Tenant ${tenantId} not found`);
@@ -79,7 +81,7 @@ export class TenantStateService {
             1000,
       );
 
-      const updated = await this.prisma.$transaction(async (tx) => {
+      const updated = await this.prisma.withTenant(tenantId, async (tx) => {
         const current = await tx.tenant.findUnique({ where: { id: tenantId } });
         if (!current || current.status !== 'TRIAL') {
           return current;
@@ -106,7 +108,7 @@ export class TenantStateService {
     }
 
     if (status === 'PAST_DUE' && gracePeriodEndsAt && gracePeriodEndsAt < now) {
-      const updated = await this.prisma.$transaction(async (tx) => {
+      const updated = await this.prisma.withTenant(tenantId, async (tx) => {
         const current = await tx.tenant.findUnique({ where: { id: tenantId } });
         if (!current || current.status !== 'PAST_DUE') {
           return current;
