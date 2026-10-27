@@ -31,7 +31,7 @@ const envSchema = z.object({
   // CLI, but validated when present so a typo is caught early.
   DIRECT_URL: z.string().min(1).optional(),
 
-  SYSTEM_DATABASE_URL: z.string().min(1).optional(),
+  SYSTEM_DATABASE_URL: z.string().min(1, 'SYSTEM_DATABASE_URL is required'),
 
   JWT_SECRET: z
     .string()
@@ -47,8 +47,7 @@ const envSchema = z.object({
     .refine((value) => !PLACEHOLDER_SECRETS.includes(value.toLowerCase()), {
       message:
         'SYSTEM_JWT_SECRET still uses a placeholder value — generate a unique secret',
-    })
-    .optional(),
+    }),
 
   JWT_EXPIRES_IN: z.string().default('1h'),
 
@@ -101,6 +100,12 @@ export function validateEnv(source: NodeJS.ProcessEnv = process.env): Env {
     throw new Error(
       `Invalid environment configuration:\n${details}\n\n` +
         `Copy .env.example to .env and fill in the missing values.`,
+    );
+  }
+
+  if (result.data.JWT_SECRET === result.data.SYSTEM_JWT_SECRET) {
+    throw new Error(
+      'JWT_SECRET and SYSTEM_JWT_SECRET must differ. Please use different secrets.',
     );
   }
 
