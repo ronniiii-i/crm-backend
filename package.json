@@ -23,6 +23,7 @@
     "db:migrate": "prisma migrate dev",
     "db:seed": "ts-node prisma/seed.ts",
     "db:seed:demo": "ts-node prisma/seed-demo.ts",
+    "db:backfill:phase3": "ts-node prisma/backfill-phase3.ts",
     "db:reset": "prisma migrate reset --force"
   },
   "prisma": {

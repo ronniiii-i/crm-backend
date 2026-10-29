@@ -51,6 +51,9 @@ model Tenant {
   roles                      Role[]
   invitations                Invitation[]
   lifecycleEvents            TenantLifecycleEvent[]
+  documents                  Document[]
+  formSubmissions            FormSubmission[]
+  auditLogs                  AuditLog[]
 
   @@map("tenants")
 }
@@ -95,6 +98,10 @@ model User {
   tenant                     Tenant                      @relation(fields: [tenantId], references: [id])
   invitationsSent            Invitation[]                @relation("InvitationsSent")
   invitationsAccepted        Invitation[]                @relation("InvitationsAccepted")
+  documentsCreated           Document[]                  @relation("DocumentCreatedBy")
+  documentsUpdated           Document[]                  @relation("DocumentUpdatedBy")
+  formSubmissions            FormSubmission[]
+  auditLogs                  AuditLog[]
 
   @@unique([tenantId, email])
   @@index([tenantId])
@@ -118,6 +125,7 @@ model Contact {
   createdAt      DateTime        @default(now())
   updatedAt      DateTime        @updatedAt
   tags           String[]
+  customFields   Json            @default("{}")
   tenant         Tenant          @relation(fields: [tenantId], references: [id])
   createdBy      User            @relation(fields: [userId], references: [id])
   deals          Deal[]
@@ -156,6 +164,7 @@ model Task {
   status       String    @default("Todo")
   priority     Int       @default(1)
   dueDate      DateTime?
+  customFields Json      @default("{}")
   projectId    String
   assignedToId String
   tenantId     String
@@ -186,6 +195,8 @@ model Department {
   teams                      Team[]
   members                    User[]                      @relation("DepartmentMembers")
   invitations                Invitation[]
+  documents                  Document[]
+  auditLogs                  AuditLog[]
 
   @@unique([tenantId, key])
   @@index([tenantId])
@@ -193,18 +204,19 @@ model Department {
 }
 
 model InventoryItem {
-  id          String   @id @default(uuid())
-  name        String
-  description String?
-  sku         String?
-  quantity    Int      @default(0)
-  unit        String   @default("pcs")
-  minStock    Int      @default(5)
-  location    String?
-  tenantId    String
-  createdAt   DateTime @default(now())
-  updatedAt   DateTime @updatedAt
-  tenant      Tenant   @relation(fields: [tenantId], references: [id])
+  id           String   @id @default(uuid())
+  name         String
+  description  String?
+  sku          String?
+  quantity     Int      @default(0)
+  unit         String   @default("pcs")
+  minStock     Int      @default(5)
+  location     String?
+  customFields Json     @default("{}")
+  tenantId     String
+  createdAt    DateTime @default(now())
+  updatedAt    DateTime @updatedAt
+  tenant       Tenant   @relation(fields: [tenantId], references: [id])
 
   @@unique([tenantId, sku])
   @@index([tenantId])
@@ -279,6 +291,7 @@ model Invoice {
   status        String    @default("Pending")
   dueDate       DateTime
   paidDate      DateTime?
+  customFields  Json      @default("{}")
   tenantId      String
   createdAt     DateTime  @default(now())
   updatedAt     DateTime  @updatedAt
@@ -310,6 +323,7 @@ model Expense {
   amount       Float
   category     String
   incurredAt   DateTime
+  customFields Json       @default("{}")
   departmentId String
   userId       String
   tenantId     String
@@ -322,19 +336,20 @@ model Expense {
 }
 
 model Deal {
-  id         String     @id @default(uuid())
-  name       String
-  contactId  String
-  amount     Float
-  status     DealStatus @default(LEAD)
-  closeDate  DateTime?
-  userId     String
-  tenantId   String
-  createdAt  DateTime   @default(now())
-  updatedAt  DateTime   @updatedAt
-  contact    Contact    @relation(fields: [contactId], references: [id])
-  tenant     Tenant     @relation(fields: [tenantId], references: [id])
-  assignedTo User       @relation("DealAssignedTo", fields: [userId], references: [id])
+  id           String     @id @default(uuid())
+  name         String
+  contactId    String
+  amount       Float
+  status       DealStatus @default(LEAD)
+  closeDate    DateTime?
+  customFields Json       @default("{}")
+  userId       String
+  tenantId     String
+  createdAt    DateTime   @default(now())
+  updatedAt    DateTime   @updatedAt
+  contact      Contact    @relation(fields: [contactId], references: [id])
+  tenant       Tenant     @relation(fields: [tenantId], references: [id])
+  assignedTo   User       @relation("DealAssignedTo", fields: [userId], references: [id])
 
   @@index([tenantId])
 }
@@ -353,6 +368,7 @@ model SupportTicket {
   resolvedAt     DateTime?
   slaDueDate     DateTime?
   customerRating Int?
+  customFields   Json         @default("{}")
   createdBy      Contact      @relation(fields: [contactId], references: [id])
   tenant         Tenant       @relation(fields: [tenantId], references: [id])
   assignedTo     User?        @relation("UserTickets", fields: [userId], references: [id])
@@ -386,6 +402,79 @@ model QuickAction {
   @@index([tenantId])
 }
 
+model Document {
+  id           String         @id @default(uuid())
+  tenantId     String
+  departmentId String?
+  moduleId     String?
+  title        String
+  slug         String
+  format       DocumentFormat @default(MARKDOWN)
+  status       DocumentStatus @default(DRAFT)
+  category     String?
+  content      String         @db.Text
+  version      Int            @default(1)
+  createdById  String
+  updatedById  String?
+  createdAt    DateTime       @default(now())
+  updatedAt    DateTime       @updatedAt
+
+  tenant     Tenant      @relation(fields: [tenantId], references: [id])
+  department Department? @relation(fields: [departmentId], references: [id])
+  module     Module?     @relation(fields: [moduleId], references: [id])
+  createdBy  User        @relation("DocumentCreatedBy", fields: [createdById], references: [id])
+  updatedBy  User?       @relation("DocumentUpdatedBy", fields: [updatedById], references: [id])
+
+  @@unique([tenantId, slug])
+  @@index([tenantId, moduleId])
+  @@index([tenantId, departmentId])
+  @@map("documents")
+}
+
+model FormSubmission {
+  id            String   @id @default(uuid())
+  tenantId      String
+  moduleId      String
+  entityId      String?
+  submittedById String?
+  data          Json
+  status        String   @default("SUBMITTED")
+  createdAt     DateTime @default(now())
+  updatedAt     DateTime @updatedAt
+
+  tenant      Tenant @relation(fields: [tenantId], references: [id])
+  module      Module @relation(fields: [moduleId], references: [id])
+  submittedBy User?  @relation(fields: [submittedById], references: [id])
+
+  @@index([tenantId, moduleId])
+  @@index([tenantId, submittedById])
+  @@map("form_submissions")
+}
+
+model AuditLog {
+  id           String   @id @default(uuid())
+  tenantId     String
+  departmentId String?
+  actorId      String?
+  action       String
+  entity       String
+  entityId     String?
+  before       Json?
+  after        Json?
+  ip           String?
+  userAgent    String?
+  createdAt    DateTime @default(now())
+
+  tenant     Tenant      @relation(fields: [tenantId], references: [id])
+  department Department? @relation(fields: [departmentId], references: [id])
+  actor      User?       @relation(fields: [actorId], references: [id], onDelete: SetNull)
+
+  @@index([tenantId, createdAt])
+  @@index([tenantId, entity, entityId])
+  @@index([tenantId, departmentId])
+  @@map("audit_logs")
+}
+
 model Permission {
   id                    Int                    @id @default(autoincrement())
   type                  PermissionType         @unique
@@ -406,6 +495,12 @@ model Module {
   order                 Int                    @default(0)
   isNavigable           Boolean                @default(false)
   description           String?
+  type                  ModuleType             @default(DATA_TABLE)
+  targetEntity          String?
+  config                Json                   @default("{}")
+  dataScope             RoleDataScope?
+  isActive              Boolean                @default(true)
+  updatedAt             DateTime               @default(now()) @updatedAt
   departmentId          String?
   tenantId              String
   department            Department?            @relation(fields: [departmentId], references: [id])
@@ -413,11 +508,15 @@ model Module {
   permissionGroupItems  PermissionGroupItem[]
   permissionOverrides   PermissionOverride[]
   roleModulePermissions RoleModulePermission[]
+  documents             Document[]
+  formSubmissions       FormSubmission[]
 
   @@unique([tenantId, key])
   @@unique([tenantId, path])
   @@index([tenantId])
   @@index([tenantId, departmentId])
+  @@index([tenantId, type])
+  @@index([tenantId, departmentId, order])
   @@map("modules")
 }
 
@@ -682,4 +781,23 @@ enum PermissionType {
 enum PermissionEffect {
   GRANT
   REVOKE
+}
+
+enum ModuleType {
+  DASHBOARD_VIEW
+  DATA_TABLE
+  KANBAN_BOARD
+  DOCUMENT_HUB
+  FORM_BUILDER
+}
+
+enum DocumentFormat {
+  MARKDOWN
+  RICH_TEXT
+}
+
+enum DocumentStatus {
+  DRAFT
+  PUBLISHED
+  ARCHIVED
 }
