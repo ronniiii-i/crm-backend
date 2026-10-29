@@ -42,10 +42,9 @@ async function bootstrap() {
         env.FRONTEND_URL,
         'http://localhost:3000',
         'http://127.0.0.1:3000',
-        'https://claspworkspace.vercel.app',
-        'https://clasp-backend.onrender.com',
-        'https://claspworkspace.com',
-        'https://www.claspworkspace.com',
+        'https://claspcrm.vercel.app',
+        'https://clasp-workspace.onrender.com',
+        'https://claspcrm.onrender.com',
       ];
 
       if (allowed.includes(origin)) {
