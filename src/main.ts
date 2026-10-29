@@ -45,6 +45,7 @@ async function bootstrap() {
         'https://claspcrm.vercel.app',
         'https://clasp-workspace.onrender.com',
         'https://claspcrm.onrender.com',
+        "https://claspworkspace.work.gd",
       ];
 
       if (allowed.includes(origin)) {
