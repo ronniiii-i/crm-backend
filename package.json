@@ -1,7 +1,7 @@
 {
-  "name": "crm-backend",
+  "name": "clasp-backend",
   "version": "0.0.1",
-  "description": "",
+  "description": "Clasp Workspace API",
   "author": "",
   "private": true,
   "license": "UNLICENSED",

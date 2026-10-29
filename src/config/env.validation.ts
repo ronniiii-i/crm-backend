@@ -51,6 +51,12 @@ const envSchema = z.object({
 
   JWT_EXPIRES_IN: z.string().default('1h'),
 
+  /** Product name used in email senders, subjects, and templates. */
+  APP_NAME: z.string().min(1).default('Clasp Workspace'),
+
+  /** Fallback workspace name when a caller does not supply one. */
+  DEFAULT_TENANT_NAME: z.string().min(1).default('Default Workspace'),
+
   REDIS_HOST: z.string().default('localhost'),
   REDIS_PORT: z.coerce.number().int().positive().default(6379),
   REDIS_PASSWORD: z.string().optional(),
@@ -58,7 +64,7 @@ const envSchema = z.object({
     .enum(['true', 'false', '1', '0', 'yes', 'no', 'on', 'off'])
     .default('false'),
   REDIS_DB: z.coerce.number().int().min(0).default(0),
-  REDIS_KEY_PREFIX: z.string().min(1).default('claspcrm'),
+  REDIS_KEY_PREFIX: z.string().min(1).default('claspworkspace'),
   REDIS_CONNECT_TIMEOUT: z.coerce.number().int().positive().default(3000),
   /**
    * When Redis is unreachable, serve a bounded in-process cache instead of

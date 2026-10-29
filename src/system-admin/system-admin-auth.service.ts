@@ -37,7 +37,7 @@ export class SystemAdminAuthService {
         sub: admin.id,
         email: admin.email,
         aud: 'system-admin',
-        iss: 'claspcrm-system',
+        iss: 'claspworkspace-system',
         scope: 'system',
         role: admin.role,
         jti,

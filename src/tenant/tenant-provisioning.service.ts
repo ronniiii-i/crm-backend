@@ -53,7 +53,10 @@ export class TenantProvisioningService {
   ): Promise<ProvisionTenantResult> {
     const tenantId = params.tenantId;
     const slug = normalizeSlug(params.slug);
-    const workspaceName = params.workspaceName.trim();
+    const workspaceName =
+      (params.workspaceName ?? '').trim() ||
+      process.env.DEFAULT_TENANT_NAME?.trim() ||
+      'Default Workspace';
     const ownerName = params.ownerName.trim();
     const ownerEmail = normalizeEmail(params.ownerEmail);
 

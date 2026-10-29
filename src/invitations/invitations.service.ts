@@ -300,7 +300,7 @@ export class InvitationsService {
       tsv: 0,
       tv: 3,
       aud: 'tenant',
-      iss: 'claspcrm',
+      iss: 'claspworkspace',
     };
 
     const accessToken = this.jwtService.sign(payload);

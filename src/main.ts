@@ -24,8 +24,8 @@ async function bootstrap() {
   );
 
   const config = new DocumentBuilder()
-    .setTitle('CRM API')
-    .setDescription('API for ClaspCRM.')
+    .setTitle('Clasp Workspace API')
+    .setDescription('API for Clasp Workspace.')
     .setVersion('1.0')
     .addBearerAuth()
     .build();
@@ -42,10 +42,10 @@ async function bootstrap() {
         env.FRONTEND_URL,
         'http://localhost:3000',
         'http://127.0.0.1:3000',
-        'https://claspcrm.vercel.app',
-        'https://claspcrm.onrender.com',
-        'https://claspcrm.com',
-        'https://www.claspcrm.com',
+        'https://claspworkspace.vercel.app',
+        'https://clasp-backend.onrender.com',
+        'https://claspworkspace.com',
+        'https://www.claspworkspace.com',
       ];
 
       if (allowed.includes(origin)) {
@@ -56,7 +56,7 @@ async function bootstrap() {
         return callback(null, true);
       }
 
-      if (origin.endsWith('.claspcrm.com')) {
+      if (origin.endsWith('.claspworkspace.com')) {
         return callback(null, true);
       }
 

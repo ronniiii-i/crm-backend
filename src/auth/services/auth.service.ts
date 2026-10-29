@@ -146,7 +146,7 @@ export class AuthService {
       tsv: state.sessionVersion,
       tv: 3,
       aud: 'tenant',
-      iss: 'claspcrm',
+      iss: 'claspworkspace',
     };
 
     const accessToken = this.jwtService.sign(payload);
@@ -357,7 +357,7 @@ export class AuthService {
       tsv: state.sessionVersion,
       tv: 3,
       aud: 'tenant',
-      iss: 'claspcrm',
+      iss: 'claspworkspace',
     };
 
     const accessToken = this.jwtService.sign(payload);

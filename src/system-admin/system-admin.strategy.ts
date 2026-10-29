@@ -30,7 +30,7 @@ export class SystemAdminStrategy extends PassportStrategy(
     if (
       !payload?.sub ||
       payload.aud !== 'system-admin' ||
-      payload.iss !== 'claspcrm-system' ||
+      payload.iss !== 'claspworkspace-system' ||
       payload.scope !== 'system'
     ) {
       throw new UnauthorizedException('Invalid token');

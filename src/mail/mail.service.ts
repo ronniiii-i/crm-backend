@@ -7,6 +7,7 @@ import { compile } from 'handlebars';
 
 @Injectable()
 export class MailService {
+  private readonly appName = process.env.APP_NAME?.trim() || 'Clasp Workspace';
   private transporter = nodemailer.createTransport({
     service: process.env.EMAIL_SERVICE || 'Gmail',
     auth: {
@@ -56,15 +57,15 @@ export class MailService {
       name,
       verificationLink: `${process.env.FRONTEND_URL}/verify-email?token=${token}`,
       currentYear: new Date().getFullYear(),
-      appName: process.env.APP_NAME,
+      appName: this.appName,
       randomCode,
     });
 
     try {
       await this.transporter.sendMail({
-        from: `"${process.env.APP_NAME}" <${process.env.EMAIL_FROM}>`,
+        from: `"${this.appName}" <${process.env.EMAIL_FROM}>`,
         to: email,
-        subject: `Verify Your Email for ${process.env.APP_NAME}`,
+        subject: `Verify Your Email for ${this.appName}`,
         html,
         headers: {
           'List-Unsubscribe': `<mailto:unsubscribe@gmail.com?subject=Unsubscribe>`,
@@ -88,7 +89,7 @@ export class MailService {
       resetLink: `${process.env.FRONTEND_URL}/reset-password?token=${token}`,
       randomCode: Math.random().toString(36).substring(2, 8),
       date: new Date().toISOString(),
-      appName: process.env.APP_NAME,
+      appName: this.appName,
       year: new Date().getFullYear(),
       supportLink: `${process.env.FRONTEND_URL}/contact`,
       privacyLink: `${process.env.FRONTEND_URL}/privacy`,
@@ -104,9 +105,9 @@ export class MailService {
 
     try {
       await this.transporter.sendMail({
-        from: `"${process.env.APP_NAME}" <${process.env.EMAIL_FROM}>`,
+        from: `"${this.appName}" <${process.env.EMAIL_FROM}>`,
         to: email,
-        subject: `Reset Your Password for ${process.env.APP_NAME}`,
+        subject: `Reset Your Password for ${this.appName}`,
         html,
         headers: {
           'List-Unsubscribe': `<mailto:unsubscribe@gmail.com?subject=Unsubscribe>`,
