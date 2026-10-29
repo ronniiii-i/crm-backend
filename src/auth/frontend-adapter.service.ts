@@ -1,7 +1,6 @@
 import { Injectable } from '@nestjs/common';
 import { PrismaService } from '../prisma/prisma.service';
 import { CacheService } from '../cache/cache.service';
-import { DepartmentType } from '@prisma/client';
 import { AccessibleModule, UserForAcl } from './permission-types';
 import { PermissionResolutionService } from './services/permission-resolution.service';
 
@@ -20,7 +19,7 @@ export class FrontendAdapterService {
   /**
    * Modules the user can view, derived from their effective permissions
    * (role base + groups + overrides) and restricted to their department
-   * unless they are an admin.
+   * unless they are a tenant admin or have TENANT data scope.
    */
   async getAccessibleModules(user: UserForAcl): Promise<AccessibleModule[]> {
     const cacheKey = this.getUserCacheKey(user.id);
@@ -40,22 +39,33 @@ export class FrontendAdapterService {
 
     const baseFilter = { id: { in: moduleIds } };
 
-    const where =
-      user.role === 'ADMIN'
-        ? baseFilter
-        : {
-            AND: [
-              baseFilter,
-              {
-                OR: [
-                  { departmentId: null },
-                  ...(this.getDepartmentType(user)
-                    ? [{ department: { type: this.getDepartmentType(user) } }]
-                    : []),
-                ],
-              },
-            ],
-          };
+    // Tenant admins and TENANT-scoped roles see all matching modules.
+    // Everyone else sees only global modules (departmentId = null) plus
+    // modules belonging to their own department/managed department.
+    const isTenantAdmin = (user as any).isTenantAdmin === true;
+    const dataScope = (user as any).dataScope as string | undefined;
+    const isUnrestricted = isTenantAdmin || dataScope === 'TENANT';
+
+    const departmentIds = [
+      (user as any).departmentId,
+      (user as any).managedDepartmentId,
+    ].filter((id): id is string => !!id);
+
+    const where = isUnrestricted
+      ? baseFilter
+      : {
+          AND: [
+            baseFilter,
+            {
+              OR: [
+                { departmentId: null },
+                ...(departmentIds.length
+                  ? [{ departmentId: { in: departmentIds } }]
+                  : []),
+              ],
+            },
+          ],
+        };
 
     const select = {
       id: true,
@@ -73,15 +83,6 @@ export class FrontendAdapterService {
 
     await this.cache.set(cacheKey, accessibleModules, 3600);
     return accessibleModules;
-  }
-
-  private getDepartmentType(user: UserForAcl): DepartmentType | undefined {
-    const rawType =
-      user.role === 'HOD'
-        ? user.managedDepartment?.type
-        : user.department?.type;
-
-    return rawType as DepartmentType | undefined;
   }
 
   async clearUserCache(userId: string, tenantId?: string): Promise<void> {

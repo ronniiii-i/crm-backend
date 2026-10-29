@@ -1,10 +1,10 @@
-# CRM Backend
+# Clasp Backend
 
 [![License: MIT](https://img.shields.io/badge/License-MIT-blue.svg)](https://opensource.org/licenses/MIT)
 [![NestJS](https://img.shields.io/badge/NestJS-10.0+-red?logo=nestjs)](https://nestjs.com/)
 [![TypeScript](https://img.shields.io/badge/TypeScript-5.0+-blue?logo=typescript)](https://www.typescriptlang.org/)
 
-Robust CRM backend built with NestJS, TypeScript, and PostgreSQL.
+Backend for Clasp Workspace, built with NestJS, TypeScript, and PostgreSQL.
 
 ## ✨ Features
 
@@ -36,8 +36,8 @@ Robust CRM backend built with NestJS, TypeScript, and PostgreSQL.
 ### Installation
 
 ```bash
-git clone https://github.com/your-username/crm-backend.git
-cd crm-backend
+git clone https://github.com/your-username/clasp-backend.git
+cd clasp-backend
 npm install
 ```
 
@@ -46,8 +46,10 @@ npm install
 Create `.env` file:
 
 ```env
-DATABASE_URL="postgresql://user:password@localhost:5432/crm?schema=public"
+DATABASE_URL="postgresql://user:password@localhost:5432/clasp?schema=public"
 JWT_SECRET=your_super_secret_key
+APP_NAME="Clasp Workspace"
+DEFAULT_TENANT_NAME="Default Workspace"
 EMAIL_USER=your@email.com
 EMAIL_PASSWORD=your_email_password
 ```
@@ -73,7 +75,7 @@ npm run start:prod
 ## 📂 Project Structure
 
 ```tree
-crm-backend/
+clasp-backend/
 ├── src/
 │   ├── auth/              # Authentication logic
 │   ├── users/             # User management

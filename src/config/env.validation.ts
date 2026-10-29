@@ -31,6 +31,8 @@ const envSchema = z.object({
   // CLI, but validated when present so a typo is caught early.
   DIRECT_URL: z.string().min(1).optional(),
 
+  SYSTEM_DATABASE_URL: z.string().min(1, 'SYSTEM_DATABASE_URL is required'),
+
   JWT_SECRET: z
     .string()
     .min(16, 'JWT_SECRET must be at least 16 characters')
@@ -39,7 +41,21 @@ const envSchema = z.object({
         'JWT_SECRET still uses a placeholder value — generate a unique secret',
     }),
 
+  SYSTEM_JWT_SECRET: z
+    .string()
+    .min(16, 'SYSTEM_JWT_SECRET must be at least 16 characters')
+    .refine((value) => !PLACEHOLDER_SECRETS.includes(value.toLowerCase()), {
+      message:
+        'SYSTEM_JWT_SECRET still uses a placeholder value — generate a unique secret',
+    }),
+
   JWT_EXPIRES_IN: z.string().default('1h'),
+
+  /** Product name used in email senders, subjects, and templates. */
+  APP_NAME: z.string().min(1).default('Clasp Workspace'),
+
+  /** Fallback workspace name when a caller does not supply one. */
+  DEFAULT_TENANT_NAME: z.string().min(1).default('Default Workspace'),
 
   REDIS_HOST: z.string().default('localhost'),
   REDIS_PORT: z.coerce.number().int().positive().default(6379),
@@ -48,7 +64,7 @@ const envSchema = z.object({
     .enum(['true', 'false', '1', '0', 'yes', 'no', 'on', 'off'])
     .default('false'),
   REDIS_DB: z.coerce.number().int().min(0).default(0),
-  REDIS_KEY_PREFIX: z.string().min(1).default('claspcrm'),
+  REDIS_KEY_PREFIX: z.string().min(1).default('claspworkspace'),
   REDIS_CONNECT_TIMEOUT: z.coerce.number().int().positive().default(3000),
   /**
    * When Redis is unreachable, serve a bounded in-process cache instead of
@@ -90,6 +106,12 @@ export function validateEnv(source: NodeJS.ProcessEnv = process.env): Env {
     throw new Error(
       `Invalid environment configuration:\n${details}\n\n` +
         `Copy .env.example to .env and fill in the missing values.`,
+    );
+  }
+
+  if (result.data.JWT_SECRET === result.data.SYSTEM_JWT_SECRET) {
+    throw new Error(
+      'JWT_SECRET and SYSTEM_JWT_SECRET must differ. Please use different secrets.',
     );
   }
 

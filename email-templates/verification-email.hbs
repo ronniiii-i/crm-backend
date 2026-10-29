@@ -46,6 +46,11 @@
   </head>
   <body>
     <div class='container'>
+      <div style='padding-bottom: 12px; margin-bottom: 20px; border-bottom: 1px solid #eeeeee;'>
+        <strong style='color: #2563eb; font-size: 18px;'>
+          {{#if appName}}{{appName}}{{else}}Clasp Workspace{{/if}}
+        </strong>
+      </div>
       <h1>Verify Your Email</h1>
       <p>Hello {{name}},</p>
       <p>Please verify your email address by clicking the button below:</p>
@@ -55,9 +60,9 @@
       <p>If you didn't request this, please ignore this email.</p>
 
       <div class='footer'>
-        ©
-        {{currentYear}}
-        {{appName}}
+        &copy; {{currentYear}}
+        {{#if appName}}{{appName}}{{else}}Clasp Workspace{{/if}}. All rights
+        reserved.
       </div>
     </div>
   </body>

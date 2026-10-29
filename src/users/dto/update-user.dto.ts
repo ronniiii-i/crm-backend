@@ -1,21 +1,15 @@
 import { IsEnum, IsOptional, IsString } from 'class-validator';
-import { Role } from '@prisma/client';
-
-enum EmploymentStatus {
-  ACTIVE = 'ACTIVE',
-  SUSPENDED = 'SUSPENDED',
-  ON_LEAVE = 'ON_LEAVE',
-  FIRED = 'FIRED',
-}
+import { EmploymentStatus } from '@prisma/client';
 
 export class UpdateUserDto {
   @IsOptional()
   @IsString()
   name?: string;
 
+  /** Phase 2: role is assigned by roleId (UUID), not an enum slug. */
   @IsOptional()
-  @IsEnum(Role)
-  role?: Role;
+  @IsString()
+  roleId?: string;
 
   @IsOptional()
   @IsEnum(EmploymentStatus)

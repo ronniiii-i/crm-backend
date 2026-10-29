@@ -1,615 +1,98 @@
 import { Department, Permission, ProtectedRoute } from './permission-types';
+import { DEFAULT_MODULES } from '../tenant/defaults';
 
-export const ALL_ROUTES: ProtectedRoute[] = [
-  // ── Global (no department) ──────────────────────────────────────────────────
-  {
-    id: 'dashboard',
-    name: 'Dashboard',
-    icon: 'LayoutDashboard',
-    path: '/dashboard',
-    group: 'General',
-    order: 1,
-    permissions: {
-      ADMIN: [Permission.VIEW, Permission.EDIT, Permission.DELETE],
-      HOD: [Permission.VIEW],
-      LEAD: [Permission.VIEW],
-      STAFF: [Permission.VIEW],
-    },
-  },
-  {
-    id: 'user-management',
-    name: 'User Management',
-    icon: 'Users',
-    path: '/user-management',
-    group: 'General',
-    order: 2,
-    permissions: {
-      ADMIN: [Permission.VIEW, Permission.EDIT, Permission.DELETE],
-      HOD: [],
-      LEAD: [],
-      STAFF: [],
-    },
-  },
-  {
-    id: 'notifications',
-    name: 'Notifications',
-    icon: 'Bell',
-    path: '/notifications',
-    group: 'General',
-    order: 3,
-    permissions: {
-      ADMIN: [Permission.VIEW, Permission.EDIT, Permission.DELETE],
-      HOD: [Permission.VIEW],
-      LEAD: [Permission.VIEW],
-      STAFF: [Permission.VIEW],
-    },
-  },
-  {
-    id: 'settings',
-    name: 'Settings',
-    icon: 'Settings',
-    path: '/settings',
-    group: 'General',
-    order: 4,
-    permissions: {
-      ADMIN: [Permission.VIEW, Permission.EDIT, Permission.DELETE],
-      HOD: [Permission.VIEW],
-      LEAD: [Permission.VIEW],
-      STAFF: [Permission.VIEW],
-    },
-  },
+const moduleMap = new Map(DEFAULT_MODULES.map((m) => [m.key, m]));
 
-  // ── Finance ─────────────────────────────────────────────────────────────────
-  {
-    id: 'invoices',
-    name: 'Invoices',
-    icon: 'FileText',
-    path: '/finance/invoices',
-    department: Department.FINANCE,
-    group: 'Finance',
-    order: 10,
-    permissions: {
-      ADMIN: [Permission.VIEW, Permission.EDIT, Permission.DELETE],
-      HOD: [Permission.VIEW, Permission.EDIT, Permission.DELETE],
-      LEAD: [Permission.VIEW, Permission.EDIT],
-      STAFF: [Permission.VIEW],
-    },
-  },
-  {
-    id: 'payments',
-    name: 'Payments',
-    icon: 'CreditCard',
-    path: '/finance/payments',
-    department: Department.FINANCE,
-    group: 'Finance',
-    order: 11,
-    permissions: {
-      ADMIN: [Permission.VIEW, Permission.EDIT, Permission.DELETE],
-      HOD: [Permission.VIEW, Permission.EDIT, Permission.DELETE],
-      LEAD: [Permission.VIEW, Permission.EDIT],
-      STAFF: [Permission.VIEW],
-    },
-  },
-  {
-    id: 'expense-tracking',
-    name: 'Expense Tracking',
-    icon: 'Receipt',
-    path: '/finance/expense-tracking',
-    department: Department.FINANCE,
-    group: 'Finance',
-    order: 12,
-    permissions: {
-      ADMIN: [Permission.VIEW, Permission.EDIT, Permission.DELETE],
-      HOD: [Permission.VIEW, Permission.EDIT, Permission.DELETE],
-      LEAD: [Permission.VIEW, Permission.EDIT],
-      STAFF: [Permission.VIEW, Permission.EDIT],
-    },
-  },
-  {
-    id: 'budget-management',
-    name: 'Budget Management',
-    icon: 'PiggyBank',
-    path: '/finance/budget-management',
-    department: Department.FINANCE,
-    group: 'Finance',
-    order: 13,
-    permissions: {
-      ADMIN: [Permission.VIEW, Permission.EDIT, Permission.DELETE],
-      HOD: [Permission.VIEW, Permission.EDIT, Permission.DELETE],
-      LEAD: [Permission.VIEW],
-      STAFF: [],
-    },
-  },
-  {
-    id: 'financial-reports',
-    name: 'Financial Reports',
-    icon: 'BarChart2',
-    path: '/finance/financial-reports',
-    department: Department.FINANCE,
-    group: 'Finance',
-    order: 14,
-    permissions: {
-      ADMIN: [Permission.VIEW, Permission.EDIT, Permission.DELETE],
-      HOD: [Permission.VIEW, Permission.EDIT, Permission.DELETE],
-      LEAD: [Permission.VIEW],
-      STAFF: [],
-    },
-  },
+function getRoute(id: string): ProtectedRoute {
+  const module = moduleMap.get(id);
+  if (!module) {
+    return {
+      id,
+      path: '/',
+      name: id,
+      permissions: {
+        ADMIN: [Permission.VIEW],
+        HOD: [Permission.VIEW],
+        LEAD: [Permission.VIEW],
+        STAFF: [Permission.VIEW],
+      },
+    };
+  }
 
-  // ── IT ───────────────────────────────────────────────────────────────────────
-  {
-    id: 'asset-management',
-    name: 'Asset Management',
-    icon: 'Monitor',
-    path: '/it/asset-management',
-    department: Department.IT,
-    group: 'IT',
-    order: 20,
-    permissions: {
-      ADMIN: [Permission.VIEW, Permission.EDIT, Permission.DELETE],
-      HOD: [Permission.VIEW, Permission.EDIT, Permission.DELETE],
-      LEAD: [Permission.VIEW, Permission.EDIT],
-      STAFF: [Permission.VIEW],
-    },
-  },
-  {
-    id: 'ticketing-issue-tracking',
-    name: 'Issue Tracking',
-    icon: 'Bug',
-    path: '/it/ticketing-issue-tracking',
-    department: Department.IT,
-    group: 'IT',
-    order: 21,
-    permissions: {
-      ADMIN: [Permission.VIEW, Permission.EDIT, Permission.DELETE],
-      HOD: [Permission.VIEW, Permission.EDIT, Permission.DELETE],
-      LEAD: [Permission.VIEW, Permission.EDIT],
-      STAFF: [Permission.VIEW, Permission.EDIT],
-    },
-  },
-  {
-    id: 'system-monitoring',
-    name: 'System Monitoring',
-    icon: 'Activity',
-    path: '/it/system-monitoring',
-    department: Department.IT,
-    group: 'IT',
-    order: 22,
-    permissions: {
-      ADMIN: [Permission.VIEW, Permission.EDIT, Permission.DELETE],
-      HOD: [Permission.VIEW, Permission.EDIT, Permission.DELETE],
-      LEAD: [Permission.VIEW],
-      STAFF: [],
-    },
-  },
-  {
-    id: 'software-licenses',
-    name: 'Software Licenses',
-    icon: 'KeyRound',
-    path: '/it/software-licenses',
-    department: Department.IT,
-    group: 'IT',
-    order: 23,
-    permissions: {
-      ADMIN: [Permission.VIEW, Permission.EDIT, Permission.DELETE],
-      HOD: [Permission.VIEW, Permission.EDIT, Permission.DELETE],
-      LEAD: [Permission.VIEW],
-      STAFF: [],
-    },
-  },
-  {
-    id: 'support-requests',
-    name: 'Support Requests',
-    icon: 'LifeBuoy',
-    path: '/it/support-requests',
-    department: Department.IT,
-    group: 'IT',
-    order: 24,
-    permissions: {
-      ADMIN: [Permission.VIEW, Permission.EDIT, Permission.DELETE],
-      HOD: [Permission.VIEW, Permission.EDIT, Permission.DELETE],
-      LEAD: [Permission.VIEW, Permission.EDIT],
-      STAFF: [Permission.VIEW, Permission.EDIT],
-    },
-  },
+  const permissions = {
+    ADMIN: module.defaultPermissions.tenant_admin.map((p) =>
+      p === 'VIEW'
+        ? Permission.VIEW
+        : p === 'CREATE'
+          ? Permission.CREATE
+          : p === 'EDIT'
+            ? Permission.EDIT
+            : Permission.DELETE,
+    ),
+    HOD: module.defaultPermissions.department_head.map((p) =>
+      p === 'VIEW'
+        ? Permission.VIEW
+        : p === 'CREATE'
+          ? Permission.CREATE
+          : p === 'EDIT'
+            ? Permission.EDIT
+            : Permission.DELETE,
+    ),
+    LEAD: module.defaultPermissions.team_lead.map((p) =>
+      p === 'VIEW'
+        ? Permission.VIEW
+        : p === 'CREATE'
+          ? Permission.CREATE
+          : p === 'EDIT'
+            ? Permission.EDIT
+            : Permission.DELETE,
+    ),
+    STAFF: module.defaultPermissions.staff.map((p) =>
+      p === 'VIEW'
+        ? Permission.VIEW
+        : p === 'CREATE'
+          ? Permission.CREATE
+          : p === 'EDIT'
+            ? Permission.EDIT
+            : Permission.DELETE,
+    ),
+  };
 
-  // ── Sales ────────────────────────────────────────────────────────────────────
-  {
-    id: 'leads-management',
-    name: 'Leads',
-    icon: 'UserPlus',
-    path: '/sales/leads-management',
-    department: Department.SALES,
-    group: 'Sales',
-    order: 30,
-    permissions: {
-      ADMIN: [Permission.VIEW, Permission.EDIT, Permission.DELETE],
-      HOD: [Permission.VIEW, Permission.EDIT, Permission.DELETE],
-      LEAD: [Permission.VIEW, Permission.EDIT],
-      STAFF: [Permission.VIEW, Permission.EDIT],
-    },
-  },
-  {
-    id: 'opportunities-deals',
-    name: 'Opportunities & Deals',
-    icon: 'TrendingUp',
-    path: '/sales/opportunities-deals',
-    department: Department.SALES,
-    group: 'Sales',
-    order: 31,
-    permissions: {
-      ADMIN: [Permission.VIEW, Permission.EDIT, Permission.DELETE],
-      HOD: [Permission.VIEW, Permission.EDIT, Permission.DELETE],
-      LEAD: [Permission.VIEW, Permission.EDIT],
-      STAFF: [Permission.VIEW, Permission.EDIT],
-    },
-  },
-  {
-    id: 'contacts',
-    name: 'Contacts',
-    icon: 'BookUser',
-    path: '/sales/contacts',
-    department: Department.SALES,
-    group: 'Sales',
-    order: 32,
-    permissions: {
-      ADMIN: [Permission.VIEW, Permission.EDIT, Permission.DELETE],
-      HOD: [Permission.VIEW, Permission.EDIT, Permission.DELETE],
-      LEAD: [Permission.VIEW, Permission.EDIT],
-      STAFF: [Permission.VIEW, Permission.EDIT],
-    },
-  },
-  {
-    id: 'sales-pipeline',
-    name: 'Sales Pipeline',
-    icon: 'FolderKanban',
-    path: '/sales/sales-pipeline',
-    department: Department.SALES,
-    group: 'Sales',
-    order: 33,
-    permissions: {
-      ADMIN: [Permission.VIEW, Permission.EDIT, Permission.DELETE],
-      HOD: [Permission.VIEW, Permission.EDIT, Permission.DELETE],
-      LEAD: [Permission.VIEW, Permission.EDIT],
-      STAFF: [Permission.VIEW],
-    },
-  },
-  {
-    id: 'quotes-proposals',
-    name: 'Quotes & Proposals',
-    icon: 'ClipboardList',
-    path: '/sales/quotes-proposals',
-    department: Department.SALES,
-    group: 'Sales',
-    order: 34,
-    permissions: {
-      ADMIN: [Permission.VIEW, Permission.EDIT, Permission.DELETE],
-      HOD: [Permission.VIEW, Permission.EDIT, Permission.DELETE],
-      LEAD: [Permission.VIEW, Permission.EDIT],
-      STAFF: [Permission.VIEW],
-    },
-  },
-  {
-    id: 'sales-reports',
-    name: 'Sales Reports',
-    icon: 'LineChart',
-    path: '/sales/sales-reports',
-    department: Department.SALES,
-    group: 'Sales',
-    order: 35,
-    permissions: {
-      ADMIN: [Permission.VIEW, Permission.EDIT, Permission.DELETE],
-      HOD: [Permission.VIEW, Permission.EDIT, Permission.DELETE],
-      LEAD: [Permission.VIEW],
-      STAFF: [],
-    },
-  },
+  return {
+    id: module.key,
+    path: module.path,
+    name: module.name,
+    icon: module.icon,
+    department: module.departmentKey
+      ? mapDepartment(module.departmentKey)
+      : undefined,
+    permissions,
+  };
+}
 
-  // ── Customer Support ─────────────────────────────────────────────────────────
-  {
-    id: 'support-tickets',
-    name: 'Support Tickets',
-    icon: 'Ticket',
-    path: '/customer-support/support-tickets',
-    department: Department.CUSTOMER_SUPPORT,
-    group: 'Customer Support',
-    order: 40,
-    permissions: {
-      ADMIN: [Permission.VIEW, Permission.EDIT, Permission.DELETE],
-      HOD: [Permission.VIEW, Permission.EDIT, Permission.DELETE],
-      LEAD: [Permission.VIEW, Permission.EDIT],
-      STAFF: [Permission.VIEW, Permission.EDIT],
-    },
-  },
-  {
-    id: 'knowledge-base',
-    name: 'Knowledge Base',
-    icon: 'BookOpen',
-    path: '/customer-support/knowledge-base',
-    department: Department.CUSTOMER_SUPPORT,
-    group: 'Customer Support',
-    order: 41,
-    permissions: {
-      ADMIN: [Permission.VIEW, Permission.EDIT, Permission.DELETE],
-      HOD: [Permission.VIEW, Permission.EDIT, Permission.DELETE],
-      LEAD: [Permission.VIEW, Permission.EDIT],
-      STAFF: [Permission.VIEW],
-    },
-  },
-  {
-    id: 'customer-feedback',
-    name: 'Customer Feedback',
-    icon: 'MessageSquare',
-    path: '/customer-support/customer-feedback',
-    department: Department.CUSTOMER_SUPPORT,
-    group: 'Customer Support',
-    order: 42,
-    permissions: {
-      ADMIN: [Permission.VIEW, Permission.EDIT, Permission.DELETE],
-      HOD: [Permission.VIEW, Permission.EDIT, Permission.DELETE],
-      LEAD: [Permission.VIEW],
-      STAFF: [Permission.VIEW],
-    },
-  },
-  {
-    id: 'sla-management',
-    name: 'SLA Management',
-    icon: 'ShieldCheck',
-    path: '/customer-support/sla-management',
-    department: Department.CUSTOMER_SUPPORT,
-    group: 'Customer Support',
-    order: 43,
-    permissions: {
-      ADMIN: [Permission.VIEW, Permission.EDIT, Permission.DELETE],
-      HOD: [Permission.VIEW, Permission.EDIT, Permission.DELETE],
-      LEAD: [Permission.VIEW],
-      STAFF: [],
-    },
-  },
-  {
-    id: 'live-chat-communication',
-    name: 'Live Chat',
-    icon: 'MessagesSquare',
-    path: '/customer-support/live-chat-communication',
-    department: Department.CUSTOMER_SUPPORT,
-    group: 'Customer Support',
-    order: 44,
-    permissions: {
-      ADMIN: [Permission.VIEW, Permission.EDIT, Permission.DELETE],
-      HOD: [Permission.VIEW, Permission.EDIT, Permission.DELETE],
-      LEAD: [Permission.VIEW, Permission.EDIT],
-      STAFF: [Permission.VIEW, Permission.EDIT],
-    },
-  },
+function mapDepartment(key?: string): Department | undefined {
+  switch (key) {
+    case 'finance':
+      return Department.FINANCE;
+    case 'accounting':
+      return Department.ACCOUNTING;
+    case 'information_technology':
+      return Department.IT;
+    case 'sales':
+      return Department.SALES;
+    case 'customer_support':
+      return Department.CUSTOMER_SUPPORT;
+    case 'human_resources':
+      return Department.HR;
+    case 'administration':
+      return Department.ADMINISTRATION;
+    case 'operations':
+      return Department.OPERATIONS;
+    default:
+      return undefined;
+  }
+}
 
-  // ── HR ───────────────────────────────────────────────────────────────────────
-  {
-    id: 'employee-records',
-    name: 'Employee Records',
-    icon: 'IdCard',
-    path: '/hr/employee-records',
-    department: Department.HR,
-    group: 'Human Resources',
-    order: 50,
-    permissions: {
-      ADMIN: [Permission.VIEW, Permission.EDIT, Permission.DELETE],
-      HOD: [Permission.VIEW, Permission.EDIT, Permission.DELETE],
-      LEAD: [Permission.VIEW],
-      STAFF: [Permission.VIEW],
-    },
-  },
-  {
-    id: 'attendance-leave-management',
-    name: 'Attendance & Leave',
-    icon: 'CalendarCheck',
-    path: '/hr/attendance-leave-management',
-    department: Department.HR,
-    group: 'Human Resources',
-    order: 51,
-    permissions: {
-      ADMIN: [Permission.VIEW, Permission.EDIT, Permission.DELETE],
-      HOD: [Permission.VIEW, Permission.EDIT, Permission.DELETE],
-      LEAD: [Permission.VIEW, Permission.EDIT],
-      STAFF: [Permission.VIEW],
-    },
-  },
-  {
-    id: 'recruitment-job-postings',
-    name: 'Recruitment',
-    icon: 'BriefcaseBusiness',
-    path: '/hr/recruitment-job-postings',
-    department: Department.HR,
-    group: 'Human Resources',
-    order: 52,
-    permissions: {
-      ADMIN: [Permission.VIEW, Permission.EDIT, Permission.DELETE],
-      HOD: [Permission.VIEW, Permission.EDIT, Permission.DELETE],
-      LEAD: [Permission.VIEW],
-      STAFF: [],
-    },
-  },
-  {
-    id: 'performance-reviews',
-    name: 'Performance Reviews',
-    icon: 'Star',
-    path: '/hr/performance-reviews',
-    department: Department.HR,
-    group: 'Human Resources',
-    order: 53,
-    permissions: {
-      ADMIN: [Permission.VIEW, Permission.EDIT, Permission.DELETE],
-      HOD: [Permission.VIEW, Permission.EDIT, Permission.DELETE],
-      LEAD: [Permission.VIEW, Permission.EDIT],
-      STAFF: [Permission.VIEW],
-    },
-  },
-  {
-    id: 'payroll',
-    name: 'Payroll',
-    icon: 'Banknote',
-    path: '/hr/payroll',
-    department: Department.HR,
-    group: 'Human Resources',
-    order: 54,
-    permissions: {
-      ADMIN: [Permission.VIEW, Permission.EDIT, Permission.DELETE],
-      HOD: [Permission.VIEW, Permission.EDIT, Permission.DELETE],
-      LEAD: [Permission.VIEW],
-      STAFF: [],
-    },
-  },
-
-  // ── Administration ───────────────────────────────────────────────────────────
-  {
-    id: 'document-management',
-    name: 'Document Management',
-    icon: 'FolderOpen',
-    path: '/administration/document-management',
-    department: Department.ADMINISTRATION,
-    group: 'Administration',
-    order: 60,
-    permissions: {
-      ADMIN: [Permission.VIEW, Permission.EDIT, Permission.DELETE],
-      HOD: [Permission.VIEW, Permission.EDIT, Permission.DELETE],
-      LEAD: [Permission.VIEW, Permission.EDIT],
-      STAFF: [Permission.VIEW, Permission.EDIT],
-    },
-  },
-  {
-    id: 'meeting-scheduler',
-    name: 'Meeting Scheduler',
-    icon: 'CalendarDays',
-    path: '/administration/meeting-scheduler',
-    department: Department.ADMINISTRATION,
-    group: 'Administration',
-    order: 61,
-    permissions: {
-      ADMIN: [Permission.VIEW, Permission.EDIT, Permission.DELETE],
-      HOD: [Permission.VIEW, Permission.EDIT, Permission.DELETE],
-      LEAD: [Permission.VIEW, Permission.EDIT],
-      STAFF: [Permission.VIEW, Permission.EDIT],
-    },
-  },
-  {
-    id: 'company-announcements',
-    name: 'Announcements',
-    icon: 'Megaphone',
-    path: '/administration/company-announcements',
-    department: Department.ADMINISTRATION,
-    group: 'Administration',
-    order: 62,
-    permissions: {
-      ADMIN: [Permission.VIEW, Permission.EDIT, Permission.DELETE],
-      HOD: [Permission.VIEW, Permission.EDIT, Permission.DELETE],
-      LEAD: [Permission.VIEW],
-      STAFF: [Permission.VIEW],
-    },
-  },
-  {
-    id: 'compliance-policies',
-    name: 'Compliance & Policies',
-    icon: 'Scale',
-    path: '/administration/compliance-policies',
-    department: Department.ADMINISTRATION,
-    group: 'Administration',
-    order: 63,
-    permissions: {
-      ADMIN: [Permission.VIEW, Permission.EDIT, Permission.DELETE],
-      HOD: [Permission.VIEW, Permission.EDIT, Permission.DELETE],
-      LEAD: [Permission.VIEW],
-      STAFF: [],
-    },
-  },
-  {
-    id: 'vendor-management',
-    name: 'Vendor Management',
-    icon: 'Handshake',
-    path: '/administration/vendor-management',
-    department: Department.ADMINISTRATION,
-    group: 'Administration',
-    order: 64,
-    permissions: {
-      ADMIN: [Permission.VIEW, Permission.EDIT, Permission.DELETE],
-      HOD: [Permission.VIEW, Permission.EDIT, Permission.DELETE],
-      LEAD: [Permission.VIEW],
-      STAFF: [],
-    },
-  },
-
-  // ── Operations ───────────────────────────────────────────────────────────────
-  {
-    id: 'project-management',
-    name: 'Project Management',
-    icon: 'Clipboard',
-    path: '/operations/project-management',
-    department: Department.OPERATIONS,
-    group: 'Operations',
-    order: 70,
-    permissions: {
-      ADMIN: [Permission.VIEW, Permission.EDIT, Permission.DELETE],
-      HOD: [Permission.VIEW, Permission.EDIT, Permission.DELETE],
-      LEAD: [Permission.VIEW, Permission.EDIT],
-      STAFF: [Permission.VIEW, Permission.EDIT],
-    },
-  },
-  {
-    id: 'inventory-management',
-    name: 'Inventory Management',
-    icon: 'Boxes',
-    path: '/operations/inventory-management',
-    department: Department.OPERATIONS,
-    group: 'Operations',
-    order: 71,
-    permissions: {
-      ADMIN: [Permission.VIEW, Permission.EDIT, Permission.DELETE],
-      HOD: [Permission.VIEW, Permission.EDIT, Permission.DELETE],
-      LEAD: [Permission.VIEW, Permission.EDIT],
-      STAFF: [Permission.VIEW, Permission.EDIT],
-    },
-  },
-  {
-    id: 'workflow-automation',
-    name: 'Workflow Automation',
-    icon: 'Settings2',
-    path: '/operations/workflow-automation',
-    department: Department.OPERATIONS,
-    group: 'Operations',
-    order: 72,
-    permissions: {
-      ADMIN: [Permission.VIEW, Permission.EDIT, Permission.DELETE],
-      HOD: [Permission.VIEW, Permission.EDIT, Permission.DELETE],
-      LEAD: [Permission.VIEW],
-      STAFF: [],
-    },
-  },
-  {
-    id: 'resource-allocation',
-    name: 'Resource Allocation',
-    icon: 'Users',
-    path: '/operations/resource-allocation',
-    department: Department.OPERATIONS,
-    group: 'Operations',
-    order: 73,
-    permissions: {
-      ADMIN: [Permission.VIEW, Permission.EDIT, Permission.DELETE],
-      HOD: [Permission.VIEW, Permission.EDIT, Permission.DELETE],
-      LEAD: [Permission.VIEW],
-      STAFF: [],
-    },
-  },
-  {
-    id: 'reporting-analytics',
-    name: 'Reporting & Analytics',
-    icon: 'PieChart',
-    path: '/operations/reporting-analytics',
-    department: Department.OPERATIONS,
-    group: 'Operations',
-    order: 74,
-    permissions: {
-      ADMIN: [Permission.VIEW, Permission.EDIT, Permission.DELETE],
-      HOD: [Permission.VIEW, Permission.EDIT, Permission.DELETE],
-      LEAD: [Permission.VIEW],
-      STAFF: [],
-    },
-  },
-];
+export const ALL_ROUTES: ProtectedRoute[] = DEFAULT_MODULES.map((module) =>
+  getRoute(module.key),
+);

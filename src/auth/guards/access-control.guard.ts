@@ -1,27 +1,29 @@
 import { ExecutionContext, Injectable } from '@nestjs/common';
 import { AuthGuard } from '@nestjs/passport';
-import { RolesGuard } from './roles.guard';
-import { DepartmentGuard } from './department.guard';
+import { Reflector } from '@nestjs/core';
 import { PermissionGuard } from './permission.guard';
+import { PermissionResolutionService } from '../services/permission-resolution.service';
 
+/**
+ * Legacy composite guard — now delegates entirely to PermissionGuard.
+ * RolesGuard and DepartmentGuard have been removed as part of the Phase 2
+ * migration to dynamic, table-driven roles and permissions.
+ */
 @Injectable()
 export class AccessControlGuard extends AuthGuard('jwt') {
+  private permissionGuard: PermissionGuard;
+
   constructor(
-    private rolesGuard: RolesGuard,
-    private deptGuard: DepartmentGuard,
-    private permissionGuard: PermissionGuard,
+    reflector: Reflector,
+    permissionResolution: PermissionResolutionService,
   ) {
     super();
+    this.permissionGuard = new PermissionGuard(reflector, permissionResolution);
   }
 
   async canActivate(context: ExecutionContext) {
     const baseAuth = await super.canActivate(context);
     if (!baseAuth) return false;
-
-    // Each guard is evaluated in turn; the first denial short-circuits.
-    // RolesGuard is synchronous, DepartmentGuard and PermissionGuard are not.
-    if (!this.rolesGuard.canActivate(context)) return false;
-    if (!(await this.deptGuard.canActivate(context))) return false;
     return this.permissionGuard.canActivate(context);
   }
 }

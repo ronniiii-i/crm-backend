@@ -1,7 +1,7 @@
 {
-  "name": "crm-backend",
+  "name": "clasp-backend",
   "version": "0.0.1",
-  "description": "",
+  "description": "Clasp Workspace API",
   "author": "",
   "private": true,
   "license": "UNLICENSED",
@@ -18,6 +18,7 @@
     "test:cov": "jest --coverage",
     "test:debug": "node --inspect-brk -r tsconfig-paths/register -r ts-node/register node_modules/.bin/jest --runInBand",
     "test:e2e": "jest --config ./test/jest-e2e.json",
+    "test:rls": "node test/sql/rls-check.js",
     "db:generate": "prisma generate",
     "db:migrate": "prisma migrate dev",
     "db:seed": "ts-node prisma/seed.ts",

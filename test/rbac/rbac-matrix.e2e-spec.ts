@@ -8,9 +8,16 @@
 // system relies on, so an accidental widening (e.g. STAFF gaining DELETE)
 // fails the build.
 
-import { Role, PermissionType } from '@prisma/client';
+import { PermissionType } from '@prisma/client';
 import { ALL_ROUTES } from '../../src/auth/routes';
 import { Permission, Department } from '../../src/auth/permission-types';
+
+const Role = {
+  ADMIN: 'ADMIN',
+  HOD: 'HOD',
+  LEAD: 'LEAD',
+  STAFF: 'STAFF',
+} as const;
 
 /** The module groups declared by the specification. */
 const SPEC_MODULES = [

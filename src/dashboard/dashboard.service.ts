@@ -1,6 +1,6 @@
 import { Injectable } from '@nestjs/common';
-import { PrismaService } from '../prisma/prisma.service'; // Adjust path if necessary
-import { Role, Prisma } from '@prisma/client'; // Import Role enum from your Prisma client
+import { PrismaService } from '../prisma/prisma.service';
+import { Prisma } from '@prisma/client';
 import { getTenantId } from '../tenant/tenant-context';
 import { CacheService } from '../cache/cache.service';
 
@@ -31,42 +31,43 @@ export class DashboardService {
   }
 
   /**
-   * Main method to get dashboard data based on user's role and context.
+   * Main method to get dashboard data based on user's data scope.
    */
   async getDashboardData(user: {
-    role: Role;
+    dataScope?: string;
+    isTenantAdmin?: boolean;
     departmentId?: string;
-    userId: string;
+    userId?: string;
+    id?: string;
+    sub?: string;
     tenantId?: string;
   }) {
-    switch (user.role) {
-      case Role.ADMIN:
+    const userId = user.userId ?? user.id ?? user.sub ?? '';
+    const scope = user.isTenantAdmin ? 'TENANT' : (user.dataScope ?? 'SELF');
+
+    switch (scope) {
+      case 'TENANT':
         return this.getAdminDashboard(user.tenantId);
-      case Role.HOD:
+      case 'DEPARTMENT': {
         if (!user.departmentId) {
-          throw new Error('HOD user must have a departmentId.');
+          throw new Error('Department-scoped user must have a departmentId.');
         }
         return this.getHodDashboard(user.departmentId, user.tenantId);
-      case Role.LEAD:
-        if (!user.departmentId || !user.userId) {
-          throw new Error('Lead user must have departmentId and userId.');
+      }
+      case 'TEAM': {
+        if (!user.departmentId || !userId) {
+          throw new Error(
+            'Team-scoped user must have departmentId and userId.',
+          );
         }
-        return this.getLeadDashboard(
-          user.departmentId,
-          user.userId,
-          user.tenantId,
-        );
-      case Role.STAFF:
-        if (!user.departmentId || !user.userId) {
-          throw new Error('Staff user must have departmentId and userId.');
+        return this.getLeadDashboard(user.departmentId, userId, user.tenantId);
+      }
+      default: {
+        if (!user.departmentId || !userId) {
+          throw new Error('User must have departmentId and userId.');
         }
-        return this.getStaffDashboard(
-          user.departmentId,
-          user.userId,
-          user.tenantId,
-        );
-      default:
-        throw new Error('Invalid user role provided.');
+        return this.getStaffDashboard(user.departmentId, userId, user.tenantId);
+      }
     }
   }
 
@@ -709,15 +710,18 @@ export class DashboardService {
   // --- Example for Attendance Chart (filterable by period) ---
   async getAttendanceChart(
     user: {
-      role: Role;
+      dataScope?: string;
+      isTenantAdmin?: boolean;
       departmentId?: string;
-      userId: string;
+      userId?: string;
+      id?: string;
+      sub?: string;
       tenantId?: string;
     },
     period: 'week' | 'month' | 'year',
   ) {
-    // This method needs to be refined based on how you store attendance dates
-    // and how you want to aggregate for the chart (e.g., daily presence counts)
+    const resolvedUserId = user.userId ?? user.id ?? user.sub ?? '';
+    const scope = user.isTenantAdmin ? 'TENANT' : (user.dataScope ?? 'SELF');
     const now = new Date();
     let startDate: Date;
 
@@ -732,10 +736,9 @@ export class DashboardService {
         startDate = new Date(now.setFullYear(now.getFullYear() - 1));
         break;
       default:
-        startDate = new Date(0); // All time or throw error
+        startDate = new Date(0);
     }
 
-    // Filter attendance records based on user's role and period
     const whereClause: Record<string, any> = {
       date: { gte: startDate },
     };
@@ -744,24 +747,19 @@ export class DashboardService {
       whereClause.tenantId = user.tenantId;
     }
 
-    if (user.role === Role.ADMIN) {
-      // No additional user-based filter needed for admin
-    } else if (user.role === Role.HOD && user.departmentId) {
+    if (scope === 'TENANT') {
+      // No additional user-based filter needed for tenant-wide scope
+    } else if (scope === 'DEPARTMENT' && user.departmentId) {
       whereClause.user = { departmentId: user.departmentId };
-    } else if (
-      (user.role === Role.LEAD || user.role === Role.STAFF) &&
-      user.userId
-    ) {
-      whereClause.userId = user.userId;
+    } else if ((scope === 'TEAM' || scope === 'SELF') && resolvedUserId) {
+      whereClause.userId = resolvedUserId;
     } else {
       throw new Error('Insufficient user context for attendance chart.');
     }
 
-    // This is a basic example. For a real chart, you'd likely group by date
-    // and then aggregate counts of different statuses (Present, Absent, etc.)
     return this.scoped(user.tenantId, (db) =>
       db.attendanceRecord.groupBy({
-        by: ['date', 'status'], // Group by date and status
+        by: ['date', 'status'],
         _count: { id: true },
         where: whereClause,
         orderBy: { date: 'asc' },

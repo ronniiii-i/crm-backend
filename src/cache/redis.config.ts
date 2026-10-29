@@ -25,7 +25,7 @@ export const DEFAULT_REDIS_CONFIG: RedisConfig = {
   password: undefined,
   tls: false,
   db: 0,
-  keyPrefix: 'claspcrm',
+  keyPrefix: 'claspworkspace',
 };
 
 function toBool(value: string | undefined, fallback: boolean): boolean {

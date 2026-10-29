@@ -1,4 +1,8 @@
-import { Injectable, NestMiddleware } from '@nestjs/common';
+import {
+  Injectable,
+  NestMiddleware,
+  UnauthorizedException,
+} from '@nestjs/common';
 import { Request, Response, NextFunction } from 'express';
 import { JwtService } from '@nestjs/jwt';
 import { runWithTenant } from './tenant-context';
@@ -8,42 +12,45 @@ export class TenantMiddleware implements NestMiddleware {
   constructor(private readonly jwtService: JwtService) {}
 
   use(req: Request, res: Response, next: NextFunction) {
+    const path = req.path || req.originalUrl || '';
+
+    if (path.startsWith('/system-admin')) {
+      return next();
+    }
+
     let tenantId: string | undefined;
+    let tenantSlug: string | null = null;
 
     try {
       const authHeader = req.headers['authorization'];
-      const cookieToken = (req as any).cookies?.['access_token'] as
-        | string
-        | undefined;
-      const token =
-        cookieToken ||
-        (authHeader?.startsWith('Bearer ') ? authHeader.slice(7) : null);
+      const token = authHeader?.startsWith('Bearer ')
+        ? authHeader.slice(7)
+        : null;
 
       if (token) {
-        const payload = this.jwtService.decode(token);
+        const payload = this.jwtService.verify(token);
+        if (payload?.scope === 'system') {
+          throw new UnauthorizedException('Invalid token');
+        }
         tenantId = payload?.tenantId;
-      }
+        tenantSlug = payload?.tenantSlug ?? null;
 
-      // Fallbacks: explicit header (service-to-service) or a value attached
-      // to the request by an earlier middleware/guard.
-      if (!tenantId) {
-        tenantId =
-          ((req as any).tenantId as string | undefined) ||
-          (req.headers['x-tenant-id'] as string | undefined);
+        const headerSlug = req.headers['x-tenant-slug'] as string | undefined;
+        if (headerSlug && tenantSlug && headerSlug !== tenantSlug) {
+          throw new UnauthorizedException('Tenant mismatch');
+        }
       }
-    } catch {
-      // Fail open here; the auth guard is responsible for rejecting
-      // unauthenticated requests. Missing tenant context is fail-closed at
-      // the database layer via RLS.
+    } catch (error) {
+      if (error instanceof UnauthorizedException) {
+        throw error;
+      }
+      // Ignore verification failures; auth guards enforce security.
     }
 
     if (tenantId) {
-      return runWithTenant(tenantId, () => next());
+      return runWithTenant(tenantId, () => next(), tenantSlug);
     }
 
-    // No tenant resolved: continue without a tenant context so that the
-    // request-scoped interceptor does NOT set app.current_tenant. RLS then
-    // returns zero rows (fail-closed) instead of leaking another tenant.
     return next();
   }
 }

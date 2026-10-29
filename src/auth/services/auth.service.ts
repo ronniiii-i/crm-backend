@@ -1,89 +1,212 @@
 import { Injectable, UnauthorizedException } from '@nestjs/common';
 import { JwtService } from '@nestjs/jwt';
 import * as bcrypt from 'bcryptjs';
-import { FrontendAdapterService } from '../frontend-adapter.service';
+import { addHours } from 'date-fns';
+import { createHash, randomBytes } from 'node:crypto';
 import { PrismaService } from '../../prisma/prisma.service';
 import { TenantResolverService } from '../../tenant/tenant-resolver.service';
-import { Role } from '@prisma/client';
+import { TenantStateService } from '../../tenant/tenant-state.service';
 import { MailService } from '../../mail/mail.service';
-import { addHours } from 'date-fns';
+import { SessionStateService } from './session-state.service';
 import { PermissionResolutionService } from './permission-resolution.service';
+import { FrontendAdapterService } from '../frontend-adapter.service';
 import { CacheService } from '../../cache/cache.service';
 import { blacklistKey } from '../blacklist-key';
 
-interface DecodedToken {
-  exp?: number;
-  [key: string]: unknown;
+export interface JwtAuthPayload {
+  sub: string;
+  email: string;
+  tenantId: string;
+  tenantSlug: string;
+  roleId: string;
+  roleSlug: string;
+  roleName: string;
+  roleRank: number;
+  isTenantAdmin: boolean;
+  dataScope: string;
+  departmentId: string | null;
+  departmentKey: string | null;
+  managedDepartmentId: string | null;
+  managedDepartmentKey: string | null;
+  tenantStatus: string;
+  sv: number;
+  tsv: number;
+  tv: number;
+  aud: string;
+  iss: string;
+  scope?: string;
+  jti?: string;
 }
 
 @Injectable()
 export class AuthService {
   constructor(
-    private jwtService: JwtService,
-    private prisma: PrismaService,
-    private mailService: MailService,
-    private frontendAdapter: FrontendAdapterService,
-    private tenantResolver: TenantResolverService,
-    private permissionResolution: PermissionResolutionService,
-    private cache: CacheService,
+    private readonly jwtService: JwtService,
+    private readonly prisma: PrismaService,
+    private readonly mailService: MailService,
+    private readonly tenantResolver: TenantResolverService,
+    private readonly tenantState: TenantStateService,
+    private readonly permissionResolution: PermissionResolutionService,
+    private readonly frontendAdapter: FrontendAdapterService,
+    private readonly cache: CacheService,
+    private readonly sessionState: SessionStateService,
   ) {}
 
-  async signup(email: string, password: string, name: string) {
-    const hashedPassword = await bcrypt.hash(password, 10);
-    const verifyToken = this.mailService.generateToken();
+  async login(
+    email: string,
+    password: string,
+    tenantSlug: string,
+  ): Promise<{
+    success: boolean;
+    message: string;
+    user: any;
+    accessToken: string;
+  }> {
+    const normalizedEmail = email.trim().toLowerCase();
+    const workspace = await this.tenantResolver.resolveTenantBySlug(tenantSlug);
 
-    // Self-registration cannot know the tenant, so find an existing account by
-    // email across tenants, then fall back to the default tenant.
-    const existingTenantId =
-      await this.tenantResolver.resolveTenantByEmail(email);
-    const tenantId =
-      existingTenantId ?? (await this.tenantResolver.resolveDefaultTenant());
-
-    if (!tenantId) {
-      throw new UnauthorizedException('No active tenant is configured');
+    if (!workspace) {
+      throw new UnauthorizedException('Invalid credentials');
     }
 
-    if (existingTenantId) {
-      throw new UnauthorizedException('User already exists');
-    }
-
-    const user = await this.prisma.withTenant(tenantId, (tx) =>
-      tx.user.create({
-        data: {
-          email,
-          name,
-          password: hashedPassword,
-          role: Role.STAFF,
-          verifyToken,
-          verifyExpires: addHours(new Date(), 3),
-          tenantId,
+    const user = await this.prisma.withTenant(workspace.id, (tx) =>
+      tx.user.findUnique({
+        where: {
+          tenantId_email: {
+            tenantId: workspace.id,
+            email: normalizedEmail,
+          },
+        },
+        include: {
+          role: true,
+          department: { select: { id: true, key: true } },
+          managedDepartment: { select: { id: true, key: true } },
         },
       }),
     );
 
-    await this.mailService.sendVerificationEmail(email, name, verifyToken);
+    if (!user) {
+      throw new UnauthorizedException('Invalid credentials');
+    }
+
+    if (user.status === 'SUSPENDED' || user.status === 'FIRED') {
+      throw new UnauthorizedException('Invalid credentials');
+    }
+
+    if (!user.isVerified) {
+      throw new UnauthorizedException('Email not verified');
+    }
+
+    const valid = await bcrypt.compare(password, user.password);
+    if (!valid) {
+      throw new UnauthorizedException('Invalid credentials');
+    }
+
+    const state = await this.tenantState.getState(workspace.id);
+
+    await this.prisma.withTenant(workspace.id, async (tx: any) => {
+      await tx.user.update({
+        where: { id: user.id },
+        data: { lastLoginAt: new Date() },
+      });
+      await tx.tenant.update({
+        where: { id: workspace.id },
+        data: { lastActivityAt: new Date() },
+      });
+    });
+
+    const refreshedUser = (await this.prisma.withTenant(workspace.id, (tx) =>
+      tx.user.findUnique({
+        where: { id: user.id },
+        include: {
+          role: true,
+          department: { select: { id: true, key: true } },
+          managedDepartment: { select: { id: true, key: true } },
+        },
+      }),
+    )) as any;
+
+    const payload: JwtAuthPayload = {
+      sub: refreshedUser.id,
+      email: refreshedUser.email,
+      tenantId: workspace.id,
+      tenantSlug: workspace.slug,
+      roleId: refreshedUser.roleId,
+      roleSlug: refreshedUser.role.slug,
+      roleName: refreshedUser.role.name,
+      roleRank: refreshedUser.role.rank,
+      isTenantAdmin: refreshedUser.role.isTenantAdmin,
+      dataScope: refreshedUser.role.dataScope,
+      departmentId: refreshedUser.departmentId,
+      departmentKey: refreshedUser.department?.key ?? null,
+      managedDepartmentId: refreshedUser.managedDepartment?.id ?? null,
+      managedDepartmentKey: refreshedUser.managedDepartment?.key ?? null,
+      tenantStatus: state.status,
+      sv: refreshedUser.sessionVersion,
+      tsv: state.sessionVersion,
+      tv: 3,
+      aud: 'tenant',
+      iss: 'claspworkspace',
+    };
+
+    const accessToken = this.jwtService.sign(payload);
+
+    const access =
+      (await (this.frontendAdapter as any).getSessionAccess?.(refreshedUser)) ||
+      {};
+    const userPayload = {
+      id: refreshedUser.id,
+      email: refreshedUser.email,
+      name: refreshedUser.name,
+      isVerified: refreshedUser.isVerified,
+      role: {
+        id: refreshedUser.role.id,
+        name: refreshedUser.role.name,
+        slug: refreshedUser.role.slug,
+        rank: refreshedUser.role.rank,
+        isTenantAdmin: refreshedUser.role.isTenantAdmin,
+        dataScope: refreshedUser.role.dataScope,
+      },
+      departmentId: refreshedUser.departmentId,
+      department: refreshedUser.department
+        ? { id: refreshedUser.department.id, key: refreshedUser.department.key }
+        : null,
+      managedDepartment: refreshedUser.managedDepartment
+        ? {
+            id: refreshedUser.managedDepartment.id,
+            key: refreshedUser.managedDepartment.key,
+          }
+        : null,
+      avatar: refreshedUser.avatarUrl ?? null,
+      status: refreshedUser.status,
+      tenantId: workspace.id,
+      tenantSlug: workspace.slug,
+      tenantName: workspace.name,
+      tenantStatus: state.status,
+      ...access,
+    };
 
     return {
       success: true,
-      message: 'Registration successful! Please check your email.',
-      user: { email: user.email, name: user.name },
+      message: 'Login successful',
+      user: userPayload,
+      accessToken,
     };
   }
 
-  async verifyEmail(token: string) {
-    const tenantId = await this.tenantResolver.resolveTenantByToken(
-      'verifyToken',
-      token,
-    );
-    if (!tenantId) {
+  async verifyEmail(token: string, tenantSlug: string): Promise<any> {
+    const workspace = await this.tenantResolver.resolveTenantBySlug(tenantSlug);
+    if (!workspace) {
       throw new UnauthorizedException('Invalid or expired token');
     }
 
-    const user = await this.prisma.withTenant(tenantId, (tx) =>
+    const tokenHash = hashToken(token);
+
+    const user = await this.prisma.withTenant(workspace.id, (tx) =>
       tx.user.findFirst({
         where: {
-          verifyToken: token,
-          verifyExpires: { gt: new Date() },
+          verifyTokenHash: tokenHash,
+          verifyExpiresAt: { gt: new Date() },
         },
       }),
     );
@@ -92,13 +215,13 @@ export class AuthService {
       throw new UnauthorizedException('Invalid or expired token');
     }
 
-    await this.prisma.withTenant(tenantId, (tx) =>
+    await this.prisma.withTenant(workspace.id, (tx) =>
       tx.user.update({
         where: { id: user.id },
         data: {
           isVerified: true,
-          verifyToken: null,
-          verifyExpires: null,
+          verifyTokenHash: null,
+          verifyExpiresAt: null,
         },
       }),
     );
@@ -106,17 +229,17 @@ export class AuthService {
     return { success: true, message: 'Email verified successfully!' };
   }
 
-  async requestPasswordReset(email: string) {
-    const tenantId = await this.tenantResolver.resolveTenantByEmail(email);
-    if (!tenantId) {
+  async requestPasswordReset(email: string, tenantSlug: string): Promise<any> {
+    const workspace = await this.tenantResolver.resolveTenantBySlug(tenantSlug);
+    if (!workspace) {
       return {
         success: true,
         message: 'If an account exists, you will receive an email',
       };
     }
 
-    const user = await this.prisma.withTenant(tenantId, (tx) =>
-      tx.user.findFirst({ where: { email } }),
+    const user = await this.prisma.withTenant(workspace.id, (tx) =>
+      tx.user.findFirst({ where: { email: email.trim().toLowerCase() } }),
     );
     if (!user) {
       return {
@@ -125,36 +248,44 @@ export class AuthService {
       };
     }
 
-    const resetToken = this.mailService.generateToken();
+    const resetToken = randomBytes(32).toString('hex');
+    const resetTokenHash = hashToken(resetToken);
 
-    await this.prisma.withTenant(tenantId, (tx) =>
+    await this.prisma.withTenant(workspace.id, (tx) =>
       tx.user.update({
         where: { id: user.id },
         data: {
-          resetToken,
-          resetExpires: addHours(new Date(), 1),
+          resetTokenHash,
+          resetExpiresAt: addHours(new Date(), 1),
         },
       }),
     );
 
-    await this.mailService.sendPasswordResetEmail(email, user.name, resetToken);
+    await this.mailService.sendPasswordResetEmail(
+      user.email,
+      user.name,
+      resetToken,
+    );
     return { success: true, message: 'Password reset email sent' };
   }
 
-  async resetPassword(token: string, newPassword: string) {
-    const tenantId = await this.tenantResolver.resolveTenantByToken(
-      'resetToken',
-      token,
-    );
-    if (!tenantId) {
+  async resetPassword(
+    token: string,
+    newPassword: string,
+    tenantSlug: string,
+  ): Promise<any> {
+    const workspace = await this.tenantResolver.resolveTenantBySlug(tenantSlug);
+    if (!workspace) {
       throw new UnauthorizedException('Invalid or expired token');
     }
 
-    const user = await this.prisma.withTenant(tenantId, (tx) =>
+    const tokenHash = hashToken(token);
+
+    const user = await this.prisma.withTenant(workspace.id, (tx) =>
       tx.user.findFirst({
         where: {
-          resetToken: token,
-          resetExpires: { gt: new Date() },
+          resetTokenHash: tokenHash,
+          resetExpiresAt: { gt: new Date() },
         },
       }),
     );
@@ -165,13 +296,13 @@ export class AuthService {
 
     const hashedPassword = await bcrypt.hash(newPassword, 10);
 
-    await this.prisma.withTenant(tenantId, (tx) =>
+    await this.prisma.withTenant(workspace.id, (tx) =>
       tx.user.update({
         where: { id: user.id },
         data: {
           password: hashedPassword,
-          resetToken: null,
-          resetExpires: null,
+          resetTokenHash: null,
+          resetExpiresAt: null,
         },
       }),
     );
@@ -179,328 +310,138 @@ export class AuthService {
     return { success: true, message: 'Password reset successful' };
   }
 
-  generateTokenFromPayload(payload: any): string {
-    return this.jwtService.sign(payload);
-  }
+  async refresh(user: any): Promise<any> {
+    if (!user?.tenantId || !user?.sub) {
+      throw new UnauthorizedException('Invalid token');
+    }
 
-  async findUserById(id: string) {
-    const tenantId = await this.tenantResolver.resolveTenantByUserId(id);
-    if (!tenantId) return null;
+    const state = await this.tenantState.getState(user.tenantId);
 
-    return this.prisma.withTenant(tenantId, (tx) =>
+    const sessionUser = await this.prisma.withTenant(user.tenantId, (tx) =>
       tx.user.findUnique({
-        where: { id },
+        where: { id: user.sub },
         include: {
-          department: { select: { id: true, name: true, type: true } },
-          managedDepartment: { select: { id: true, name: true, type: true } },
-        },
-      }),
-    );
-  }
-
-  /**
-   * Load the full user row inside an already-resolved tenant. Used by
-   * `/auth/verify`, which has the tenant id from the JWT and therefore skips
-   * the extra cross-tenant lookup performed by {@link findUserById}.
-   */
-  async findUserByIdInTenant(id: string, tenantId: string) {
-    return this.prisma.withTenant(tenantId, (tx) =>
-      tx.user.findUnique({
-        where: { id },
-        include: {
-          department: { select: { id: true, name: true, type: true } },
-          managedDepartment: { select: { id: true, name: true, type: true } },
-        },
-      }),
-    );
-  }
-
-  // async login(email: string, password: string) {
-  //   const user = await this.prisma.user.findUnique({
-  //     where: { email },
-  //     include: {
-  //       department: {
-  //         select: {
-  //           id: true,
-  //           name: true,
-  //         },
-  //       },
-  //       managedDepartment: {
-  //         select: {
-  //           id: true,
-  //           name: true,
-  //         },
-  //       },
-  //     },
-  //   });
-
-  //   if (!user) {
-  //     throw new UnauthorizedException('Invalid Email');
-  //   }
-
-  //   const isMatch = await bcrypt.compare(password, user.password);
-  //   if (!isMatch) {
-  //     throw new UnauthorizedException('Invalid Password');
-  //   }
-  //   if (!user.isVerified) {
-  //     throw new UnauthorizedException('Email not verified');
-  //   }
-  //   const payload = {
-  //     sub: user.id,
-  //     email: user.email,
-  //     role: user.role,
-  //     departmentId: user.department?.id || null,
-  //     managedDepartmentId: user.managedDepartment?.id || null,
-  //     verified: user.isVerified,
-  //   };
-
-  //   const token = this.jwtService.sign(payload);
-  //
-
-  //   return {
-  //     success: true,
-  //     message: 'Login successful!',
-  //     user: {
-  //       id: user.id,
-  //       email: user.email,
-  //       name: user.name,
-  //       role: user.role,
-  //       isVerified: user.isVerified,
-  //       departments: user.department,
-  //       managedDepartment: user.managedDepartment,
-  //     },
-  //     accessToken: token,
-  //   };
-  // }
-
-  async login(email: string, password: string) {
-    const tenantId = await this.tenantResolver.resolveTenantByEmail(email);
-    if (!tenantId) {
-      throw new UnauthorizedException('Invalid Email');
-    }
-
-    const user = await this.prisma.withTenant(tenantId, (tx) =>
-      tx.user.findFirst({
-        where: { email },
-        include: {
-          department: {
-            select: {
-              id: true,
-              name: true,
-              type: true,
-            },
-          },
-          managedDepartment: {
-            select: {
-              id: true,
-              name: true,
-              type: true,
-            },
-          },
+          role: true,
+          tenant: { select: { name: true } },
+          department: { select: { id: true, key: true } },
+          managedDepartment: { select: { id: true, key: true } },
         },
       }),
     );
 
-    if (!user) {
-      throw new UnauthorizedException('Invalid Email');
+    if (!sessionUser) {
+      throw new UnauthorizedException('Invalid token');
     }
 
-    const isMatch = await bcrypt.compare(password, user.password);
-    if (!isMatch) {
-      throw new UnauthorizedException('Invalid Password');
-    }
-    if (!user.isVerified) {
-      throw new UnauthorizedException('Email not verified');
+    if (sessionUser.status === 'SUSPENDED' || sessionUser.status === 'FIRED') {
+      throw new UnauthorizedException('Invalid token');
     }
 
-    // Ensure user object has the structure expected by getAccessibleModules
-    const userForAcl = {
-      id: user.id,
-      role: user.role as 'ADMIN' | 'HOD' | 'LEAD' | 'STAFF', // Cast role to expected type
+    const payload: JwtAuthPayload = {
+      sub: sessionUser.id,
+      email: sessionUser.email,
       tenantId: user.tenantId,
-      departmentId: user.department?.id ?? null,
-      managedDepartmentId: user.managedDepartment?.id ?? null,
-      department: user.department ? { type: user.department.type } : undefined,
-      managedDepartment: user.managedDepartment
-        ? { type: user.managedDepartment.type }
-        : undefined,
+      tenantSlug: user.tenantSlug,
+      roleId: sessionUser.roleId,
+      roleSlug: sessionUser.role.slug,
+      roleName: sessionUser.role.name,
+      roleRank: sessionUser.role.rank,
+      isTenantAdmin: sessionUser.role.isTenantAdmin,
+      dataScope: sessionUser.role.dataScope,
+      departmentId: sessionUser.departmentId,
+      departmentKey: sessionUser.department?.key ?? null,
+      managedDepartmentId: sessionUser.managedDepartment?.id ?? null,
+      managedDepartmentKey: sessionUser.managedDepartment?.key ?? null,
+      tenantStatus: state.status,
+      sv: sessionUser.sessionVersion,
+      tsv: state.sessionVersion,
+      tv: 3,
+      aud: 'tenant',
+      iss: 'claspworkspace',
     };
 
-    // Get accessible modules using the frontend adapter (tenant-scoped)
-    const accessibleModules =
-      await this.frontendAdapter.getAccessibleModules(userForAcl);
-
-    // `Role+` indicator: true when groups/overrides widened or narrowed the
-    // user's access relative to their base role.
-    const roleEnhanced =
-      await this.permissionResolution.hasEnhancedPermissions(userForAcl);
-
-    const payload = {
-      sub: user.id,
-      email: user.email,
-      role: user.role,
-      tenantId: user.tenantId,
-      departmentId: user.department?.id || null,
-      managedDepartmentId: user.managedDepartment?.id || null,
-      // The department *type* is needed by the hybrid ACL guards on every
-      // request. Embedding it lets JwtStrategy validate the session without a
-      // database round trip (see jwt.strategy.ts).
-      departmentType: user.department?.type ?? null,
-      managedDepartmentType: user.managedDepartment?.type ?? null,
-      verified: user.isVerified,
-      // Token schema version: 2 means "claims are complete enough to trust".
-      // Tokens minted before this field existed fall back to a DB lookup.
-      tv: 2,
-    };
-
-    const token = this.jwtService.sign(payload);
+    const accessToken = this.jwtService.sign(payload);
+    const access =
+      (await (this.frontendAdapter as any).getSessionAccess?.(sessionUser)) ||
+      {};
 
     return {
       success: true,
-      message: 'Login successful!',
+      accessToken,
       user: {
-        id: user.id,
-        email: user.email,
-        name: user.name,
-        role: user.role,
-        roleEnhanced,
-        isVerified: user.isVerified,
+        id: sessionUser.id,
+        email: sessionUser.email,
+        name: sessionUser.name,
+        role: {
+          id: sessionUser.role.id,
+          name: sessionUser.role.name,
+          slug: sessionUser.role.slug,
+          rank: sessionUser.role.rank,
+          isTenantAdmin: sessionUser.role.isTenantAdmin,
+          dataScope: sessionUser.role.dataScope,
+        },
+        departmentId: sessionUser.departmentId,
+        department: sessionUser.department
+          ? { id: sessionUser.department.id, key: sessionUser.department.key }
+          : null,
+        managedDepartment: sessionUser.managedDepartment
+          ? {
+              id: sessionUser.managedDepartment.id,
+              key: sessionUser.managedDepartment.key,
+            }
+          : null,
+        avatar: sessionUser.avatarUrl ?? null,
+        status: sessionUser.status,
         tenantId: user.tenantId,
-        department: user.department,
-        managedDepartment: user.managedDepartment,
-        // Include accessible modules directly in the user object
-        accessibleModules: accessibleModules,
+        tenantSlug: user.tenantSlug,
+        tenantName: sessionUser.tenant?.name ?? user.tenantName ?? null,
+        tenantStatus: state.status,
+        ...access,
       },
-      accessToken: token, // Still return accessToken in body for client-side JS storage
     };
   }
 
-  // async logout(userId: string, token: string) {
-  //   const decoded: string | object | null = this.jwtService.decode(token);
-
-  //   if (
-  //     !decoded ||
-  //     typeof decoded !== 'object' ||
-  //     typeof (decoded as DecodedToken).exp !== 'number'
-  //   ) {
-  //     throw new UnauthorizedException('Invalid token');
-  //   }
-
-  //   const expiresAt = new Date(((decoded as DecodedToken)?.exp ?? 0) * 1000);
-
-  //   await this.prisma.blacklistedToken.create({
-  //     data: {
-  //       token,
-  //       userId,
-  //       expiresAt,
-  //     },
-  //   });
-
-  //   return { success: true, message: 'Logout successful!' };
-  // }
-
-  async logout(token: string) {
-    let userId: string | null = null;
-    let expiresAt: Date | null = null;
-    let decodedToken: DecodedToken | null = null;
-
-    try {
-      // Attempt to decode the token. This works even for expired tokens (does not verify signature or expiry).
-      decodedToken = this.jwtService.decode(token);
-
-      if (
-        decodedToken &&
-        typeof decodedToken === 'object' &&
-        typeof decodedToken.exp === 'number'
-      ) {
-        userId = decodedToken.sub as string;
-        expiresAt = new Date(decodedToken.exp * 1000);
-      }
-    } catch {
-      // Proceed without blacklisting if token is malformed, but still return success for cookie clearing
-    }
-
-    if (token && userId && expiresAt) {
-      const tenantId =
-        typeof decodedToken?.tenantId === 'string'
-          ? decodedToken.tenantId
-          : 'global';
-      const ttlSeconds = Math.max(
-        1,
-        Math.floor((expiresAt.getTime() - Date.now()) / 1000),
-      );
-
-      // Revocation is authoritative in the cache (Redis in production, bounded
-      // in-process fallback otherwise) because that is what the guard checks on
-      // every request. The database row is kept as a durable audit trail, but a
-      // failure there (e.g. RLS/pooling) must never break logout.
-      await this.cache
-        .set(this.cache.tenantKey(blacklistKey(token), tenantId), true, ttlSeconds)
-        .catch(() => undefined);
-
+  async logout(token: string | undefined): Promise<any> {
+    if (token) {
       try {
-        await this.prisma.blacklistedToken.create({
-          data: {
-            token,
-            userId,
-            tenantId: typeof decodedToken?.tenantId === 'string'
-              ? decodedToken.tenantId
-              : null,
-            expiresAt,
-          },
-        });
+        const payload = this.jwtService.decode(token);
+        if (payload?.exp) {
+          const ttl = payload.exp - Math.floor(Date.now() / 1000);
+          if (ttl > 0 && payload?.tenantId) {
+            await this.cache.set(
+              this.cache.tenantKey(blacklistKey(token), payload.tenantId),
+              true,
+              ttl,
+            );
+          }
+        }
       } catch {
-        // Duplicate token or RLS rejection: the cache entry above is enough to
-        // invalidate the session for the current deployment.
+        // ignore
       }
     }
-    return { success: true, message: 'Logout successful!' };
+
+    return { success: true, message: 'Logged out' };
+  }
+
+  async getAclModules(user: any): Promise<any> {
+    return (await (this.frontendAdapter as any).getSessionAccess?.(user)) || {};
+  }
+
+  async getAclPermissions(user: any): Promise<any> {
+    const access =
+      (await (this.frontendAdapter as any).getSessionAccess?.(user)) || {};
+    return access?.permissions ?? {};
+  }
+
+  async findUserById(id: string) {
+    return this.prisma.user.findUnique({ where: { id } });
+  }
+
+  generateTokenFromPayload(payload: any): string {
+    return this.jwtService.sign(payload);
   }
 }
 
-// async refreshToken(token: string) {
-//   try {
-//     const payload = this.jwtService.verify<{
-//       sub: string;
-//       email: string;
-//       role: string;
-//       verified: boolean;
-//     }>(token);
-//     const user = await this.prisma.user.findUnique({
-//       where: { id: payload.sub },
-//       include: {
-//         department: {
-//           select: {
-//             id: true,
-//             name: true,
-//           },
-//         },
-//         managedDepartment: {
-//           select: {
-//             id: true,
-//             name: true,
-//           },
-//         },
-//       },
-//     });
-
-//     if (!user) {
-//       throw new UnauthorizedException('User not found');
-//     }
-
-//     const newToken = this.jwtService.sign({
-//       sub: user.id,
-//       email: user.email,
-//       role: user.role,
-//       verified: user.isVerified,
-//     });
-
-//     return {
-//       success: true,
-//       message: 'Token refreshed successfully',
-//       accessToken: newToken,
-//     };
-//   } catch {
-//     throw new UnauthorizedException('Invalid token');
-//   }
-// }
+function hashToken(token: string): string {
+  return createHash('sha256').update(token, 'utf8').digest('hex');
+}

@@ -25,15 +25,28 @@ export class ProfileService {
           id: true,
           email: true,
           name: true,
-          role: true,
+          role: {
+            select: {
+              id: true,
+              name: true,
+              slug: true,
+              dataScope: true,
+              isTenantAdmin: true,
+              rank: true,
+            },
+          },
           avatarUrl: true,
           isVerified: true,
+          status: true,
+          lastLoginAt: true,
           createdAt: true,
+          updatedAt: true,
+          tenant: { select: { name: true, slug: true, status: true } },
           department: {
-            select: { id: true, name: true, type: true },
+            select: { id: true, name: true, key: true },
           },
           managedDepartment: {
-            select: { id: true, name: true, type: true },
+            select: { id: true, name: true, key: true },
           },
         },
       }),
@@ -53,18 +66,34 @@ export class ProfileService {
       db.user.update({
         where: { id: userId },
         data: {
-          ...(dto.name && { name: dto.name }),
-          ...(dto.avatar && { avatarUrl: dto.avatar }),
+          ...(dto.name !== undefined &&
+            dto.name.trim() && { name: dto.name.trim() }),
+          ...(dto.avatar !== undefined && {
+            avatarUrl: dto.avatar.trim() || null,
+          }),
         },
         select: {
           id: true,
           email: true,
           name: true,
-          role: true,
+          role: {
+            select: {
+              id: true,
+              name: true,
+              slug: true,
+              dataScope: true,
+              isTenantAdmin: true,
+            },
+          },
           avatarUrl: true,
           isVerified: true,
-          department: { select: { id: true, name: true } },
-          managedDepartment: { select: { id: true, name: true } },
+          status: true,
+          lastLoginAt: true,
+          createdAt: true,
+          updatedAt: true,
+          tenant: { select: { name: true, slug: true, status: true } },
+          department: { select: { id: true, name: true, key: true } },
+          managedDepartment: { select: { id: true, name: true, key: true } },
         },
       }),
     );

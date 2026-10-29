@@ -8,7 +8,6 @@ import { validateEnv } from './config/env.validation';
 dotenv.config();
 
 async function bootstrap() {
-  // Fail fast on a misconfigured or unsafe environment.
   const env = validateEnv(process.env);
 
   const app = await NestFactory.create(AppModule);
@@ -25,8 +24,8 @@ async function bootstrap() {
   );
 
   const config = new DocumentBuilder()
-    .setTitle('CRM API')
-    .setDescription('API for ClaspCRM.')
+    .setTitle('Clasp Workspace API')
+    .setDescription('API for Clasp Workspace.')
     .setVersion('1.0')
     .addBearerAuth()
     .build();
@@ -34,15 +33,38 @@ async function bootstrap() {
   SwaggerModule.setup('api', app, document);
 
   app.enableCors({
-    origin: [
-      env.FRONTEND_URL,
-      'http://localhost:3000',
-      'https://claspcrm.vercel.app',
-      'https://claspcrm.onrender.com',
-    ],
+    origin: (origin, callback) => {
+      if (!origin) {
+        return callback(null, true);
+      }
+
+      const allowed = [
+        env.FRONTEND_URL,
+        'http://localhost:3000',
+        'http://127.0.0.1:3000',
+        'https://claspworkspace.vercel.app',
+        'https://clasp-backend.onrender.com',
+        'https://claspworkspace.com',
+        'https://www.claspworkspace.com',
+      ];
+
+      if (allowed.includes(origin)) {
+        return callback(null, true);
+      }
+
+      if (origin.endsWith('.localhost:3000')) {
+        return callback(null, true);
+      }
+
+      if (origin.endsWith('.claspworkspace.com')) {
+        return callback(null, true);
+      }
+
+      return callback(new Error('Not allowed by CORS'));
+    },
     credentials: true,
     methods: 'GET,HEAD,PUT,PATCH,POST,DELETE',
-    allowedHeaders: 'Content-Type, Accept, Authorization',
+    allowedHeaders: 'Content-Type, Accept, Authorization, X-Tenant-Slug',
   });
 
   app.use(cookieParser());

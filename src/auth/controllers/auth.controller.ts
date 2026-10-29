@@ -5,474 +5,100 @@ import {
   Body,
   UseGuards,
   Req,
-  Res,
-  NotFoundException,
-  // UnauthorizedException,
   HttpCode,
   HttpStatus,
 } from '@nestjs/common';
-import { Response } from 'express';
 import { AuthService } from '../services/auth.service';
-import { SignupDto } from '../dto/signup.dto';
 import { LoginDto } from '../dto/login.dto';
+import { ForgotPasswordDto } from '../dto/forgot-password.dto';
+import { ResetPasswordDto } from '../dto/reset-password.dto';
+import { VerifyEmailDto } from '../dto/verify-email.dto';
 import { JwtAuthGuard } from '../guards/jwt-auth.guard';
-// import { Throttle, ThrottlerGuard } from '@nestjs/throttler';
 import { Throttle } from '@nestjs/throttler';
-import { PrismaService } from '../../prisma/prisma.service';
-import { JwtService } from '@nestjs/jwt';
+import { Public } from '../decorators/public.decorator';
 import { User } from '../decorators/user.decorator';
+import { AllowLockedTenant } from '../decorators/allow-locked-tenant.decorator';
 
 @Controller('auth')
-// @UseGuards(ThrottlerGuard)
 export class AuthController {
-  constructor(
-    private authService: AuthService,
-    private prisma: PrismaService,
-    private jwtService: JwtService,
-  ) {}
+  constructor(private readonly authService: AuthService) {}
 
-  // @Throttle({ default: { limit: 5, ttl: 3600000 } })
-  // @Post('register')
-  // async signup(@Body() signupDto: SignupDto) {
-  //   const { email, password, name } = signupDto;
-  //   return await this.authService.signup(email, password, name);
-  // }
-  @Throttle({ default: { limit: 10, ttl: 900000 } })
-  @Post('register')
-  @HttpCode(HttpStatus.CREATED)
-  async register(@Body() body: SignupDto) {
-    return this.authService.signup(body.email, body.password, body.name);
-  }
-
-  // @Throttle({
-  //   default: { limit: 5, ttl: 3600000 },
-  //   short: { limit: 3, ttl: 10000 },
-  // })
-  // @Post('login')
-  // async login(@Body() body: LoginDto) {
-  //   const result = await this.authService.login(body.email, body.password);
-
-  //   const userWithDepts = await this.prisma.user.findUnique({
-  //     where: { id: result.user?.id },
-  //     include: {
-  //       department: {
-  //         select: {
-  //           id: true,
-  //           name: true,
-  //         },
-  //       },
-  //       managedDepartment: {
-  //         select: {
-  //           id: true,
-  //           name: true,
-  //         },
-  //       },
-  //     },
-  //   });
-
-  //   if (!userWithDepts) {
-  //     throw new NotFoundException('User not found');
-  //   }
-
-  //   return {
-  //     ...result,
-  //     user: {
-  //       ...result.user,
-  //       department: userWithDepts.department,
-  //       managedDepartment: userWithDepts.managedDepartment,
-  //     },
-  //   };
-  // }
-  // @Post('login')
-  // async login(
-  //   @Body() body: LoginDto,
-  //   @Res({ passthrough: true }) response: Response,
-  // ) {
-  //   const result = await this.authService.login(body.email, body.password);
-
-  //   // Set the token as an HTTP-only cookie
-  //   response.cookie('access_token', result.accessToken, {
-  //     httpOnly: true,
-  //     secure: process.env.NODE_ENV === 'production',
-  //     sameSite: 'lax',
-  //     maxAge: 3600000,
-  //   });
-
-  //   const userWithDepts = await this.prisma.user.findUnique({
-  //     where: { id: result.user?.id },
-  //     include: {
-  //       department: {
-  //         select: {
-  //           id: true,
-  //           name: true,
-  //         },
-  //       },
-  //       managedDepartment: {
-  //         select: {
-  //           id: true,
-  //           name: true,
-  //         },
-  //       },
-  //     },
-  //   });
-
-  //   if (!userWithDepts) {
-  //     throw new NotFoundException('User not found');
-  //   }
-
-  //   return {
-  //     ...result,
-  //     user: {
-  //       ...result.user,
-  //       department: userWithDepts.department,
-  //       managedDepartment: userWithDepts.managedDepartment,
-  //     },
-  //   };
-  // }
-
+  @Public()
   @Throttle({ default: { limit: 10, ttl: 900000 } })
   @Post('login')
   @HttpCode(HttpStatus.OK)
-  async login(
-    @Body() body: LoginDto,
-    @Res({ passthrough: true }) response: Response,
-  ) {
-    const result = await this.authService.login(body.email, body.password);
-
-    response.cookie('access_token', result.accessToken, {
-      httpOnly: true,
-      secure: process.env.NODE_ENV === 'production',
-      sameSite: 'lax',
-      // secure: true, // Make absolutely sure your Render backend is HTTPS
-      // sameSite: 'none', // Critical for cross-domain
-      path: '/',
-      maxAge: 3600000,
-    });
-
-    return {
-      success: result.success,
-      message: result.message,
-      user: result.user,
-      accessToken: result.accessToken,
-    };
+  async login(@Body() body: LoginDto) {
+    return this.authService.login(body.email, body.password, body.tenantSlug);
   }
 
-  // // @Throttle({ default: { limit: 10, ttl: 3600000 } })
-  // @Post('verify-email')
-  // async verifyEmail(@Body() body: { token: string }) {
-  //   return this.authService.verifyEmail(body.token);
-  // }
-
-  // // @Throttle({ default: { limit: 3, ttl: 3600000 } })
-  // @Post('request-password-reset')
-  // async requestPasswordReset(@Body() body: { email: string }) {
-  //   return this.authService.requestPasswordReset(body.email);
-  // }
-
-  // // @Throttle({ default: { limit: 5, ttl: 3600000 } })
-  // @Post('reset-password')
-  // async resetPassword(@Body() body: { token: string; newPassword: string }) {
-  //   return this.authService.resetPassword(body.token, body.newPassword);
-  // }
-
-  // // @Throttle({ default: { limit: 60, ttl: 60000 } })
-  // @UseGuards(JwtAuthGuard)
-  // @Get('protected')
-  // getProtected(
-  //   @Req()
-  //   req: {
-  //     user: { id: string; email: string; role: string; verified: boolean };
-  //   },
-  // ) {
-  //   return { message: 'Protected route accessed!', user: req.user };
-  // }
-
-  // // @Throttle({ default: { limit: 60, ttl: 60000 } })
-  // @UseGuards(JwtAuthGuard)
-  // @Get('verify')
-  // verifyToken(
-  //   @Req()
-  //   req: {
-  //     user: {
-  //       id: string;
-  //       email: string;
-  //       name: string;
-  //       role: string;
-  //       isVerified: boolean;
-  //       department: { id: string; name: string }[];
-  //       managedDepartment: { id: string; name: string }[];
-  //     };
-  //   },
-  // ) {
-  //   return {
-  //     success: true,
-  //     user: {
-  //       id: req.user.id,
-  //       email: req.user.email,
-  //       name: req.user.name,
-  //       role: req.user.role,
-  //       isVerified: req.user.isVerified,
-  //       departments: req.user.department,
-  //       managedDepartment: req.user.managedDepartment,
-  //     },
-  //   };
-  // }
-
-  // @Post('refresh')
-  // async refreshToken(
-  //   @Req()
-  //   req: {
-  //     cookies?: { token?: string };
-  //     headers: { authorization?: string };
-  //   },
-  // ) {
-  //   const token =
-  //     req.cookies?.token || req.headers.authorization?.split(' ')[1] || null;
-
-  //   if (!token) {
-  //     throw new UnauthorizedException('No token provided');
-  //   }
-  //   if (!token) {
-  //     throw new UnauthorizedException('No token provided');
-  //   }
-
-  //   try {
-  //     const payload = this.jwtService.verify<{ sub: string; email: string }>(
-  //       token,
-  //       { ignoreExpiration: true },
-  //     );
-  //     const user = await this.prisma.user.findUnique({
-  //       where: { id: payload.sub },
-  //     });
-
-  //     if (!user) {
-  //       throw new UnauthorizedException('User not found');
-  //     }
-
-  //     const newToken = this.jwtService.sign(
-  //       {
-  //         sub: user.id,
-  //         email: user.email,
-  //         role: user.role,
-  //       },
-  //       { expiresIn: '1h' },
-  //     );
-
-  //     return { token: newToken };
-  //   } catch {
-  //     throw new UnauthorizedException('Invalid token');
-  //   }
-  // }
-
-  // @Throttle({ default: { limit: 60, ttl: 60000 } })
-  // @UseGuards(JwtAuthGuard)
-  // @Post('logout')
-  // logout(
-  //   @Req()
-  //   req: {
-  //     user: {
-  //       id: string;
-  //       email: string;
-  //     };
-  //     headers: { authorization?: string };
-  //   },
-  // ) {
-  //   const token = req.headers.authorization?.split(' ')[1];
-  //   if (!token) {
-  //     throw new UnauthorizedException('No token provided');
-  //   }
-  //   return this.authService.logout(req.user.id, token);
-  // }
-
-  // @Post('logout')
-  // @UseGuards(JwtAuthGuard) // Protect logout
-  // logout(@Res({ passthrough: true }) response: Response) {
-  //   // Invalidate token on backend (if you have a blacklist)
-  //   // await this.authService.blacklistToken(request.user.token);
-  //   response.clearCookie('access_token');
-  //   return { success: true, message: 'Logged out successfully' };
-  // }
-
-  // @Post('logout')
-  // @UseGuards(JwtAuthGuard) // Protect this endpoint so only authenticated users can log out
-  // @HttpCode(HttpStatus.OK)
-  // async logout(
-  //   @Req() req: Request & { headers: { authorization?: string } },
-  //   @Res({ passthrough: true }) response: Response,
-  //   @User() user: any,
-  // ) {
-  //   // Optionally blacklist the token if you have a token blacklisting mechanism
-  //   const token = req.headers.authorization?.split(' ')[1];
-  //   if (token) {
-  //     await this.authService.logout(user.id, token);
-  //   }
-
-  //   // Clear the HTTP-only cookie
-  //   response.clearCookie('access_token', {
-  //     httpOnly: true,
-  //     secure: process.env.NODE_ENV === 'production',
-  //     sameSite: 'lax',
-  //   });
-
-  //   return { success: true, message: 'Logged out successfully' };
-  // }
-
-  @Post('logout')
-  @HttpCode(HttpStatus.OK)
-  // @UseGuards(JwtAuthGuard)
-  async logout(
-    @Req() req: Request & { headers: { authorization?: string } },
-    @Res({ passthrough: true }) response: Response,
-    // @User() user: any,
-  ) {
-    const token = req.headers.authorization?.split(' ')[1];
-
-    if (token) {
-      await this.authService.logout(token);
-    } else {
-      // Handle case where no token is provided
-    }
-
-    // Define consistent cookie options for clearing. MUST match login options.
-    const clearCookieOptions = {
-      httpOnly: true,
-      secure: process.env.NODE_ENV === 'production',
-      sameSite: 'lax' as 'lax' | 'strict' | 'none',
-      path: '/',
-    };
-
-    response.clearCookie('access_token', clearCookieOptions);
-
-    return { success: true, message: 'Logged out successfully' };
-  }
-
-  @Throttle({ default: { limit: 10, ttl: 900000 } })
+  @Public()
+  @Throttle({ default: { limit: 5, ttl: 3600000 } })
   @Post('verify-email')
-  @HttpCode(HttpStatus.OK)
-  async verifyEmail(@Body() body: { token: string }) {
-    return this.authService.verifyEmail(body.token);
+  async verifyEmail(@Body() body: VerifyEmailDto) {
+    return this.authService.verifyEmail(body.token, body.tenantSlug);
   }
 
-  @Throttle({ default: { limit: 10, ttl: 900000 } })
-  @Post('request-password-reset')
-  @HttpCode(HttpStatus.OK)
-  async forgotPassword(@Body() body: { email: string }) {
-    return this.authService.requestPasswordReset(body.email);
+  @Public()
+  @Throttle({ default: { limit: 5, ttl: 3600000 } })
+  @Post('forgot-password')
+  async forgotPassword(@Body() body: ForgotPasswordDto) {
+    return this.authService.requestPasswordReset(body.email, body.tenantSlug);
   }
 
-  @Throttle({ default: { limit: 10, ttl: 900000 } })
+  @Public()
+  @Throttle({ default: { limit: 5, ttl: 3600000 } })
   @Post('reset-password')
-  @HttpCode(HttpStatus.OK)
-  async resetPassword(@Body() body: { token: string; newPassword: string }) {
-    return this.authService.resetPassword(body.token, body.newPassword);
-  }
-
-  @Post('refresh')
-  @UseGuards(JwtAuthGuard) // Protect this endpoint for refresh
-  @HttpCode(HttpStatus.OK)
-  refresh(
-    @User()
-    user: {
-      id?: string;
-      sub?: string;
-      email: string;
-      role: string;
-      tenantId?: string;
-      departmentId?: string;
-      managedDepartmentId?: string;
-      department?: { type?: string } | null;
-      managedDepartment?: { type?: string } | null;
-      verified?: boolean;
-      isVerified?: boolean;
-    },
-    @Res({ passthrough: true }) response: Response,
-  ) {
-    const newToken = this.authService.generateTokenFromPayload({
-      // `@User()` is the validated session object, which exposes `id`; older
-      // code read `sub`, which made refreshed tokens carry `sub: undefined`.
-      sub: user.id ?? user.sub,
-      email: user.email,
-      role: user.role,
-      tenantId: user.tenantId,
-      departmentId: user.departmentId,
-      managedDepartmentId: user.managedDepartmentId,
-      departmentType: user.department?.type ?? null,
-      managedDepartmentType: user.managedDepartment?.type ?? null,
-      verified: user.isVerified ?? user.verified ?? false,
-      tv: 2,
-    });
-
-    response.cookie('access_token', newToken, {
-      httpOnly: true,
-      secure: process.env.NODE_ENV === 'production',
-      sameSite: 'lax',
-      maxAge: 3600000,
-    });
-
-    return { accessToken: newToken };
-  }
-
-  @Get('verify')
-  @UseGuards(JwtAuthGuard)
-  @HttpCode(HttpStatus.OK)
-  async verify(
-    @User()
-    currentUser: {
-      id?: string;
-      [key: string]: any;
-    },
-  ) {
-    if (!currentUser?.id || !currentUser.tenantId) {
-      throw new NotFoundException('User not found');
-    }
-
-    // Claims carry ids/types (enough for guards) but not display names. The
-    // frontend needs names, so load the full row once per session. The tenant
-    // id comes from the verified JWT, so no extra cross-tenant lookup.
-    const user = await this.authService.findUserByIdInTenant(
-      currentUser.id,
-      currentUser.tenantId,
+  async resetPassword(@Body() body: ResetPasswordDto) {
+    return this.authService.resetPassword(
+      body.token,
+      body.newPassword,
+      body.tenantSlug,
     );
+  }
 
-    if (!user) {
-      throw new NotFoundException('User not found');
-    }
+  @UseGuards(JwtAuthGuard)
+  @AllowLockedTenant()
+  @Post('refresh')
+  async refresh(@User() user: any) {
+    return this.authService.refresh(user);
+  }
 
-    // Get accessible modules using the frontend adapter, as this is used by useAuth to populate initial state
-    const userForAcl = {
-      id: user.id,
-      role: user.role as string,
-      department: user.department
-        ? { type: user.department.type as string }
-        : undefined,
-      managedDepartment: user.managedDepartment
-        ? { type: user.managedDepartment.type as string }
-        : undefined,
-    };
-    const accessibleModules =
-      await this.authService['frontendAdapter'].getAccessibleModules(
-        userForAcl,
-      );
+  @UseGuards(JwtAuthGuard)
+  @AllowLockedTenant()
+  @Post('logout')
+  async logout(@Req() req: any) {
+    const authHeader = req.headers?.authorization;
+    const token = authHeader?.startsWith('Bearer ')
+      ? authHeader.slice(7)
+      : undefined;
+    return this.authService.logout(token);
+  }
 
-    // `Role+` indicator, consistent with the login response.
-    const roleEnhanced =
-      await this.authService['permissionResolution'].hasEnhancedPermissions(
-        userForAcl,
-      );
+  @UseGuards(JwtAuthGuard)
+  @Get('verify')
+  async verify(@User() user: any) {
+    // Return the same rich user shape as login/refresh. The flat JWT payload
+    // (roleSlug, departmentKey, ...) would otherwise overwrite the cached
+    // profile with a shape the UI cannot render after a hard refresh.
+    const session = await this.authService.refresh(user);
+    return { success: true, user: session.user };
+  }
 
-    return {
-      user: {
-        id: user.id,
-        email: user.email,
-        name: user.name,
-        role: user.role,
-        roleEnhanced,
-        isVerified: user.isVerified,
-        tenantId: user.tenantId,
-        department: user.department,
-        managedDepartment: user.managedDepartment,
-        accessibleModules: accessibleModules,
-      },
-    };
+  @UseGuards(JwtAuthGuard)
+  @Get('acl/modules')
+  getAclModules(@User() user: any) {
+    return this.authService.getAclModules(user);
+  }
+
+  @UseGuards(JwtAuthGuard)
+  @Get('acl/permissions')
+  getAclPermissions(@User() user: any) {
+    return this.authService.getAclPermissions(user);
+  }
+
+  @UseGuards(JwtAuthGuard)
+  @Get('acl/check-permission')
+  checkPermission() {
+    return { success: true };
   }
 }
