@@ -1,4 +1,4 @@
-import { IsEmail, IsOptional, IsString, IsUUID } from 'class-validator';
+import { IsEmail, IsOptional, IsUUID } from 'class-validator';
 
 export class CreateInvitationDto {
   @IsEmail()

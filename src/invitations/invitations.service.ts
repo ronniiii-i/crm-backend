@@ -27,89 +27,98 @@ export class InvitationsService {
   ) {}
 
   async list(tenantId: string) {
-    const invitations = await this.prisma.invitation.findMany({
-      where: { tenantId },
-      include: {
-        role: true,
-        department: true,
-        invitedBy: { select: { id: true, name: true, email: true } },
-      },
-      orderBy: { createdAt: 'desc' },
-    });
+    const invitations = await this.prisma.withTenant(tenantId, (tx) =>
+      tx.invitation.findMany({
+        where: { tenantId },
+        include: {
+          role: true,
+          department: true,
+          invitedBy: { select: { id: true, name: true, email: true } },
+        },
+        orderBy: { createdAt: 'desc' },
+      }),
+    );
     return { success: true, invitations };
   }
 
   async create(tenantId: string, inviter: any, dto: any) {
     const email = dto.email.trim().toLowerCase();
 
-    const existingUser = await this.prisma.withTenant(tenantId, (tx) =>
-      tx.user.findFirst({ where: { email } }),
-    );
-    if (existingUser)
-      throw new ConflictException('User already exists in tenant');
-
-    const role = await this.prisma.role.findFirst({
-      where: { id: dto.roleId, tenantId },
-    });
-    if (!role) throw new NotFoundException('Role not found');
-    if (role.isTenantAdmin)
-      throw new ForbiddenException('Cannot invite tenant admin');
-
-    if (!inviter?.isTenantAdmin) {
-      if (!inviter?.roleRank || role.rank > inviter.roleRank) {
-        throw new ForbiddenException('Cannot invite role higher than your own');
-      }
-    }
-
-    if (dto.departmentId) {
-      if (!inviter?.isTenantAdmin) {
-        const allowed =
-          inviter.departmentId === dto.departmentId ||
-          inviter.managedDepartmentId === dto.departmentId;
-        if (!allowed)
-          throw new ForbiddenException('Cannot invite outside your department');
-      }
-    }
-
-    const tenant = await this.prisma.tenant.findUnique({
-      where: { id: tenantId },
-    });
-    if (!tenant) throw new NotFoundException('Tenant not found');
-    if (tenant.status === 'SUSPENDED')
-      throw new ForbiddenException('Tenant is suspended');
-
-    await this.prisma.withTenant(tenantId, (tx) =>
-      tx.invitation.updateMany({
-        where: { tenantId, email, status: 'PENDING' },
-        data: { status: 'REVOKED', revokedAt: new Date() },
-      }),
-    );
-
     const token = randomBytes(32).toString('hex');
     const tokenHash = hashToken(token);
     const expiresAt = addDays(new Date(), 7);
 
-    const invitation = await this.prisma.withTenant(tenantId, (tx) =>
-      tx.invitation.create({
-        data: {
-          tenantId,
-          email,
-          tokenHash,
-          roleId: role.id,
-          departmentId: dto.departmentId || null,
-          invitedByUserId: inviter.id,
-          expiresAt,
-        },
-      }),
+    const { invitation, tenant } = await this.prisma.withTenant(
+      tenantId,
+      async (tx) => {
+        const existingUser = await tx.user.findFirst({ where: { email } });
+        if (existingUser)
+          throw new ConflictException('User already exists in tenant');
+
+        const role = await tx.role.findFirst({
+          where: { id: dto.roleId, tenantId },
+        });
+        if (!role) throw new NotFoundException('Role not found');
+        if (role.isTenantAdmin)
+          throw new ForbiddenException('Cannot invite tenant admin');
+
+        if (!inviter?.isTenantAdmin) {
+          if (!inviter?.roleRank || role.rank > inviter.roleRank) {
+            throw new ForbiddenException(
+              'Cannot invite role higher than your own',
+            );
+          }
+        }
+
+        if (dto.departmentId) {
+          if (!inviter?.isTenantAdmin) {
+            const allowed =
+              inviter.departmentId === dto.departmentId ||
+              inviter.managedDepartmentId === dto.departmentId;
+            if (!allowed)
+              throw new ForbiddenException(
+                'Cannot invite outside your department',
+              );
+          }
+        }
+
+        const workspace = await tx.tenant.findUnique({
+          where: { id: tenantId },
+        });
+        if (!workspace) throw new NotFoundException('Tenant not found');
+        if (workspace.status === 'SUSPENDED')
+          throw new ForbiddenException('Tenant is suspended');
+
+        // A re-invite supersedes any still-pending invitation for that email.
+        await tx.invitation.updateMany({
+          where: { tenantId, email, status: 'PENDING' },
+          data: { status: 'REVOKED', revokedAt: new Date() },
+        });
+
+        const created = await tx.invitation.create({
+          data: {
+            tenantId,
+            email,
+            tokenHash,
+            roleId: role.id,
+            departmentId: dto.departmentId || null,
+            invitedByUserId: inviter.id,
+            expiresAt,
+          },
+        });
+
+        return { invitation: created, tenant: workspace };
+      },
     );
 
     try {
-      (await (this.mailService as any).sendInvitationEmail?.(
+      const sent = await (this.mailService as any).sendInvitationEmail?.(
         email,
         tenant.name,
         token,
         tenant.slug,
-      )) || console.log(`Invite: ${email} -> ${token}`);
+      );
+      if (!sent) console.log(`Invite: ${email} -> ${token}`);
     } catch {
       console.log(`Invite: ${email} -> ${token}`);
     }
@@ -122,36 +131,45 @@ export class InvitationsService {
   }
 
   async resend(tenantId: string, inviter: any, id: string) {
-    const invitation = await this.prisma.invitation.findFirst({
-      where: { id, tenantId },
-    });
-    if (!invitation) throw new NotFoundException('Invitation not found');
-    if (invitation.status !== 'PENDING')
-      throw new BadRequestException('Invitation not pending');
-
     const token = randomBytes(32).toString('hex');
     const tokenHash = hashToken(token);
 
-    await this.prisma.invitation.update({
-      where: { id },
-      data: {
-        tokenHash,
-        expiresAt: addDays(new Date(), 7),
-        lastSentAt: new Date(),
-        sendCount: { increment: 1 },
-      },
-    });
+    const { invitation, tenant } = await this.prisma.withTenant(
+      tenantId,
+      async (tx) => {
+        const current = await tx.invitation.findFirst({
+          where: { id, tenantId },
+        });
+        if (!current) throw new NotFoundException('Invitation not found');
+        if (current.status !== 'PENDING')
+          throw new BadRequestException('Invitation not pending');
 
-    const tenant = await this.prisma.tenant.findUnique({
-      where: { id: tenantId },
-    });
+        await tx.invitation.update({
+          where: { id },
+          data: {
+            tokenHash,
+            expiresAt: addDays(new Date(), 7),
+            lastSentAt: new Date(),
+            sendCount: { increment: 1 },
+          },
+        });
+
+        const workspace = await tx.tenant.findUnique({
+          where: { id: tenantId },
+        });
+
+        return { invitation: current, tenant: workspace };
+      },
+    );
+
     try {
-      (await (this.mailService as any).sendInvitationEmail?.(
+      const sent = await (this.mailService as any).sendInvitationEmail?.(
         invitation.email,
         tenant?.name || '',
         token,
         tenant?.slug || '',
-      )) || console.log(`Invite: ${invitation.email} -> ${token}`);
+      );
+      if (!sent) console.log(`Invite: ${invitation.email} -> ${token}`);
     } catch {
       console.log(`Invite: ${invitation.email} -> ${token}`);
     }
@@ -160,10 +178,12 @@ export class InvitationsService {
   }
 
   async revoke(tenantId: string, id: string) {
-    await this.prisma.invitation.updateMany({
-      where: { id, tenantId, status: 'PENDING' },
-      data: { status: 'REVOKED', revokedAt: new Date() },
-    });
+    await this.prisma.withTenant(tenantId, (tx) =>
+      tx.invitation.updateMany({
+        where: { id, tenantId, status: 'PENDING' },
+        data: { status: 'REVOKED', revokedAt: new Date() },
+      }),
+    );
     return { success: true };
   }
 

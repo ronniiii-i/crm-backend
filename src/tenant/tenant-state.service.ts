@@ -65,7 +65,7 @@ export class TenantStateService {
     }
 
     let status = tenant.status as EffectiveTenantStatus;
-    let trialExpiresAt = tenant.trialExpiresAt;
+    const trialExpiresAt = tenant.trialExpiresAt;
     let gracePeriodEndsAt = tenant.gracePeriodEndsAt;
     let suspendedAt = tenant.suspendedAt;
     let sessionVersion = tenant.sessionVersion;

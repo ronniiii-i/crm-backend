@@ -39,20 +39,23 @@ export class SessionStateService {
       return;
     }
 
-    const { user, tenant } = await this.prisma.withTenant(tenantId, async (tx) => {
-      const [user, tenant] = await Promise.all([
-        tx.user.findFirst({
-          where: { id: userId, tenantId },
-          select: { sessionVersion: true },
-        }),
-        tx.tenant.findUnique({
-          where: { id: tenantId },
-          select: { sessionVersion: true },
-        }),
-      ]);
+    const { user, tenant } = await this.prisma.withTenant(
+      tenantId,
+      async (tx) => {
+        const [user, tenant] = await Promise.all([
+          tx.user.findFirst({
+            where: { id: userId, tenantId },
+            select: { sessionVersion: true },
+          }),
+          tx.tenant.findUnique({
+            where: { id: tenantId },
+            select: { sessionVersion: true },
+          }),
+        ]);
 
-      return { user, tenant };
-    });
+        return { user, tenant };
+      },
+    );
 
     if (!user || !tenant) {
       throw new UnauthorizedException('SESSION_REVOKED');

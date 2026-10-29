@@ -5,6 +5,8 @@ import { SystemAdminTenantsController } from './system-admin-tenants.controller'
 import { SystemAdminTenantsService } from './system-admin-tenants.service';
 import { SystemAdminStrategy } from './system-admin.strategy';
 import { SystemPrismaModule } from '../prisma/system-prisma.module';
+import { PrismaModule } from '../prisma/prisma.module';
+import { TenantModule } from '../tenant/tenant.module';
 import { CacheModule } from '../cache/cache.module';
 import { JwtModule } from '@nestjs/jwt';
 import { requireEnv, optionalEnv } from '../config/env';
@@ -12,6 +14,8 @@ import { requireEnv, optionalEnv } from '../config/env';
 @Module({
   imports: [
     SystemPrismaModule,
+    PrismaModule,
+    TenantModule,
     CacheModule,
     JwtModule.register({
       secret: requireEnv('SYSTEM_JWT_SECRET'),

@@ -1,25 +1,136 @@
 import {
+  ConflictException,
   Injectable,
   NotFoundException,
   UnauthorizedException,
 } from '@nestjs/common';
-import { TenantStatus } from '@prisma/client';
+import { Prisma, TenantStatus } from '@prisma/client';
+import { randomUUID } from 'node:crypto';
 import { SystemPrismaService } from '../prisma/system-prisma.service';
+import { PrismaService } from '../prisma/prisma.service';
 import { CacheService } from '../cache/cache.service';
+import { TenantProvisioningService } from '../tenant/tenant-provisioning.service';
+import { CreateTenantDto } from './dto/create-tenant.dto';
+
+const DAY_MS = 24 * 60 * 60 * 1000;
 
 @Injectable()
 export class SystemAdminTenantsService {
   constructor(
     private readonly systemPrisma: SystemPrismaService,
+    private readonly prisma: PrismaService,
+    private readonly provisioning: TenantProvisioningService,
     private readonly cache: CacheService,
   ) {}
 
   async list(query: any) {
+    const where: Prisma.TenantWhereInput = {};
+    const search = typeof query?.search === 'string' ? query.search.trim() : '';
+    if (search) {
+      where.OR = [
+        { name: { contains: search, mode: 'insensitive' } },
+        { slug: { contains: search, mode: 'insensitive' } },
+        { ownerEmail: { contains: search, mode: 'insensitive' } },
+      ];
+    }
+    if (query?.status) {
+      where.status = query.status as TenantStatus;
+    }
+
     const tenants = await this.systemPrisma.tenant.findMany({
+      where,
       orderBy: { createdAt: 'desc' },
       take: 100,
     });
     return { success: true, tenants };
+  }
+
+  /**
+   * Super-admin workspace creation. Runs the same provisioning pipeline as
+   * self-serve onboarding so the new tenant gets its departments, roles,
+   * modules, permission grants, and tenant-admin account in one transaction.
+   */
+  async create(body: CreateTenantDto, actor: any) {
+    const actorId = this.requireActorId(actor);
+    const slug = body.slug.trim().toLowerCase();
+    const ownerEmail = body.ownerEmail.trim().toLowerCase();
+
+    const existing = await this.systemPrisma.tenant.findUnique({
+      where: { slug },
+    });
+    if (existing) {
+      throw new ConflictException(`Workspace "${slug}" already exists`);
+    }
+
+    const tenantId = randomUUID();
+
+    const { tenant, adminUserId, verificationToken } =
+      await this.prisma.withTenant(tenantId, (tx) =>
+        this.provisioning.provisionTenantData(tx, {
+          tenantId,
+          workspaceName: body.workspaceName,
+          slug,
+          ownerName: body.ownerName,
+          ownerEmail,
+          adminPassword: body.password,
+        }),
+      );
+
+    if (body.trialDays) {
+      await this.systemPrisma.tenant.update({
+        where: { id: tenantId },
+        data: {
+          trialExpiresAt: new Date(Date.now() + body.trialDays * DAY_MS),
+        },
+      });
+    }
+
+    // If the super admin supplied a password the account is usable right away;
+    // otherwise the owner completes the emailed verification flow.
+    if (body.password) {
+      await this.prisma.withTenant(tenantId, (tx) =>
+        tx.user.update({
+          where: { id: adminUserId },
+          data: {
+            isVerified: true,
+            verifyTokenHash: null,
+            verifyExpiresAt: null,
+          },
+        }),
+      );
+    }
+
+    await this.systemPrisma.tenantLifecycleEvent.create({
+      data: {
+        tenantId,
+        actorSystemAdminId: actorId,
+        fromStatus: 'TRIAL',
+        toStatus: 'TRIAL',
+        reason: 'Workspace created by system administrator',
+        metadata: {
+          workspaceName: body.workspaceName,
+          slug,
+          trialDays: body.trialDays ?? null,
+        },
+      },
+    });
+
+    const created = await this.systemPrisma.tenant.findUnique({
+      where: { id: tenantId },
+    });
+
+    return {
+      success: true,
+      tenant: created ?? tenant,
+      // Surfaced only outside production so an operator can complete setup
+      // when outbound email is not configured.
+      verificationToken:
+        process.env.NODE_ENV === 'development'
+          ? body.password
+            ? undefined
+            : verificationToken
+          : undefined,
+    };
   }
 
   async get(id: string) {
@@ -89,9 +200,7 @@ export class SystemAdminTenantsService {
         where: { id },
         data: {
           status: 'TRIAL',
-          trialExpiresAt: new Date(
-            base.getTime() + days * 24 * 60 * 60 * 1000,
-          ),
+          trialExpiresAt: new Date(base.getTime() + days * 24 * 60 * 60 * 1000),
           sessionVersion: { increment: 1 },
         },
       });

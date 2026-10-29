@@ -13,9 +13,9 @@ export class BillingService {
 
   async getBilling(tenantId: string) {
     const state = await this.tenantState.getState(tenantId);
-    const tenant = await this.prisma.tenant.findUnique({
-      where: { id: tenantId },
-    });
+    const tenant = await this.prisma.withTenant(tenantId, (tx) =>
+      tx.tenant.findUnique({ where: { id: tenantId } }),
+    );
     const daysRemaining = state.trialExpiresAt
       ? Math.max(
           0,
@@ -47,7 +47,9 @@ export class BillingService {
         message: body?.message || 'Upgrade request',
         company: body?.company,
       });
-    } catch {}
+    } catch {
+      // A mail outage must not fail the billing contact request.
+    }
     return { success: true };
   }
 }

@@ -74,7 +74,7 @@ export class FrontendAdapterService {
       icon: true,
     } as const;
 
-    const tenantId = (user.tenantId ?? undefined) as string | undefined;
+    const tenantId = user.tenantId ?? undefined;
     const accessibleModules = tenantId
       ? await this.prisma.withTenant(tenantId, (tx) =>
           tx.module.findMany({ where, select }),

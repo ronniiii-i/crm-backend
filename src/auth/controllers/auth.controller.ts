@@ -5,12 +5,9 @@ import {
   Body,
   UseGuards,
   Req,
-  Res,
   HttpCode,
   HttpStatus,
-  Headers,
 } from '@nestjs/common';
-import { Response } from 'express';
 import { AuthService } from '../services/auth.service';
 import { LoginDto } from '../dto/login.dto';
 import { ForgotPasswordDto } from '../dto/forgot-password.dto';
@@ -79,8 +76,12 @@ export class AuthController {
 
   @UseGuards(JwtAuthGuard)
   @Get('verify')
-  verify(@User() user: any) {
-    return { success: true, user };
+  async verify(@User() user: any) {
+    // Return the same rich user shape as login/refresh. The flat JWT payload
+    // (roleSlug, departmentKey, ...) would otherwise overwrite the cached
+    // profile with a shape the UI cannot render after a hard refresh.
+    const session = await this.authService.refresh(user);
+    return { success: true, user: session.user };
   }
 
   @UseGuards(JwtAuthGuard)

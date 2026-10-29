@@ -3,6 +3,7 @@ import {
   BadRequestException,
   ForbiddenException,
 } from '@nestjs/common';
+import { Prisma } from '@prisma/client';
 import { PrismaService } from '../prisma/prisma.service';
 import { CacheService } from '../cache/cache.service';
 
@@ -13,11 +14,21 @@ export class AccessControlService {
     private readonly cache: CacheService,
   ) {}
 
+  /** RLS requires `app.current_tenant` on the querying connection. */
+  private scoped<T>(
+    tenantId: string,
+    fn: (db: Prisma.TransactionClient) => Promise<T>,
+  ): Promise<T> {
+    return this.prisma.withTenant(tenantId, fn);
+  }
+
   async catalog(tenantId: string) {
-    const modules = await this.prisma.module.findMany({
-      where: { tenantId },
-      orderBy: [{ group: 'asc' }, { order: 'asc' }, { name: 'asc' }],
-    });
+    const modules = await this.scoped(tenantId, (tx) =>
+      tx.module.findMany({
+        where: { tenantId },
+        orderBy: [{ group: 'asc' }, { order: 'asc' }, { name: 'asc' }],
+      }),
+    );
 
     const groupsMap = new Map<string, any[]>();
     for (const m of modules) {
@@ -43,26 +54,31 @@ export class AccessControlService {
   }
 
   async rolePermissions(tenantId: string, roleId: string) {
-    const role = await this.prisma.role.findFirst({
-      where: { id: roleId, tenantId },
-    });
-    if (!role) throw new BadRequestException('Role not found');
+    const data = await this.scoped(tenantId, async (tx) => {
+      const role = await tx.role.findFirst({
+        where: { id: roleId, tenantId },
+      });
+      if (!role) throw new BadRequestException('Role not found');
 
-    const modules = await this.prisma.module.findMany({ where: { tenantId } });
-    const perms = await this.prisma.permission.findMany();
-    const grants = await this.prisma.roleModulePermission.findMany({
-      where: { tenantId, roleId },
+      const modules = await tx.module.findMany({ where: { tenantId } });
+      const perms = await tx.permission.findMany();
+      const grants = await tx.roleModulePermission.findMany({
+        where: { tenantId, roleId },
+      });
+      return { role, modules, perms, grants };
     });
 
     const grantSet = new Set(
-      grants.map((g) => `${g.moduleId}:${g.permissionId}`),
+      data.grants.map((g) => `${g.moduleId}:${g.permissionId}`),
     );
-    const result = modules
+    const result = data.modules
       .map((m) => {
-        return perms.map((p) => ({
+        return data.perms.map((p) => ({
           moduleKey: m.key,
           action: p.type,
-          granted: role.isTenantAdmin ? true : grantSet.has(`${m.id}:${p.id}`),
+          granted: data.role.isTenantAdmin
+            ? true
+            : grantSet.has(`${m.id}:${p.id}`),
         }));
       })
       .flat();
@@ -70,20 +86,20 @@ export class AccessControlService {
     return {
       success: true,
       roleId,
-      immutable: role.isTenantAdmin,
+      immutable: data.role.isTenantAdmin,
       grants: result,
     };
   }
 
   async updateRolePermissions(tenantId: string, roleId: string, grants: any[]) {
-    const role = await this.prisma.role.findFirst({
-      where: { id: roleId, tenantId },
-    });
-    if (!role) throw new BadRequestException('Role not found');
-    if (role.isTenantAdmin)
-      throw new ForbiddenException('Tenant admin permissions are immutable');
+    await this.scoped(tenantId, async (tx) => {
+      const role = await tx.role.findFirst({
+        where: { id: roleId, tenantId },
+      });
+      if (!role) throw new BadRequestException('Role not found');
+      if (role.isTenantAdmin)
+        throw new ForbiddenException('Tenant admin permissions are immutable');
 
-    await this.prisma.$transaction(async (tx) => {
       await tx.roleModulePermission.deleteMany({ where: { tenantId, roleId } });
 
       for (const g of grants || []) {

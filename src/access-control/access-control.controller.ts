@@ -3,7 +3,6 @@ import { AccessControlService } from './access-control.service';
 import { JwtAuthGuard } from '../auth/guards/jwt-auth.guard';
 import { TenantAdminOnly } from '../auth/decorators/tenant-admin.decorator';
 import { User } from '../auth/decorators/user.decorator';
-import { RolesService } from '../roles/roles.service';
 
 @Controller('access-control')
 @UseGuards(JwtAuthGuard)

@@ -66,7 +66,7 @@ export class SystemAdminAuthService {
     const token = req.headers?.authorization?.slice(7);
     if (token) {
       try {
-        const payload = this.jwtService.decode(token) as any;
+        const payload = this.jwtService.decode(token);
         if (payload?.exp) {
           const ttl = payload.exp - Math.floor(Date.now() / 1000);
           if (ttl > 0 && payload?.jti) {

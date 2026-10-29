@@ -18,7 +18,7 @@ export class SystemAdminAuthController {
   @UseGuards(SystemAdminGuard)
   @SystemAdminRoute()
   @Get('verify')
-  async verify(@Req() req: any) {
+  verify(@Req() req: any) {
     return { success: true, admin: req.user };
   }
 

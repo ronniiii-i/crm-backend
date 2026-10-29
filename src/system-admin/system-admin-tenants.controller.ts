@@ -1,4 +1,5 @@
 import {
+  Body,
   Controller,
   Get,
   Param,
@@ -11,6 +12,7 @@ import {
 import { SystemAdminGuard } from './guards/system-admin.guard';
 import { SystemAdminRoute } from '../auth/decorators/system-admin-route.decorator';
 import { SystemAdminTenantsService } from './system-admin-tenants.service';
+import { CreateTenantDto } from './dto/create-tenant.dto';
 
 @Controller('system-admin/tenants')
 @UseGuards(SystemAdminGuard)
@@ -21,6 +23,11 @@ export class SystemAdminTenantsController {
   @Get()
   list(@Query() query: any) {
     return this.service.list(query);
+  }
+
+  @Post()
+  create(@Body() body: CreateTenantDto, @Req() req: any) {
+    return this.service.create(body, req.user);
   }
 
   @Get(':id')

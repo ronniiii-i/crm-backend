@@ -26,7 +26,7 @@ export class SystemAdminStrategy extends PassportStrategy(
     });
   }
 
-  async validate(payload: SystemJwtPayload) {
+  validate(payload: SystemJwtPayload) {
     if (
       !payload?.sub ||
       payload.aud !== 'system-admin' ||

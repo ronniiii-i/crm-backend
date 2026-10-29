@@ -3,8 +3,10 @@ import {
   BadRequestException,
   ConflictException,
 } from '@nestjs/common';
+import { randomUUID } from 'node:crypto';
 import { PrismaService } from '../prisma/prisma.service';
 import { TenantResolverService } from '../tenant/tenant-resolver.service';
+import { TenantProvisioningService } from '../tenant/tenant-provisioning.service';
 import { MailService } from '../mail/mail.service';
 
 @Injectable()
@@ -12,6 +14,7 @@ export class PublicService {
   constructor(
     private readonly prisma: PrismaService,
     private readonly tenantResolver: TenantResolverService,
+    private readonly provisioning: TenantProvisioningService,
     private readonly mailService: MailService,
   ) {}
 
@@ -29,82 +32,72 @@ export class PublicService {
   }
 
   async createWorkspace(body: any) {
-    const { name, slug, ownerName, ownerEmail, password } = body || {};
-    if (!name || !slug || !ownerEmail || !password) {
+    // The onboarding UI sends workspaceName/email/ownerName; older callers
+    // used name/ownerEmail. Accept both so the two flows cannot drift.
+    const workspaceName = String(
+      body?.workspaceName ?? body?.name ?? '',
+    ).trim();
+    const slug = String(body?.slug ?? '')
+      .trim()
+      .toLowerCase();
+    const ownerName = String(body?.ownerName ?? '').trim();
+    const ownerEmail = String(body?.ownerEmail ?? body?.email ?? '')
+      .trim()
+      .toLowerCase();
+    const password = body?.password;
+
+    if (!workspaceName || !slug || !ownerName || !ownerEmail || !password) {
       throw new BadRequestException('Missing required fields');
     }
-
-    const available = await (this.prisma as any).tenant_slug_available?.(slug);
-    if (available !== true) {
-      const exists = await this.prisma.tenant.findUnique({ where: { slug } });
-      if (exists) throw new ConflictException('Slug not available');
+    if (!/^[a-z0-9](?:[a-z0-9-]{1,48}[a-z0-9])$/.test(slug)) {
+      throw new BadRequestException(
+        'Slug must be 3-50 characters of lowercase letters, numbers, or hyphens',
+      );
     }
 
-    const trialDays = Number.parseInt(
-      process.env.WORKSPACE_TRIAL_DAYS || '14',
-      10,
-    );
-    const trialExpiresAt = new Date(
-      Date.now() + trialDays * 24 * 60 * 60 * 1000,
-    );
+    // `tenants` is RLS-protected, so an unauthenticated crm_app query cannot
+    // see other rows. The SECURITY DEFINER helper is the only safe way to
+    // check slug availability before a tenant context exists.
+    const available = await this.tenantResolver.isSlugAvailable(slug);
+    if (!available) throw new ConflictException('Slug not available');
 
-    const result = await this.prisma.$transaction(async (tx: any) => {
-      const tenant = await tx.tenant.create({
-        data: {
-          name,
+    const tenantId = randomUUID();
+    const { tenant, verificationToken } = await this.prisma.withTenant(
+      tenantId,
+      (tx) =>
+        this.provisioning.provisionTenantData(tx, {
+          tenantId,
+          workspaceName,
           slug,
-          status: 'TRIAL',
-          trialExpiresAt,
           ownerName,
           ownerEmail,
-          seatCount: 1,
-          sessionVersion: 0,
-        },
-      });
-
-      const tenantAdminRole = await tx.role.findFirst({
-        where: { tenantId: tenant.id, isTenantAdmin: true },
-      });
-      if (tenantAdminRole) {
-        const bcrypt = require('bcryptjs');
-        const hashed = await bcrypt.hash(password, 10);
-        await tx.user.create({
-          data: {
-            email: ownerEmail.toLowerCase(),
-            password: hashed,
-            name: ownerName,
-            roleId: tenantAdminRole.id,
-            tenantId: tenant.id,
-            isVerified: false,
-          },
-        });
-      }
-
-      return tenant;
-    });
+          adminPassword: password,
+        }),
+    );
 
     try {
-      if ((this.mailService as any).sendWorkspaceVerificationEmail) {
-        await (this.mailService as any).sendWorkspaceVerificationEmail(
-          ownerEmail,
-          ownerName,
-          result.slug,
-        );
-      } else if ((this.mailService as any).sendVerificationEmail) {
-        await (this.mailService as any).sendVerificationEmail(
-          ownerEmail,
-          ownerName,
-        );
-      }
-    } catch {}
+      await this.mailService.sendVerificationEmail(
+        ownerEmail,
+        ownerName,
+        verificationToken,
+      );
+    } catch {
+      // Self-serve onboarding must not fail because email delivery is down.
+    }
 
-    return { success: true, slug: result.slug, verificationRequired: true };
+    return {
+      success: true,
+      slug: tenant.slug,
+      verificationRequired: true,
+    };
   }
 
   async contact(body: any) {
     try {
       await (this.mailService as any).sendContactEmail?.(body);
-    } catch {}
+    } catch {
+      // A mail outage must not fail the contact form submission.
+    }
     return { success: true };
   }
 }

@@ -177,8 +177,11 @@ export class AuthService {
             key: refreshedUser.managedDepartment.key,
           }
         : null,
+      avatar: refreshedUser.avatarUrl ?? null,
+      status: refreshedUser.status,
       tenantId: workspace.id,
       tenantSlug: workspace.slug,
+      tenantName: workspace.name,
       tenantStatus: state.status,
       ...access,
     };
@@ -319,6 +322,7 @@ export class AuthService {
         where: { id: user.sub },
         include: {
           role: true,
+          tenant: { select: { name: true } },
           department: { select: { id: true, key: true } },
           managedDepartment: { select: { id: true, key: true } },
         },
@@ -386,8 +390,11 @@ export class AuthService {
               key: sessionUser.managedDepartment.key,
             }
           : null,
+        avatar: sessionUser.avatarUrl ?? null,
+        status: sessionUser.status,
         tenantId: user.tenantId,
         tenantSlug: user.tenantSlug,
+        tenantName: sessionUser.tenant?.name ?? user.tenantName ?? null,
         tenantStatus: state.status,
         ...access,
       },
@@ -397,7 +404,7 @@ export class AuthService {
   async logout(token: string | undefined): Promise<any> {
     if (token) {
       try {
-        const payload = this.jwtService.decode(token) as any;
+        const payload = this.jwtService.decode(token);
         if (payload?.exp) {
           const ttl = payload.exp - Math.floor(Date.now() / 1000);
           if (ttl > 0 && payload?.tenantId) {
@@ -417,7 +424,7 @@ export class AuthService {
   }
 
   async getAclModules(user: any): Promise<any> {
-    return (this.frontendAdapter as any).getSessionAccess?.(user) || {};
+    return (await (this.frontendAdapter as any).getSessionAccess?.(user)) || {};
   }
 
   async getAclPermissions(user: any): Promise<any> {
