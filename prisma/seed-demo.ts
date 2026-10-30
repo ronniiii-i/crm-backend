@@ -17,6 +17,7 @@ import { EmploymentStatus, PrismaClient } from '@prisma/client';
 import * as bcrypt from 'bcryptjs';
 import { randomUUID } from 'node:crypto';
 import { TenantProvisioningService } from '../src/tenant/tenant-provisioning.service';
+import { WorkspaceTemplateKey } from '../src/tenant/templates';
 import { ensurePermissionCatalogue, RoleSlug } from './seed/defaults';
 
 const DEMO_PASSWORD = 'Password123!';
@@ -111,14 +112,21 @@ export async function seedDemo(prisma: PrismaClient): Promise<void> {
 
     await prisma.$transaction(
       async (tx) => {
-        await provisioning.provisionTenantData(tx, {
-          tenantId,
-          workspaceName: tenantSpec.name,
-          slug: tenantSpec.slug,
-          ownerEmail: tenantSpec.ownerEmail,
-          ownerName: tenantSpec.ownerName,
-          adminPassword: DEMO_PASSWORD,
-        });
+        await provisioning.provisionTenantData(
+          tx,
+          {
+            tenantId,
+            workspaceName: tenantSpec.name,
+            slug: tenantSpec.slug,
+            ownerEmail: tenantSpec.ownerEmail,
+            ownerName: tenantSpec.ownerName,
+            adminPassword: DEMO_PASSWORD,
+          },
+          {
+            template: WorkspaceTemplateKey.DEMO,
+            allowDemoTemplate: true,
+          },
+        );
       },
       { maxWait: 15000, timeout: 90000 },
     );
