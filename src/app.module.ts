@@ -30,6 +30,7 @@ import { AccessControlModule } from './access-control/access-control.module';
 import { InvitationsModule } from './invitations/invitations.module';
 import { PublicModule } from './public/public.module';
 import { BillingModule } from './billing/billing.module';
+import { WorkspaceModule } from './workspace/workspace.module';
 import { TenantSettingsController } from './tenant/tenant-settings.controller';
 import { TenantSettingsService } from './tenant/tenant-settings.service';
 
@@ -66,6 +67,7 @@ import { TenantSettingsService } from './tenant/tenant-settings.service';
     InvitationsModule,
     PublicModule,
     BillingModule,
+    WorkspaceModule,
   ],
   controllers: [AppController, TenantSettingsController],
   providers: [
