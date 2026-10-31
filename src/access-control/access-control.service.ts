@@ -122,8 +122,7 @@ export class AccessControlService {
       }
     });
 
-    await this.cache.del(`acl:modules:${tenantId}:*`);
-    await this.cache.del(`perm:resolve:${tenantId}:*`);
+    await this.cache.invalidateTenantAcls(tenantId);
     return this.rolePermissions(tenantId, roleId);
   }
 }

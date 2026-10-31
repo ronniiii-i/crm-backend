@@ -108,7 +108,7 @@ export class RolesService {
       });
     });
 
-    await this.cache.del(`acl:modules:${tenantId}:*`);
+    await this.cache.invalidateTenantAcls(tenantId);
     return { success: true, role };
   }
 
@@ -151,9 +151,7 @@ export class RolesService {
       return { role, result };
     });
 
-    if (dto.dataScope && dto.dataScope !== updated.role.dataScope) {
-      await this.cache.del(`acl:modules:${tenantId}:*`);
-    }
+    await this.cache.invalidateTenantAcls(tenantId);
 
     return { success: true, role: updated.result };
   }
@@ -180,7 +178,7 @@ export class RolesService {
       await tx.role.delete({ where: { id } });
     });
 
-    await this.cache.del(`acl:modules:${tenantId}:*`);
+    await this.cache.invalidateTenantAcls(tenantId);
     return { success: true };
   }
 }

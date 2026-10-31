@@ -377,6 +377,30 @@ export class CacheService implements OnModuleInit, OnModuleDestroy {
     await this.deleteRedisByPattern('tenant:*:route:*');
   }
 
+  /**
+   * Remove every entry matching a tenant-scoped Redis glob pattern.
+   *
+   * Used for coarse ACL invalidation (`tenant:{id}:user:*:modules*`) where
+   * the exact keys are not known ahead of time. Invalidation is best effort:
+   * a cache miss only costs a database round trip.
+   */
+  async invalidatePattern(pattern: string): Promise<void> {
+    this.deleteMemoryByPattern(pattern);
+    await this.deleteRedisByPattern(pattern);
+  }
+
+  /**
+   * Coarse ACL invalidation for a whole tenant: navigation payloads and
+   * effective permission sets for every user. Used when a role, grant,
+   * department or module definition changes.
+   */
+  async invalidateTenantAcls(tenantId: string): Promise<void> {
+    await this.invalidatePattern(`tenant:${tenantId}:user:*:modules*`);
+    await this.invalidatePattern(
+      `tenant:${tenantId}:user:*:effective-permissions`,
+    );
+  }
+
   /** Drop every cache entry belonging to a tenant (e.g. on tenant purge). */
   async flushTenant(
     tenantId: string = getTenantId() ?? 'global',

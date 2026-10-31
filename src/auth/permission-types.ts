@@ -1,3 +1,5 @@
+import { ModuleType } from '@prisma/client';
+
 export enum Permission {
   VIEW = 'VIEW',
   CREATE = 'CREATE',
@@ -34,9 +36,23 @@ export interface ProtectedRoute {
 
 export interface AccessibleModule {
   id: string;
+  key: string;
   name: string;
   path: string;
   icon?: string | null;
+  group: string;
+  order: number;
+  type: ModuleType;
+  targetEntity?: string | null;
+  isNavigable: boolean;
+  department?: {
+    id: string;
+    key: string;
+    name: string;
+    sortOrder: number;
+  } | null;
+  /** Effective actions for the signed-in user, in canonical order. */
+  actions: Permission[];
 }
 
 export interface UserForAcl {

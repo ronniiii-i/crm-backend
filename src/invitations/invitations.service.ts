@@ -12,6 +12,7 @@ import { randomBytes, createHash } from 'node:crypto';
 import * as bcrypt from 'bcryptjs';
 import { addDays } from 'date-fns';
 import { TenantResolverService } from '../tenant/tenant-resolver.service';
+import { CacheService } from '../cache/cache.service';
 
 function hashToken(token: string): string {
   return createHash('sha256').update(token, 'utf8').digest('hex');
@@ -24,6 +25,7 @@ export class InvitationsService {
     private readonly mailService: MailService,
     private readonly jwtService: JwtService,
     private readonly tenantResolver: TenantResolverService,
+    private readonly cache: CacheService,
   ) {}
 
   async list(tenantId: string) {
@@ -283,9 +285,10 @@ export class InvitationsService {
       return created;
     });
 
+    await this.cache.invalidateUser(user.id, tenant.id);
+
     const payload = {
-      sub: user.id,
-      email: user.email,
+      sub: user.id,      email: user.email,
       tenantId: tenant.id,
       tenantSlug: tenant.slug,
       roleId: user.roleId,

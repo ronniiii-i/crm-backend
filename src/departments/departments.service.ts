@@ -5,6 +5,7 @@ import {
 } from '@nestjs/common';
 import { Prisma } from '@prisma/client';
 import { PrismaService } from '../prisma/prisma.service';
+import { CacheService } from '../cache/cache.service';
 import { DEFAULT_DEPARTMENTS } from '../tenant/defaults';
 
 function slugifyDepartmentKey(name: string): string {
@@ -18,7 +19,10 @@ function slugifyDepartmentKey(name: string): string {
 
 @Injectable()
 export class DepartmentsService {
-  constructor(private readonly prisma: PrismaService) {}
+  constructor(
+    private readonly prisma: PrismaService,
+    private readonly cache: CacheService,
+  ) {}
 
   /**
    * Every tenant table is guarded by row-level security, so queries must run
@@ -147,6 +151,7 @@ export class DepartmentsService {
       });
     });
 
+    await this.cache.invalidateTenantAcls(tenantId);
     return { success: true, department };
   }
 
@@ -177,6 +182,7 @@ export class DepartmentsService {
       });
     });
 
+    await this.cache.invalidateTenantAcls(tenantId);
     return { success: true, department: updated };
   }
 
@@ -222,6 +228,7 @@ export class DepartmentsService {
       await tx.department.delete({ where: { id } });
     });
 
+    await this.cache.invalidateTenantAcls(tenantId);
     return { success: true };
   }
 }

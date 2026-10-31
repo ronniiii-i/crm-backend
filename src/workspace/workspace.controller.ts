@@ -9,6 +9,7 @@ import {
 } from '@nestjs/common';
 import { Prisma } from '@prisma/client';
 import { PrismaService } from '../prisma/prisma.service';
+import { CacheService } from '../cache/cache.service';
 import { CurrentModuleAccess } from './decorators/module-access.decorator';
 import { RequireModuleAction } from './decorators/module-action.decorator';
 import { parseConfigBody } from './dto/module-config.dto';
@@ -34,6 +35,7 @@ export class WorkspaceController {
     private readonly configs: ModuleConfigService,
     private readonly prisma: PrismaService,
     private readonly audit: AuditService,
+    private readonly cache: CacheService,
   ) {}
 
   @Get('modules/:deptKey/:moduleKey')
@@ -78,6 +80,11 @@ export class WorkspaceController {
         userAgent,
       });
     });
+
+    // Config writes are rare, so drop the whole tenant cache: renderer
+    // definitions, navigation payloads and effective permission sets all
+    // embed module metadata.
+    await this.cache.flushTenant(access.actor.tenantId);
 
     return { config };
   }
