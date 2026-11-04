@@ -133,6 +133,8 @@ model Contact {
   supportTickets SupportTicket[]
 
   @@index([tenantId])
+  @@index([tenantId, lastName])
+  @@index([tenantId, createdAt])
 }
 
 model Project {
@@ -155,6 +157,7 @@ model Project {
   tasks       Task[]
 
   @@index([tenantId])
+  @@index([tenantId, createdAt])
 }
 
 model Task {
@@ -175,6 +178,7 @@ model Task {
   tenant       Tenant    @relation(fields: [tenantId], references: [id])
 
   @@index([tenantId])
+  @@index([tenantId, createdAt])
 }
 
 model Department {
@@ -220,6 +224,7 @@ model InventoryItem {
 
   @@unique([tenantId, sku])
   @@index([tenantId])
+  @@index([tenantId, createdAt])
 }
 
 model Notification {
@@ -301,6 +306,7 @@ model Invoice {
 
   @@unique([tenantId, invoiceNumber])
   @@index([tenantId])
+  @@index([tenantId, createdAt])
 }
 
 model Payment {
@@ -333,6 +339,7 @@ model Expense {
   createdBy    User       @relation(fields: [userId], references: [id])
 
   @@index([tenantId])
+  @@index([tenantId, createdAt])
 }
 
 model Deal {
@@ -352,6 +359,7 @@ model Deal {
   assignedTo   User       @relation("DealAssignedTo", fields: [userId], references: [id])
 
   @@index([tenantId])
+  @@index([tenantId, createdAt])
 }
 
 model SupportTicket {
@@ -374,6 +382,7 @@ model SupportTicket {
   assignedTo     User?        @relation("UserTickets", fields: [userId], references: [id])
 
   @@index([tenantId])
+  @@index([tenantId, createdAt])
 }
 
 model AttendanceRecord {

@@ -17,6 +17,7 @@ import { PermissionType } from '@prisma/client';
 import * as request from 'supertest';
 
 import { PrismaService } from '../../src/prisma/prisma.service';
+import { CacheService } from '../../src/cache/cache.service';
 import { PermissionResolutionService } from '../../src/auth/services/permission-resolution.service';
 import { WorkspaceController } from '../../src/workspace/workspace.controller';
 import { AggregateController } from '../../src/workspace/controllers/aggregate.controller';
@@ -393,7 +394,11 @@ function buildState(): WorkspaceState {
         company: 'Acme Finance',
         status: 'Customer',
         userId: 'user-fin',
-        createdBy: { id: 'user-fin', name: 'Fiona', departmentId: DEPT_FINANCE },
+        createdBy: {
+          id: 'user-fin',
+          name: 'Fiona',
+          departmentId: DEPT_FINANCE,
+        },
         createdAt: daysAgo(20),
         updatedAt: daysAgo(20),
       },
@@ -556,8 +561,7 @@ describe('Workspace API (Stage 3)', () => {
   let app: INestApplication;
   let state: WorkspaceState;
 
-  const header = (actor: Record<string, unknown>) =>
-    JSON.stringify(actor);
+  const header = (actor: Record<string, unknown>) => JSON.stringify(actor);
 
   const as = (
     test: request.Test,
@@ -603,6 +607,7 @@ describe('Workspace API (Stage 3)', () => {
         ModulePermissionGuard,
         { provide: PrismaService, useValue: prisma },
         { provide: PermissionResolutionService, useValue: permissions },
+        { provide: CacheService, useValue: { flushTenant: jest.fn() } },
       ],
     }).compile();
 
@@ -846,9 +851,7 @@ describe('Workspace API (Stage 3)', () => {
 
       const immutable = await as(
         request(server())
-          .patch(
-            `/workspace/modules/finance/contacts/records/${CONTACT_SALES}`,
-          )
+          .patch(`/workspace/modules/finance/contacts/records/${CONTACT_SALES}`)
           .send({ tenantId: TENANT_B }),
       );
       expect(immutable.status).toBe(400);
@@ -991,7 +994,10 @@ describe('Workspace API (Stage 3)', () => {
       const response = await as(
         request(server())
           .patch('/workspace/modules/finance/contacts/config')
-          .send({ columns: [], defaultSort: { field: 'createdAt', dir: 'desc' } }),
+          .send({
+            columns: [],
+            defaultSort: { field: 'createdAt', dir: 'desc' },
+          }),
         ACTOR_STAFF,
       );
 
