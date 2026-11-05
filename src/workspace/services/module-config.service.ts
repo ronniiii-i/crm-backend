@@ -15,6 +15,19 @@ import { EntityRegistryService } from './entity-registry.service';
 
 const DEFAULT_DOCUMENT_CATEGORIES = ['Policies', 'SOPs', 'Wiki', 'Templates'];
 
+function asText(value: unknown): string {
+  if (typeof value === 'string') return value;
+  if (typeof value === 'number' || typeof value === 'boolean') {
+    return String(value);
+  }
+  if (value === null || value === undefined) return '';
+  try {
+    return JSON.stringify(value) ?? 'unknown';
+  } catch {
+    return 'unknown';
+  }
+}
+
 /**
  * Normalises and validates renderer configuration.
  *
@@ -34,7 +47,9 @@ export class ModuleConfigService {
   }): ModuleConfig {
     const defaults = this.defaults(module.type, module.targetEntity);
     const raw =
-      module.config && typeof module.config === 'object' && !Array.isArray(module.config)
+      module.config &&
+      typeof module.config === 'object' &&
+      !Array.isArray(module.config)
         ? (module.config as Record<string, unknown>)
         : {};
 
@@ -71,7 +86,7 @@ export class ModuleConfigService {
       default:
         throw new BadRequestException({
           code: 'INVALID_MODULE_CONFIG',
-          message: `Module type ${type} has no configurable schema.`,
+          message: `Module type ${String(type)} has no configurable schema.`,
         });
     }
   }
@@ -206,13 +221,11 @@ export class ModuleConfigService {
       version: MODULE_CONFIG_VERSION,
       entity: descriptor?.key ?? null,
       statusField: descriptor?.status?.field ?? 'status',
-      columns: statusValues
-        .slice(0, 5)
-        .map((value, index) => ({
-          value,
-          label: value,
-          color: palette[index % palette.length],
-        })),
+      columns: statusValues.slice(0, 5).map((value, index) => ({
+        value,
+        label: value,
+        color: palette[index % palette.length],
+      })),
       secondaryColumns: statusValues.slice(5).map((value) => ({
         value,
         label: value,
@@ -281,7 +294,7 @@ export class ModuleConfigService {
     if (version !== undefined && version !== MODULE_CONFIG_VERSION) {
       throw new BadRequestException({
         code: 'UNSUPPORTED_CONFIG_VERSION',
-        message: `Unsupported config version ${String(version)}. Expected ${MODULE_CONFIG_VERSION}.`,
+        message: `Unsupported config version ${asText(version)}. Expected ${MODULE_CONFIG_VERSION}.`,
       });
     }
     config.version = MODULE_CONFIG_VERSION;
@@ -321,7 +334,9 @@ export class ModuleConfigService {
       ...(config as unknown as TableConfig),
       pageSize,
       createEnabled: config.createEnabled !== false,
-      filters: Array.isArray(config.filters) ? (config.filters as TableConfig['filters']) : [],
+      filters: Array.isArray(config.filters)
+        ? (config.filters as TableConfig['filters'])
+        : [],
     };
   }
 
@@ -389,7 +404,7 @@ export class ModuleConfigService {
 
     if (
       config.defaultFormat !== undefined &&
-      !['MARKDOWN', 'RICH_TEXT'].includes(String(config.defaultFormat))
+      !['MARKDOWN', 'RICH_TEXT'].includes(asText(config.defaultFormat))
     ) {
       throw invalid('defaultFormat must be MARKDOWN or RICH_TEXT.');
     }
@@ -439,8 +454,8 @@ export class ModuleConfigService {
     return {
       ...(config as unknown as FormConfig),
       mode: 'create',
-      submitLabel: String(config.submitLabel ?? 'Submit'),
-      successMessage: String(config.successMessage ?? 'Saved.'),
+      submitLabel: asText(config.submitLabel ?? 'Submit'),
+      successMessage: asText(config.successMessage ?? 'Saved.'),
     };
   }
 }

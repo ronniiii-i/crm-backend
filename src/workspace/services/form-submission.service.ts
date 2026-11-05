@@ -7,11 +7,8 @@ import {
 import { ModuleType, Prisma } from '@prisma/client';
 import { PrismaService } from '../../prisma/prisma.service';
 import { FormConfig, FormFieldConfig } from '../types/module-config';
-import { ScopeName, WhereInput } from '../types/entity';
-import {
-  parseSubmissionBody,
-  submissionInvalid,
-} from '../dto/submission.dto';
+import { WhereInput } from '../types/entity';
+import { parseSubmissionBody, submissionInvalid } from '../dto/submission.dto';
 import { AuditService } from './audit.service';
 import { EntityWriteService, WriteContext } from './entity-write.service';
 import { ResolvedModuleAccess } from './module-access.service';
@@ -168,10 +165,13 @@ export class FormSubmissionService {
   }
 
   private async buildWhere(access: ResolvedModuleAccess): Promise<WhereInput> {
-    const where: WhereInput = { tenantId: access.actor.tenantId, moduleId: access.module.id };
+    const where: WhereInput = {
+      tenantId: access.actor.tenantId,
+      moduleId: access.module.id,
+    };
     const scope = access.actor.isTenantAdmin ? 'TENANT' : access.scope;
 
-    switch (scope as ScopeName) {
+    switch (scope) {
       case 'TENANT':
         return where;
 
@@ -243,8 +243,7 @@ export function validateValues(
     }
 
     const raw = values[field.name];
-    const empty =
-      raw === undefined || raw === null || raw === '';
+    const empty = raw === undefined || raw === null || raw === '';
 
     if (empty) {
       if (field.required) {
@@ -297,13 +296,17 @@ function coerceField(field: FormFieldConfig, value: unknown): unknown {
         }
         return value;
       }
-      return value === true || value === 'true' || value === 'on' || value === 1;
+      return (
+        value === true || value === 'true' || value === 'on' || value === 1
+      );
     }
 
     case 'email': {
       const stringValue = String(value);
       if (!/^[^@\s]+@[^@\s]+$/.test(stringValue)) {
-        throw submissionInvalid(`Field "${field.label}" requires a valid email.`);
+        throw submissionInvalid(
+          `Field "${field.label}" requires a valid email.`,
+        );
       }
       return stringValue;
     }
@@ -336,6 +339,9 @@ function positiveInt(value: unknown, fallback: number, name: string): number {
 /** Kept for symmetry with other services; never used for client input. */
 export class SubmissionNotFound extends NotFoundException {
   constructor() {
-    super({ code: 'SUBMISSION_NOT_FOUND', message: 'Submission was not found.' });
+    super({
+      code: 'SUBMISSION_NOT_FOUND',
+      message: 'Submission was not found.',
+    });
   }
 }

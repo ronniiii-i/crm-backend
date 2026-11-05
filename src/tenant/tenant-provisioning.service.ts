@@ -2,11 +2,7 @@ import { Injectable } from '@nestjs/common';
 import { Prisma, Tenant, TenantStatus } from '@prisma/client';
 import * as bcrypt from 'bcryptjs';
 import { createHash, randomBytes } from 'node:crypto';
-import {
-  DEFAULT_TRIAL_DAYS,
-  PERMISSION_TYPES,
-  RoleSlug,
-} from './defaults';
+import { DEFAULT_TRIAL_DAYS, PERMISSION_TYPES, RoleSlug } from './defaults';
 import {
   ProvisionTenantOptions,
   WorkspaceTemplate,

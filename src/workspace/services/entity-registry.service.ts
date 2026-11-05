@@ -4,7 +4,7 @@ import {
   getEntityDescriptor,
   isEntityKey,
 } from '../entities/entity-registry';
-import { EntityDescriptor, EntityKey } from '../types/entity';
+import { EntityDescriptor } from '../types/entity';
 
 /**
  * Read-only access to the entity allowlist. Services use this instead of
@@ -24,7 +24,7 @@ export class EntityRegistryService {
       });
     }
 
-    const descriptor = ENTITY_REGISTRY.get(key as EntityKey);
+    const descriptor = ENTITY_REGISTRY.get(key);
     if (!descriptor) {
       throw new BadRequestException({
         code: 'UNKNOWN_ENTITY',

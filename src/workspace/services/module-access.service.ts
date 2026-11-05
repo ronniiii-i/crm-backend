@@ -90,7 +90,8 @@ export class ModuleAccessService {
     const config = this.configs.normalize(module);
     const scope = entity
       ? this.scopes.effectiveScope(entity, actor, module.dataScope)
-      : ((module.dataScope ?? (actor.isTenantAdmin ? 'TENANT' : actor.dataScope)) as ScopeName);
+      : ((module.dataScope ??
+          (actor.isTenantAdmin ? 'TENANT' : actor.dataScope)) as ScopeName);
 
     return {
       actor,
@@ -130,7 +131,8 @@ export class ModuleAccessService {
     if (!access.actor.isTenantAdmin) {
       throw new ForbiddenException({
         code: 'TENANT_ADMIN_REQUIRED',
-        message: 'Only a workspace administrator can change module configuration.',
+        message:
+          'Only a workspace administrator can change module configuration.',
         moduleKey: access.module.key,
       });
     }
@@ -187,8 +189,8 @@ export class ModuleAccessService {
     });
 
     const granted = effective.get(module.id) ?? new Set<PermissionType>();
-    const actions = ALL_ACTIONS.filter(
-      (action) => granted.has(action as PermissionType),
+    const actions = ALL_ACTIONS.filter((action) =>
+      granted.has(action as PermissionType),
     );
 
     return readOnly ? actions.filter((action) => action === 'VIEW') : actions;

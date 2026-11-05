@@ -1,12 +1,10 @@
-import { RoleDataScope } from '@prisma/client';
-
 /** Authenticated user shape used by the workspace services. */
 export interface WorkspaceActor {
   id: string;
   tenantId: string;
   roleId: string;
   roleSlug?: string | null;
-  dataScope: RoleDataScope | string;
+  dataScope: string;
   departmentId: string | null;
   managedDepartmentId: string | null;
   isTenantAdmin: boolean;

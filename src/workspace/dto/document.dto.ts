@@ -28,7 +28,11 @@ export interface DocumentUpdateInput {
 
 const DOCUMENT_STATUSES = new Set(['DRAFT', 'PUBLISHED', 'ARCHIVED']);
 const HTML_TAG = /<\s*\/?\s*[a-zA-Z][a-zA-Z0-9-]*(\s[^>]*)?\/?>/;
-const BINARY_CHARACTERS = /[\u0000-\u0008\u000B\u000C\u000E-\u001F]/;
+const BINARY_CHARACTERS = new RegExp(
+  // Sanitising user content requires matching C0 control characters.
+  // eslint-disable-next-line no-control-regex
+  '[\\u0000-\\u0008\\u000B\\u000C\\u000E-\\u001F]',
+);
 
 export function parseDocumentListQuery(
   raw: Record<string, unknown>,
@@ -71,7 +75,8 @@ export function parseDocumentCreate(
 
   return {
     title,
-    content: format === DocumentFormat.RICH_TEXT ? sanitizeRichText(content) : content,
+    content:
+      format === DocumentFormat.RICH_TEXT ? sanitizeRichText(content) : content,
     format,
     status: parseStatus(body.status, DocumentStatus.DRAFT),
     category: optionalString(body.category, 'category', 80),
@@ -137,10 +142,7 @@ function parseFormat(
   return value as DocumentFormat;
 }
 
-function parseStatus(
-  value: unknown,
-  fallback: DocumentStatus,
-): DocumentStatus {
+function parseStatus(value: unknown, fallback: DocumentStatus): DocumentStatus {
   if (value === undefined) return fallback;
   if (typeof value !== 'string' || !DOCUMENT_STATUSES.has(value)) {
     throw invalid('status must be DRAFT, PUBLISHED or ARCHIVED.');
@@ -211,9 +213,13 @@ function positiveInt(value: unknown, fallback: number, name: string): number {
 }
 
 function single(value: unknown): string {
-  if (Array.isArray(value)) return String(value[0] ?? '');
+  if (Array.isArray(value)) return single(value[0]);
   if (value === undefined || value === null) return '';
-  return String(value);
+  if (typeof value === 'string') return value;
+  if (typeof value === 'number' || typeof value === 'boolean') {
+    return String(value);
+  }
+  return '';
 }
 
 function isObject(value: unknown): value is Record<string, unknown> {
@@ -226,7 +232,10 @@ function isObject(value: unknown): value is Record<string, unknown> {
  */
 export function sanitizeRichText(html: string): string {
   return html
-    .replace(/<\s*(script|style|iframe|object|embed)[^>]*>[\s\S]*?<\s*\/\s*\1\s*>/gi, '')
+    .replace(
+      /<\s*(script|style|iframe|object|embed)[^>]*>[\s\S]*?<\s*\/\s*\1\s*>/gi,
+      '',
+    )
     .replace(/<\s*(script|style|iframe|object|embed)[^>]*\/?>/gi, '')
     .replace(/\son[a-z]+\s*=\s*("[^"]*"|'[^']*'|[^\s>]+)/gi, '')
     .replace(/(href|src)\s*=\s*("|')\s*javascript:[^"']*\2/gi, '$1="#"');

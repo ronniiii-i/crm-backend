@@ -282,7 +282,9 @@ export class EntityWriteService {
     }
 
     const writable = new Set(
-      descriptor.fields.filter((field) => field.writable).map((field) => field.name),
+      descriptor.fields
+        .filter((field) => field.writable)
+        .map((field) => field.name),
     );
 
     for (const key of Object.keys(body)) {
@@ -537,7 +539,11 @@ function coerceWriteValue(field: FieldMeta, value: unknown): unknown {
       if (stringValue.length > 20000) {
         throw invalidValue(field, 'at most 20000 characters');
       }
-      if (field.type === 'email' && stringValue.length > 0 && !/^[^@\s]+@[^@\s]+$/.test(stringValue)) {
+      if (
+        field.type === 'email' &&
+        stringValue.length > 0 &&
+        !/^[^@\s]+@[^@\s]+$/.test(stringValue)
+      ) {
         throw invalidValue(field, 'a valid email address');
       }
       return stringValue;
@@ -547,7 +553,10 @@ function coerceWriteValue(field: FieldMeta, value: unknown): unknown {
   }
 }
 
-function invalidValue(field: FieldMeta, expectation: string): BadRequestException {
+function invalidValue(
+  field: FieldMeta,
+  expectation: string,
+): BadRequestException {
   return new BadRequestException({
     code: 'INVALID_FIELD_VALUE',
     message: `Field "${field.name}" requires ${expectation}.`,
@@ -582,7 +591,9 @@ function normalizeCustomFields(value: unknown): Record<string, unknown> {
       entry === null ||
       ['string', 'number', 'boolean'].includes(typeof entry) ||
       (Array.isArray(entry) &&
-        entry.every((item) => ['string', 'number', 'boolean'].includes(typeof item)));
+        entry.every((item) =>
+          ['string', 'number', 'boolean'].includes(typeof item),
+        ));
     if (!scalar) {
       throw new BadRequestException({
         code: 'INVALID_CUSTOM_FIELDS',

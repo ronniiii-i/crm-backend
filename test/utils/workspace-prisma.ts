@@ -127,9 +127,11 @@ function createTx(tenantId: string | undefined, state: WorkspaceState) {
         const sorted = sortRows(rows, args.orderBy);
         const skip = args.skip ?? 0;
         const take = args.take;
-        return (take === undefined ? sorted.slice(skip) : sorted.slice(skip, skip + take)).map(
-          clone,
-        );
+        return (
+          take === undefined
+            ? sorted.slice(skip)
+            : sorted.slice(skip, skip + take)
+        ).map(clone);
       },
 
       findFirst: async (args: any = {}) => {
@@ -166,7 +168,9 @@ function createTx(tenantId: string | undefined, state: WorkspaceState) {
         const groups = new Map<string, Row[]>();
 
         for (const row of rows) {
-          const key = JSON.stringify(by.map((field: string) => row[field] ?? null));
+          const key = JSON.stringify(
+            by.map((field: string) => row[field] ?? null),
+          );
           if (!groups.has(key)) groups.set(key, []);
           groups.get(key)!.push(row);
         }
@@ -269,7 +273,8 @@ function aggregateRows(rows: Row[], args: any): Row {
   const result: Row = {};
 
   for (const [operator, spec] of Object.entries(args ?? {})) {
-    if (!['_sum', '_avg', '_min', '_max', '_count'].includes(operator)) continue;
+    if (!['_sum', '_avg', '_min', '_max', '_count'].includes(operator))
+      continue;
 
     if (operator === '_count') {
       result._count = { _all: rows.length };
@@ -281,7 +286,9 @@ function aggregateRows(rows: Row[], args: any): Row {
       const values = rows
         .map((row) => row[field])
         .filter((value) => value !== null && value !== undefined)
-        .map((value) => (value instanceof Date ? value.getTime() : Number(value)))
+        .map((value) =>
+          value instanceof Date ? value.getTime() : Number(value),
+        )
         .filter((value) => Number.isFinite(value));
 
       if (operator === '_sum') {
@@ -365,7 +372,11 @@ function matches(row: Row, where: any, state: WorkspaceState): boolean {
   return true;
 }
 
-function matchValue(value: any, condition: any, state: WorkspaceState): boolean {
+function matchValue(
+  value: any,
+  condition: any,
+  state: WorkspaceState,
+): boolean {
   if (condition === null) return value === null || value === undefined;
 
   if (condition instanceof Date) {
@@ -420,10 +431,12 @@ function matchValue(value: any, condition: any, state: WorkspaceState): boolean 
         if (matchValue(value, operand, state)) return false;
         break;
       case 'in':
-        if (!(operand as any[]).some((entry) => equal(value, entry))) return false;
+        if (!(operand as any[]).some((entry) => equal(value, entry)))
+          return false;
         break;
       case 'notIn':
-        if ((operand as any[]).some((entry) => equal(value, entry))) return false;
+        if ((operand as any[]).some((entry) => equal(value, entry)))
+          return false;
         break;
       case 'gt':
         if (!(toComparable(value) > toComparable(operand))) return false;
@@ -443,7 +456,9 @@ function matchValue(value: any, condition: any, state: WorkspaceState): boolean 
           const insensitive = (operand as any).mode === 'insensitive';
           if (
             insensitive
-              ? !String(value ?? '').toLowerCase().includes(needle.toLowerCase())
+              ? !String(value ?? '')
+                  .toLowerCase()
+                  .includes(needle.toLowerCase())
               : !String(value ?? '').includes(needle)
           ) {
             return false;
@@ -475,15 +490,24 @@ function matchValue(value: any, condition: any, state: WorkspaceState): boolean 
         }
         break;
       case 'some':
-        if (!Array.isArray(value) || !value.some((entry) => matches(entry, operand, state)))
+        if (
+          !Array.isArray(value) ||
+          !value.some((entry) => matches(entry, operand, state))
+        )
           return false;
         break;
       case 'none':
-        if (!Array.isArray(value) || !value.every((entry) => !matches(entry, operand, state)))
+        if (
+          !Array.isArray(value) ||
+          !value.every((entry) => !matches(entry, operand, state))
+        )
           return false;
         break;
       case 'every':
-        if (!Array.isArray(value) || !value.every((entry) => matches(entry, operand, state)))
+        if (
+          !Array.isArray(value) ||
+          !value.every((entry) => matches(entry, operand, state))
+        )
           return false;
         break;
       case 'string_contains':

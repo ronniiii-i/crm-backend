@@ -14,7 +14,6 @@ import {
   parseAggregateBody,
 } from '../dto/aggregate.dto';
 import { FilterClause } from '../dto/records-query';
-import { resolveField } from '../entities/field-resolver';
 import { buildFilterCondition } from './entity-query.service';
 import { EntityRegistryService } from './entity-registry.service';
 import { ResolvedModuleAccess } from './module-access.service';
@@ -103,7 +102,12 @@ export class AggregationService {
 
           try {
             output.push(
-              await this.execute(tx, entry.descriptor, entry.widget, entry.where),
+              await this.execute(
+                tx,
+                entry.descriptor,
+                entry.widget,
+                entry.where,
+              ),
             );
           } catch (error) {
             output.push({ id: entry.id, error: toWidgetError(error) });
@@ -154,14 +158,14 @@ export class AggregationService {
       } as FilterClause),
     );
 
-    const timeFilter = this.timeframeCondition(descriptor, widget.timeframe, now);
+    const timeFilter = this.timeframeCondition(
+      descriptor,
+      widget.timeframe,
+      now,
+    );
 
     return {
-      AND: [
-        scope.where,
-        ...clauseFilters,
-        ...(timeFilter ? [timeFilter] : []),
-      ],
+      AND: [scope.where, ...clauseFilters, ...(timeFilter ? [timeFilter] : [])],
     };
   }
 
@@ -183,7 +187,15 @@ export class AggregationService {
 
     if (widget.aggregation === 'COUNT') {
       if (widget.field) {
-        this.assertField(descriptor, widget.id, widget.field, ['number', 'currency', 'date', 'text', 'email', 'enum', 'boolean']);
+        this.assertField(descriptor, widget.id, widget.field, [
+          'number',
+          'currency',
+          'date',
+          'text',
+          'email',
+          'enum',
+          'boolean',
+        ]);
       }
       return;
     }
@@ -227,7 +239,9 @@ export class AggregationService {
   ): WhereInput | null {
     if (timeframe === 'ALL') return null;
 
-    const dateField = descriptor.dateFields.includes(TIMEFRAME_FIELDS[descriptor.key as DashboardEntity] ?? '')
+    const dateField = descriptor.dateFields.includes(
+      TIMEFRAME_FIELDS[descriptor.key as DashboardEntity] ?? '',
+    )
       ? TIMEFRAME_FIELDS[descriptor.key as DashboardEntity]
       : descriptor.dateFields.includes('createdAt')
         ? 'createdAt'
@@ -293,9 +307,7 @@ export function timeframeStart(timeframe: TimeframeName, now: Date): Date {
       start.setUTCDate(start.getUTCDate() - 90);
       return start;
     case 'MTD':
-      return new Date(
-        Date.UTC(now.getUTCFullYear(), now.getUTCMonth(), 1),
-      );
+      return new Date(Date.UTC(now.getUTCFullYear(), now.getUTCMonth(), 1));
     case 'QTD':
       return new Date(
         Date.UTC(
@@ -343,15 +355,23 @@ function extractValue(
   }
 
   if (widget.aggregation === 'SUM') {
-    return toNumber((row._sum as Record<string, unknown>)?.[widget.field as string]);
+    return toNumber(
+      (row._sum as Record<string, unknown>)?.[widget.field as string],
+    );
   }
   if (widget.aggregation === 'AVG') {
-    return toNumber((row._avg as Record<string, unknown>)?.[widget.field as string]);
+    return toNumber(
+      (row._avg as Record<string, unknown>)?.[widget.field as string],
+    );
   }
   if (widget.aggregation === 'MIN') {
-    return toNumber((row._min as Record<string, unknown>)?.[widget.field as string]);
+    return toNumber(
+      (row._min as Record<string, unknown>)?.[widget.field as string],
+    );
   }
-  return toNumber((row._max as Record<string, unknown>)?.[widget.field as string]);
+  return toNumber(
+    (row._max as Record<string, unknown>)?.[widget.field as string],
+  );
 }
 
 function toNumber(value: unknown): number | null {

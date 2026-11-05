@@ -14,7 +14,11 @@ const f = (
   options: Partial<FieldMeta> = {},
 ): FieldMeta => ({ name, label, type, ...options });
 
-const ID = f('id', 'ID', 'text', { sortable: true, filterable: true, readOnly: true });
+const ID = f('id', 'ID', 'text', {
+  sortable: true,
+  filterable: true,
+  readOnly: true,
+});
 const CREATED = f('createdAt', 'Created', 'date', {
   sortable: true,
   filterable: true,
@@ -382,7 +386,10 @@ export const FIELDS: Record<EntityKey, FieldMeta[]> = {
       writable: true,
       required: true,
     }),
-    f('description', 'Description', 'text', { searchable: true, writable: true }),
+    f('description', 'Description', 'text', {
+      searchable: true,
+      writable: true,
+    }),
     f('status', 'Status', 'enum', {
       sortable: true,
       filterable: true,
@@ -438,7 +445,10 @@ export const FIELDS: Record<EntityKey, FieldMeta[]> = {
       writable: true,
       required: true,
     }),
-    f('description', 'Description', 'text', { searchable: true, writable: true }),
+    f('description', 'Description', 'text', {
+      searchable: true,
+      writable: true,
+    }),
     f('status', 'Status', 'enum', {
       sortable: true,
       filterable: true,

@@ -102,10 +102,7 @@ export class EntityQueryService {
     });
   }
 
-  async getOne(
-    access: ResolvedModuleAccess,
-    id: string,
-  ): Promise<unknown> {
+  async getOne(access: ResolvedModuleAccess, id: string): Promise<unknown> {
     const descriptor = this.requireEntity(access);
     if (!UUID_PATTERN.test(id)) {
       throw new NotFoundException({
@@ -154,7 +151,10 @@ export class EntityQueryService {
     return access.entity;
   }
 
-  private delegate(access: ResolvedModuleAccess, descriptor: EntityDescriptor): string {
+  private delegate(
+    access: ResolvedModuleAccess,
+    descriptor: EntityDescriptor,
+  ): string {
     void access;
     return descriptor.delegate;
   }
@@ -218,8 +218,8 @@ export class EntityQueryService {
   ): WhereInput | null {
     if (!term) return null;
 
-    const fields = descriptor.searchFields.filter(
-      (name) => descriptor.select.includes(name),
+    const fields = descriptor.searchFields.filter((name) =>
+      descriptor.select.includes(name),
     );
     if (fields.length === 0) return null;
 
@@ -260,10 +260,10 @@ export function buildFilterCondition(
     return {
       customFields: {
         path: [resolved.path],
-        ...(jsonCondition(
-          clause.op,
-          parseJsonScalar(clause.value),
-        ) as Record<string, unknown>),
+        ...(jsonCondition(clause.op, parseJsonScalar(clause.value)) as Record<
+          string,
+          unknown
+        >),
       },
     };
   }
@@ -368,9 +368,7 @@ function coerceValue(field: FieldMeta, clause: FilterClause): unknown {
   }
 
   if (clause.op === 'in') {
-    const values = Array.isArray(clause.value)
-      ? clause.value
-      : [clause.value];
+    const values = Array.isArray(clause.value) ? clause.value : [clause.value];
     return values.map((value) => coerceScalar(field, value));
   }
 
@@ -390,6 +388,19 @@ function coerceValue(field: FieldMeta, clause: FilterClause): unknown {
   return coerceScalar(field, clause.value);
 }
 
+function asText(value: unknown): string {
+  if (typeof value === 'string') return value;
+  if (typeof value === 'number' || typeof value === 'boolean') {
+    return String(value);
+  }
+  if (value === null || value === undefined) return '';
+  try {
+    return JSON.stringify(value) ?? 'unknown';
+  } catch {
+    return 'unknown';
+  }
+}
+
 function coerceScalar(field: FieldMeta, value: unknown): unknown {
   if (value === null || value === undefined) return value;
 
@@ -406,7 +417,7 @@ function coerceScalar(field: FieldMeta, value: unknown): unknown {
       return parsed;
     }
     case 'date': {
-      const parsed = new Date(String(value));
+      const parsed = new Date(asText(value));
       if (Number.isNaN(parsed.getTime())) {
         throw new BadRequestException({
           code: 'INVALID_FILTER_VALUE',
@@ -418,7 +429,7 @@ function coerceScalar(field: FieldMeta, value: unknown): unknown {
     case 'boolean':
       return value === true || value === 'true' || value === '1';
     case 'enum': {
-      const stringValue = String(value);
+      const stringValue = asText(value);
       if (field.enumValues && !field.enumValues.includes(stringValue)) {
         throw new BadRequestException({
           code: 'INVALID_FILTER_VALUE',
@@ -428,7 +439,7 @@ function coerceScalar(field: FieldMeta, value: unknown): unknown {
       return stringValue;
     }
     default:
-      return String(value);
+      return asText(value);
   }
 }
 

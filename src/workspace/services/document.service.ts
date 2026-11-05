@@ -4,20 +4,13 @@ import {
   Injectable,
   NotFoundException,
 } from '@nestjs/common';
-import {
-  Document,
-  DocumentFormat,
-  DocumentStatus,
-  ModuleType,
-  Prisma,
-} from '@prisma/client';
+import { Document, DocumentStatus, ModuleType, Prisma } from '@prisma/client';
 import { randomBytes } from 'node:crypto';
 import { PrismaService } from '../../prisma/prisma.service';
 import { DocumentConfig } from '../types/module-config';
 import { WhereInput } from '../types/entity';
 import {
   DocumentCreateInput,
-  DocumentUpdateInput,
   parseDocumentCreate,
   parseDocumentListQuery,
   parseDocumentUpdate,
@@ -93,7 +86,9 @@ export class DocumentService {
 
     const row = await this.prisma.withTenant(access.actor.tenantId, (tx) =>
       tx.document.findFirst({
-        where: { AND: [this.scope(access), { moduleId: access.module.id, id }] },
+        where: {
+          AND: [this.scope(access), { moduleId: access.module.id, id }],
+        },
       }),
     );
 
@@ -149,7 +144,9 @@ export class DocumentService {
 
     return this.prisma.withTenant(access.actor.tenantId, async (tx) => {
       const before = await tx.document.findFirst({
-        where: { AND: [this.scope(access), { moduleId: access.module.id, id }] },
+        where: {
+          AND: [this.scope(access), { moduleId: access.module.id, id }],
+        },
       });
 
       if (!before) throw this.notFound();
@@ -192,13 +189,16 @@ export class DocumentService {
     if (options.hard && !access.actor.isTenantAdmin) {
       throw new ForbiddenException({
         code: 'HARD_DELETE_FORBIDDEN',
-        message: 'Only a workspace administrator can permanently delete a document.',
+        message:
+          'Only a workspace administrator can permanently delete a document.',
       });
     }
 
     return this.prisma.withTenant(access.actor.tenantId, async (tx) => {
       const before = await tx.document.findFirst({
-        where: { AND: [this.scope(access), { moduleId: access.module.id, id }] },
+        where: {
+          AND: [this.scope(access), { moduleId: access.module.id, id }],
+        },
       });
 
       if (!before) throw this.notFound();
@@ -259,7 +259,7 @@ export class DocumentService {
             moduleId: access.module.id,
             title: input.title,
             slug,
-            format: input.format as DocumentFormat,
+            format: input.format,
             status: input.status,
             category: input.category,
             content: input.content,
@@ -280,7 +280,8 @@ export class DocumentService {
 
     throw new BadRequestException({
       code: 'SLUG_CONFLICT',
-      message: 'Could not generate a unique document slug. Try a different title.',
+      message:
+        'Could not generate a unique document slug. Try a different title.',
     });
   }
 

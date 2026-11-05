@@ -151,13 +151,13 @@ describe('FrontendAdapterService navigation payload', () => {
   });
 
   function buildAdapter(
-    permissionsByModule: ReadonlyArray<
-      readonly [string, Set<PermissionType>]
-    >,
+    permissionsByModule: ReadonlyArray<readonly [string, Set<PermissionType>]>,
   ) {
     const { prisma } = createModulePrisma(rows);
     const permissions = {
-      getEffectivePermissions: jest.fn(async () => new Map(permissionsByModule)),
+      getEffectivePermissions: jest.fn(
+        async () => new Map(permissionsByModule),
+      ),
     } as any;
 
     return {
@@ -295,10 +295,7 @@ describe('ACL cache invalidation hooks', () => {
   });
 
   async function seedUserCaches(userId: string) {
-    const modulesKey = cache.tenantKey(
-      `user:${userId}:modules:v2`,
-      TENANT,
-    );
+    const modulesKey = cache.tenantKey(`user:${userId}:modules:v2`, TENANT);
     const permissionsKey = cache.tenantKey(
       `user:${userId}:effective-permissions`,
       TENANT,
@@ -335,11 +332,7 @@ describe('ACL cache invalidation hooks', () => {
 
     // UsersService reads the tenant from request context; supplying it keeps
     // the fake on the tenant-scoped branch.
-    const service = new UsersService(
-      prisma as any,
-      sessionState as any,
-      cache,
-    );
+    const service = new UsersService(prisma as any, sessionState as any, cache);
 
     const { modulesKey, permissionsKey } = await seedUserCaches('user-1');
 
@@ -353,12 +346,8 @@ describe('ACL cache invalidation hooks', () => {
   });
 
   it('drops tenant ACL payloads when role permissions change', async () => {
-    const roles = [
-      { id: 'role-1', tenantId: TENANT, isTenantAdmin: false },
-    ];
-    const modules = [
-      { id: 'm-1', tenantId: TENANT, key: 'contacts' },
-    ];
+    const roles = [{ id: 'role-1', tenantId: TENANT, isTenantAdmin: false }];
+    const modules = [{ id: 'm-1', tenantId: TENANT, key: 'contacts' }];
     const permissions = [
       { id: 1, type: 'VIEW' },
       { id: 2, type: 'CREATE' },
@@ -390,9 +379,7 @@ describe('ACL cache invalidation hooks', () => {
       permission: {
         findMany: async () => permissions,
         findFirst: async (args: any) =>
-          permissions.find(
-            (permission) => permission.type === args.where.type,
-          ),
+          permissions.find((permission) => permission.type === args.where.type),
       },
     };
 

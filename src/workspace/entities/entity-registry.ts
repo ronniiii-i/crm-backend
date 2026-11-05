@@ -123,7 +123,10 @@ function descriptor(key: EntityKey): EntityDescriptor {
           userField: 'userId',
           departmentVia: 'createdBy',
         },
-        status: { field: 'status', values: ['Lead', 'Prospect', 'Qualified', 'Customer', 'Inactive'] },
+        status: {
+          field: 'status',
+          values: ['Lead', 'Prospect', 'Qualified', 'Customer', 'Inactive'],
+        },
         supportedScopes: ['TENANT', 'DEPARTMENT', 'TEAM', 'SELF'],
       });
 

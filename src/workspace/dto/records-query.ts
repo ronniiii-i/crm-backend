@@ -58,9 +58,7 @@ export interface RecordsQuery {
  * parser (`filter: { status: 'Paid' }`) so the API behaves the same behind
  * either configuration.
  */
-export function parseRecordsQuery(
-  raw: Record<string, unknown>,
-): RecordsQuery {
+export function parseRecordsQuery(raw: Record<string, unknown>): RecordsQuery {
   rejectUnknownKeys(raw);
 
   const page = positiveInt(raw.page, 1, 'page');
@@ -94,11 +92,7 @@ function rejectUnknownKeys(raw: Record<string, unknown>): void {
   }
 }
 
-function positiveInt(
-  value: unknown,
-  fallback: number,
-  name: string,
-): number {
+function positiveInt(value: unknown, fallback: number, name: string): number {
   if (value === undefined || value === null || value === '') return fallback;
   const parsed = Number(singleString(value));
   if (!Number.isInteger(parsed) || parsed < 1) {
@@ -139,11 +133,19 @@ function parseFilters(raw: Record<string, unknown>): FilterClause[] {
   const filters: FilterClause[] = [];
 
   const structured = raw.filter;
-  if (structured && typeof structured === 'object' && !Array.isArray(structured)) {
+  if (
+    structured &&
+    typeof structured === 'object' &&
+    !Array.isArray(structured)
+  ) {
     for (const [field, condition] of Object.entries(
       structured as Record<string, unknown>,
     )) {
-      if (condition && typeof condition === 'object' && !Array.isArray(condition)) {
+      if (
+        condition &&
+        typeof condition === 'object' &&
+        !Array.isArray(condition)
+      ) {
         for (const [op, value] of Object.entries(
           condition as Record<string, unknown>,
         )) {
@@ -197,10 +199,14 @@ function clause(field: string, op: string, value: unknown): FilterClause {
 
 function singleString(value: unknown): string {
   if (Array.isArray(value)) {
-    return String(value[0] ?? '');
+    return singleString(value[0]);
   }
   if (value === undefined || value === null) return '';
-  return String(value);
+  if (typeof value === 'string') return value;
+  if (typeof value === 'number' || typeof value === 'boolean') {
+    return String(value);
+  }
+  return '';
 }
 
 function invalid(message: string): BadRequestException {

@@ -111,10 +111,7 @@ export class ScopeFilterService {
       const teams = await tx.team.findMany({
         where: {
           tenantId,
-          OR: [
-            { leadUserId: userId },
-            { members: { some: { userId } } },
-          ],
+          OR: [{ leadUserId: userId }, { members: { some: { userId } } }],
         },
         select: { id: true },
       });
@@ -180,7 +177,7 @@ export class ScopeFilterService {
 
     throw new ForbiddenException({
       code: 'SCOPE_UNMAPPED',
-      message: `${String(value)} scope is not mapped for ${descriptor.label}.`,
+      message: `User scope is not mapped for ${descriptor.label}.`,
       entity: descriptor.key,
     });
   }

@@ -146,7 +146,7 @@ function moduleRow(params: {
   tenantId: string;
   key: string;
   name: string;
-  department: Record<string, unknown>;
+  department: { id: string; key: string; name: string };
   type: string;
   targetEntity: string | null;
   config?: Record<string, unknown>;
@@ -1027,7 +1027,7 @@ describe('Workspace API (Stage 3)', () => {
       expect(response.body.config.pageSize).toBe(50);
 
       const stored = state.modules.find((row) => row.id === MODULE_CONTACTS);
-      expect((stored?.config as any).pageSize).toBe(50);
+      expect(stored?.config?.pageSize).toBe(50);
       expect(
         state.auditLogs.some((row) => row.action === 'UPDATE_CONFIG'),
       ).toBe(true);

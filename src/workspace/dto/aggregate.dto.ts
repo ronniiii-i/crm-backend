@@ -49,15 +49,7 @@ export const GROUPABLE_FIELDS = [
 
 export interface WidgetFilter {
   field: string;
-  op?:
-    | 'eq'
-    | 'neq'
-    | 'gt'
-    | 'gte'
-    | 'lt'
-    | 'lte'
-    | 'in'
-    | 'contains';
+  op?: 'eq' | 'neq' | 'gt' | 'gte' | 'lt' | 'lte' | 'in' | 'contains';
   value?: unknown;
 }
 
@@ -98,10 +90,7 @@ export class AggregateValidationError extends Error {
  * Parse and validate a single widget. Throws `AggregateValidationError` so
  * the service can box it as `{ id, error }` without aborting the batch.
  */
-export function parseWidget(
-  raw: unknown,
-  index: number,
-): AggregateWidgetInput {
+export function parseWidget(raw: unknown, index: number): AggregateWidgetInput {
   if (!raw || typeof raw !== 'object' || Array.isArray(raw)) {
     throw new AggregateValidationError(
       'INVALID_WIDGET',
@@ -201,9 +190,9 @@ export function parseWidget(
     id,
     entity: entity as DashboardEntity,
     aggregation: aggregation as AggregationKindName,
-    field: field as string | null,
+    field: field,
     timeframe: timeframe as TimeframeName,
-    groupBy: groupBy as string | null,
+    groupBy: groupBy,
     filters: filters.map((filter, filterIndex) => {
       if (!filter || typeof filter !== 'object' || Array.isArray(filter)) {
         throw new AggregateValidationError(

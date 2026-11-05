@@ -457,12 +457,7 @@ const KANBAN_COLUMNS: Record<string, KanbanColumnConfig[]> = {
   ],
 };
 
-const DEFAULT_DOCUMENT_CATEGORIES = [
-  'Policies',
-  'SOPs',
-  'Wiki',
-  'Templates',
-];
+const DEFAULT_DOCUMENT_CATEGORIES = ['Policies', 'SOPs', 'Wiki', 'Templates'];
 
 const EXPENSE_CATEGORIES = [
   'Travel',
@@ -554,11 +549,19 @@ const MODULE_RENDERERS: Record<string, ModuleRenderer> = {
     type: ModuleType.DASHBOARD_VIEW,
     targetEntity: 'expenses',
     config: dashboardConfig([
-      widget('kpi-budget', 'stat', 'Total budget', 'expenses', 'SUM', 'amount', {
-        timeframe: 'ALL',
-        color: 'blue',
-        span: 4,
-      }),
+      widget(
+        'kpi-budget',
+        'stat',
+        'Total budget',
+        'expenses',
+        'SUM',
+        'amount',
+        {
+          timeframe: 'ALL',
+          color: 'blue',
+          span: 4,
+        },
+      ),
       widget(
         'kpi-spent-mtd',
         'stat',
@@ -609,9 +612,17 @@ const MODULE_RENDERERS: Record<string, ModuleRenderer> = {
     type: ModuleType.DASHBOARD_VIEW,
     targetEntity: 'invoices',
     config: dashboardConfig([
-      widget('kpi-revenue', 'stat', 'Revenue (30d)', 'invoices', 'SUM', 'amount', {
-        span: 3,
-      }),
+      widget(
+        'kpi-revenue',
+        'stat',
+        'Revenue (30d)',
+        'invoices',
+        'SUM',
+        'amount',
+        {
+          span: 3,
+        },
+      ),
       widget(
         'kpi-expenses',
         'stat',
@@ -650,20 +661,16 @@ const MODULE_RENDERERS: Record<string, ModuleRenderer> = {
   'ticketing-issue-tracking': {
     type: ModuleType.KANBAN_BOARD,
     targetEntity: 'support_tickets',
-    config: kanbanConfig(
-      'support_tickets',
-      KANBAN_COLUMNS.support_tickets,
-      {
-        titleField: 'subject',
-        assigneeField: 'userId',
-        dueField: 'slaDueDate',
-        slaRules: [
-          { priority: 1, hours: 24 },
-          { priority: 2, hours: 8 },
-          { priority: 3, hours: 4 },
-        ],
-      },
-    ),
+    config: kanbanConfig('support_tickets', KANBAN_COLUMNS.support_tickets, {
+      titleField: 'subject',
+      assigneeField: 'userId',
+      dueField: 'slaDueDate',
+      slaRules: [
+        { priority: 1, hours: 24 },
+        { priority: 2, hours: 8 },
+        { priority: 3, hours: 4 },
+      ],
+    }),
   },
   'system-monitoring': {
     type: ModuleType.DASHBOARD_VIEW,
@@ -678,9 +685,7 @@ const MODULE_RENDERERS: Record<string, ModuleRenderer> = {
         'id',
         {
           timeframe: 'ALL',
-          filters: [
-            { field: 'status', op: 'neq', value: 'CLOSED' },
-          ],
+          filters: [{ field: 'status', op: 'neq', value: 'CLOSED' }],
         },
       ),
       widget(
@@ -774,9 +779,7 @@ const MODULE_RENDERERS: Record<string, ModuleRenderer> = {
     type: ModuleType.KANBAN_BOARD,
     targetEntity: 'deals',
     config: kanbanConfig('deals', DEAL_STAGES, {
-      secondaryColumns: [
-        { value: 'LOST', label: 'Lost', color: 'rose' },
-      ],
+      secondaryColumns: [{ value: 'LOST', label: 'Lost', color: 'rose' }],
       valueField: 'amount',
       assigneeField: 'userId',
       dueField: 'closeDate',
@@ -839,15 +842,11 @@ const MODULE_RENDERERS: Record<string, ModuleRenderer> = {
   'support-tickets': {
     type: ModuleType.KANBAN_BOARD,
     targetEntity: 'support_tickets',
-    config: kanbanConfig(
-      'support_tickets',
-      KANBAN_COLUMNS.support_tickets,
-      {
-        titleField: 'subject',
-        assigneeField: 'userId',
-        dueField: 'slaDueDate',
-      },
-    ),
+    config: kanbanConfig('support_tickets', KANBAN_COLUMNS.support_tickets, {
+      titleField: 'subject',
+      assigneeField: 'userId',
+      dueField: 'slaDueDate',
+    }),
   },
   'knowledge-base': {
     type: ModuleType.DOCUMENT_HUB,
@@ -888,16 +887,13 @@ const MODULE_RENDERERS: Record<string, ModuleRenderer> = {
   'sla-management': {
     type: ModuleType.DOCUMENT_HUB,
     targetEntity: null,
-    config: documentConfig(
-      ['SLA Policies', 'Escalation', 'Runbooks'],
-      {
-        slaRules: [
-          { priority: 1, hours: 24 },
-          { priority: 2, hours: 8 },
-          { priority: 3, hours: 4 },
-        ],
-      },
-    ),
+    config: documentConfig(['SLA Policies', 'Escalation', 'Runbooks'], {
+      slaRules: [
+        { priority: 1, hours: 24 },
+        { priority: 2, hours: 8 },
+        { priority: 3, hours: 4 },
+      ],
+    }),
   },
   'live-chat-communication': {
     type: ModuleType.FORM_BUILDER,
@@ -1208,10 +1204,25 @@ const MODULE_RENDERERS: Record<string, ModuleRenderer> = {
     type: ModuleType.DASHBOARD_VIEW,
     targetEntity: 'deals',
     config: dashboardConfig([
-      widget('kpi-revenue', 'stat', 'Revenue (30d)', 'invoices', 'SUM', 'amount'),
-      widget('kpi-expenses', 'stat', 'Expenses (30d)', 'expenses', 'SUM', 'amount', {
-        color: 'amber',
-      }),
+      widget(
+        'kpi-revenue',
+        'stat',
+        'Revenue (30d)',
+        'invoices',
+        'SUM',
+        'amount',
+      ),
+      widget(
+        'kpi-expenses',
+        'stat',
+        'Expenses (30d)',
+        'expenses',
+        'SUM',
+        'amount',
+        {
+          color: 'amber',
+        },
+      ),
       widget(
         'kpi-pipeline',
         'stat',

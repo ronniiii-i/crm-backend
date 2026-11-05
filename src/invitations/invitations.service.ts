@@ -288,7 +288,8 @@ export class InvitationsService {
     await this.cache.invalidateUser(user.id, tenant.id);
 
     const payload = {
-      sub: user.id,      email: user.email,
+      sub: user.id,
+      email: user.email,
       tenantId: tenant.id,
       tenantSlug: tenant.slug,
       roleId: user.roleId,

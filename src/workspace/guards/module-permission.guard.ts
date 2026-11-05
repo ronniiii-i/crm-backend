@@ -5,9 +5,7 @@ import {
   Injectable,
 } from '@nestjs/common';
 import { Reflector } from '@nestjs/core';
-import {
-  MODULE_ACTION_KEY,
-} from '../decorators/module-action.decorator';
+import { MODULE_ACTION_KEY } from '../decorators/module-action.decorator';
 import {
   ModuleAccessService,
   ModuleAction,
