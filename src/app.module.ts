@@ -15,9 +15,9 @@ import { UsersModule } from './users/users.module';
 import { ProfileModule } from './profile/profile.module';
 import { TenantModule } from './tenant/tenant.module';
 import { APP_GUARD, APP_INTERCEPTOR } from '@nestjs/core';
+import { ScheduleModule } from '@nestjs/schedule';
 import { TenantInterceptor } from './tenant/tenant.interceptor';
-import { ThrottlerModule } from '@nestjs/throttler';
-import { ThrottlerGuard } from '@nestjs/throttler';
+import { RateLimitModule } from './rate-limit/rate-limit.module';
 import { TenantMiddleware } from './tenant/tenant.middleware';
 import { JwtAuthGuard } from './auth/guards/jwt-auth.guard';
 import { TenantLifecycleGuard } from './tenant/tenant-lifecycle.guard';
@@ -39,19 +39,9 @@ import { TenantSettingsService } from './tenant/tenant-settings.service';
     ConfigModule.forRoot({
       isGlobal: true,
     }),
+    ScheduleModule.forRoot(),
     TenantModule,
-    ThrottlerModule.forRoot([
-      {
-        name: 'default',
-        ttl: 60000,
-        limit: 100,
-      },
-      {
-        name: 'short',
-        ttl: 10000,
-        limit: 10,
-      },
-    ]),
+    RateLimitModule,
     AuthModule,
     PrismaModule,
     ProjectsModule,
@@ -75,10 +65,6 @@ import { TenantSettingsService } from './tenant/tenant-settings.service';
     PrismaService,
     MailService,
     TenantSettingsService,
-    {
-      provide: APP_GUARD,
-      useClass: ThrottlerGuard,
-    },
     {
       provide: APP_GUARD,
       useClass: JwtAuthGuard,

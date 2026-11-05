@@ -14,39 +14,49 @@ import { ForgotPasswordDto } from '../dto/forgot-password.dto';
 import { ResetPasswordDto } from '../dto/reset-password.dto';
 import { VerifyEmailDto } from '../dto/verify-email.dto';
 import { JwtAuthGuard } from '../guards/jwt-auth.guard';
-import { Throttle } from '@nestjs/throttler';
 import { Public } from '../decorators/public.decorator';
 import { User } from '../decorators/user.decorator';
 import { AllowLockedTenant } from '../decorators/allow-locked-tenant.decorator';
+import { RateLimit } from '../../rate-limit/rate-limit.decorator';
+import { normalizeIp } from '../../common/request-info';
 
 @Controller('auth')
 export class AuthController {
   constructor(private readonly authService: AuthService) {}
 
   @Public()
-  @Throttle({ default: { limit: 10, ttl: 900000 } })
+  @RateLimit({
+    policy: ['auth-credential', 'auth-credential-hour', 'auth-login-account'],
+  })
   @Post('login')
   @HttpCode(HttpStatus.OK)
-  async login(@Body() body: LoginDto) {
-    return this.authService.login(body.email, body.password, body.tenantSlug);
+  async login(@Body() body: LoginDto, @Req() req: any) {
+    return this.authService.login(body.email, body.password, body.tenantSlug, {
+      ip:
+        normalizeIp(req?.ip) ?? normalizeIp(req?.socket?.remoteAddress) ?? null,
+      userAgent:
+        typeof req?.headers?.['user-agent'] === 'string'
+          ? req.headers['user-agent']
+          : null,
+    });
   }
 
   @Public()
-  @Throttle({ default: { limit: 5, ttl: 3600000 } })
+  @RateLimit({ policy: ['auth-credential', 'auth-credential-hour'] })
   @Post('verify-email')
   async verifyEmail(@Body() body: VerifyEmailDto) {
     return this.authService.verifyEmail(body.token, body.tenantSlug);
   }
 
   @Public()
-  @Throttle({ default: { limit: 5, ttl: 3600000 } })
+  @RateLimit({ policy: ['auth-credential', 'auth-credential-hour'] })
   @Post('forgot-password')
   async forgotPassword(@Body() body: ForgotPasswordDto) {
     return this.authService.requestPasswordReset(body.email, body.tenantSlug);
   }
 
   @Public()
-  @Throttle({ default: { limit: 5, ttl: 3600000 } })
+  @RateLimit({ policy: ['auth-credential', 'auth-credential-hour'] })
   @Post('reset-password')
   async resetPassword(@Body() body: ResetPasswordDto) {
     return this.authService.resetPassword(
@@ -58,6 +68,7 @@ export class AuthController {
 
   @UseGuards(JwtAuthGuard)
   @AllowLockedTenant()
+  @RateLimit({ policy: 'auth-session' })
   @Post('refresh')
   async refresh(@User() user: any) {
     return this.authService.refresh(user);
@@ -65,6 +76,7 @@ export class AuthController {
 
   @UseGuards(JwtAuthGuard)
   @AllowLockedTenant()
+  @RateLimit({ policy: 'auth-session' })
   @Post('logout')
   async logout(@Req() req: any) {
     const authHeader = req.headers?.authorization;
@@ -75,6 +87,7 @@ export class AuthController {
   }
 
   @UseGuards(JwtAuthGuard)
+  @RateLimit({ policy: 'auth-session' })
   @Get('verify')
   async verify(@User() user: any) {
     // Return the same rich user shape as login/refresh. The flat JWT payload

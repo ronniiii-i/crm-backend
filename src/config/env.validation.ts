@@ -108,7 +108,11 @@ const envSchema = z.object({
   APP_URL: z.string().url().default('http://localhost:3000'),
 
   STORAGE_DRIVER: z.enum(['local', 'r2']).default('local'),
-  STORAGE_MAX_AVATAR_BYTES: z.coerce.number().int().positive().default(5_242_880),
+  STORAGE_MAX_AVATAR_BYTES: z.coerce
+    .number()
+    .int()
+    .positive()
+    .default(5_242_880),
   STORAGE_MAX_ATTACHMENT_BYTES: z.coerce
     .number()
     .int()

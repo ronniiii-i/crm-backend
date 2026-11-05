@@ -12,6 +12,10 @@ import { PermissionResolutionService } from './permission-resolution.service';
 import { FrontendAdapterService } from '../frontend-adapter.service';
 import { CacheService } from '../../cache/cache.service';
 import { blacklistKey } from '../blacklist-key';
+import {
+  UserSessionService,
+  type RequestContext,
+} from './user-session.service';
 
 export interface JwtAuthPayload {
   sub: string;
@@ -36,6 +40,8 @@ export interface JwtAuthPayload {
   iss: string;
   scope?: string;
   jti?: string;
+  /** Active session row id. */
+  sid: string;
 }
 
 @Injectable()
@@ -50,12 +56,14 @@ export class AuthService {
     private readonly frontendAdapter: FrontendAdapterService,
     private readonly cache: CacheService,
     private readonly sessionState: SessionStateService,
+    private readonly userSession: UserSessionService,
   ) {}
 
   async login(
     email: string,
     password: string,
     tenantSlug: string,
+    request: RequestContext = { ip: null, userAgent: null },
   ): Promise<{
     success: boolean;
     message: string;
@@ -103,17 +111,26 @@ export class AuthService {
     }
 
     const state = await this.tenantState.getState(workspace.id);
+    const sessionContext = this.userSession.contextFromRequest(request);
 
-    await this.prisma.withTenant(workspace.id, async (tx: any) => {
-      await tx.user.update({
-        where: { id: user.id },
-        data: { lastLoginAt: new Date() },
-      });
-      await tx.tenant.update({
-        where: { id: workspace.id },
-        data: { lastActivityAt: new Date() },
-      });
-    });
+    const session = await this.prisma.withTenant(
+      workspace.id,
+      async (tx: any) => {
+        await tx.user.update({
+          where: { id: user.id },
+          data: { lastLoginAt: new Date() },
+        });
+        await tx.tenant.update({
+          where: { id: workspace.id },
+          data: { lastActivityAt: new Date() },
+        });
+        return this.userSession.create(tx, {
+          tenantId: workspace.id,
+          userId: user.id,
+          context: sessionContext,
+        });
+      },
+    );
 
     const refreshedUser = (await this.prisma.withTenant(workspace.id, (tx) =>
       tx.user.findUnique({
@@ -147,6 +164,7 @@ export class AuthService {
       tv: 3,
       aud: 'tenant',
       iss: 'claspworkspace',
+      sid: session.id,
     };
 
     const accessToken = this.jwtService.sign(payload);
@@ -312,11 +330,15 @@ export class AuthService {
       }),
     );
 
+    // A password reset is a security event: invalidate every existing
+    // session and bump the global session version.
+    await this.userSession.revokeAll(workspace.id, user.id);
+
     return { success: true, message: 'Password reset successful' };
   }
 
   async refresh(user: any): Promise<any> {
-    if (!user?.tenantId || !user?.sub) {
+    if (!user?.tenantId || !user?.sub || !user?.sid) {
       throw new UnauthorizedException('Invalid token');
     }
 
@@ -363,6 +385,7 @@ export class AuthService {
       tv: 3,
       aud: 'tenant',
       iss: 'claspworkspace',
+      sid: user.sid,
     };
 
     const accessToken = this.jwtService.sign(payload);
@@ -424,6 +447,13 @@ export class AuthService {
               ttl,
             );
           }
+        }
+        if (payload?.sid && payload?.tenantId && payload?.sub) {
+          await this.userSession
+            .revokeSession(payload.tenantId, payload.sub, payload.sid, 'LOGOUT')
+            .catch(() => {
+              // An already-revoked session is still a successful logout.
+            });
         }
       } catch {
         // ignore

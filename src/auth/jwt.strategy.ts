@@ -2,6 +2,7 @@ import { Injectable, UnauthorizedException } from '@nestjs/common';
 import { PassportStrategy } from '@nestjs/passport';
 import { ExtractJwt, Strategy } from 'passport-jwt';
 import { requireEnv } from '../config/env';
+import { UserSessionService } from './services/user-session.service';
 
 export interface JwtAuthPayload {
   sub: string;
@@ -26,11 +27,13 @@ export interface JwtAuthPayload {
   iss: string;
   scope?: string;
   jti?: string;
+  /** Active session row id. */
+  sid: string;
 }
 
 @Injectable()
 export class JwtStrategy extends PassportStrategy(Strategy) {
-  constructor() {
+  constructor(private readonly userSession: UserSessionService) {
     super({
       jwtFromRequest: ExtractJwt.fromAuthHeaderAsBearerToken(),
       secretOrKey: requireEnv('JWT_SECRET'),
@@ -38,7 +41,7 @@ export class JwtStrategy extends PassportStrategy(Strategy) {
     });
   }
 
-  validate(payload: JwtAuthPayload) {
+  async validate(payload: JwtAuthPayload) {
     if (!payload?.sub || !payload.tenantId || !payload.tenantSlug) {
       throw new UnauthorizedException('Invalid token');
     }
@@ -50,6 +53,8 @@ export class JwtStrategy extends PassportStrategy(Strategy) {
     if (payload.scope === 'system') {
       throw new UnauthorizedException('Invalid token');
     }
+
+    await this.userSession.assertActive(payload);
 
     return {
       id: payload.sub,
@@ -74,6 +79,7 @@ export class JwtStrategy extends PassportStrategy(Strategy) {
       tv: payload.tv,
       aud: payload.aud,
       iss: payload.iss,
+      sid: payload.sid,
     };
   }
 }
