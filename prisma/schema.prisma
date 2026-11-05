@@ -22,6 +22,12 @@ model Tenant {
   billingEmail               String?
   seatCount                  Int                         @default(0)
   lastActivityAt             DateTime?
+  currency                   String                      @default("USD")
+  currencySymbol             String?
+  dateFormat                 String                      @default("d MMM yyyy")
+  timeZone                   String                      @default("UTC")
+  locale                     String                      @default("en-US")
+  weekStartsOn               Int                         @default(1)
   createdAt                  DateTime                    @default(now())
   updatedAt                  DateTime                    @updatedAt
   attendanceRecords          AttendanceRecord[]
@@ -32,6 +38,7 @@ model Tenant {
   inventoryItems             InventoryItem[]
   invoices                   Invoice[]
   notifications              Notification[]
+  notificationPreferences    NotificationPreference[]
   payments                   Payment[]
   projects                   Project[]
   projectFiles               ProjectFile[]
@@ -54,6 +61,9 @@ model Tenant {
   documents                  Document[]
   formSubmissions            FormSubmission[]
   auditLogs                  AuditLog[]
+  userSessions               UserSession[]
+  leaveRequests              LeaveRequest[]
+  attachments                Attachment[]
 
   @@map("tenants")
 }
@@ -102,6 +112,14 @@ model User {
   documentsUpdated           Document[]                  @relation("DocumentUpdatedBy")
   formSubmissions            FormSubmission[]
   auditLogs                  AuditLog[]
+  sessions                   UserSession[]
+  leaveRequests              LeaveRequest[]              @relation("LeaveRequester")
+  leaveRequestsAsTeamLead    LeaveRequest[]              @relation("LeaveTeamLead")
+  leaveRequestsAsHod         LeaveRequest[]              @relation("LeaveHod")
+  leaveRequestsAsHrApprover  LeaveRequest[]              @relation("LeaveHrApprover")
+  leaveRequestsDecided       LeaveRequest[]              @relation("LeaveDecidedBy")
+  attachments                Attachment[]
+  notificationPreferences    NotificationPreference[]
 
   @@unique([tenantId, email])
   @@index([tenantId])
@@ -124,6 +142,8 @@ model Contact {
   tenantId       String
   createdAt      DateTime        @default(now())
   updatedAt      DateTime        @updatedAt
+  deletedAt      DateTime?
+  deletedById    String?
   tags           String[]
   customFields   Json            @default("{}")
   tenant         Tenant          @relation(fields: [tenantId], references: [id])
@@ -135,6 +155,7 @@ model Contact {
   @@index([tenantId])
   @@index([tenantId, lastName])
   @@index([tenantId, createdAt])
+  @@index([tenantId, deletedAt])
 }
 
 model Project {
@@ -150,6 +171,8 @@ model Project {
   tenantId    String
   createdAt   DateTime        @default(now())
   updatedAt   DateTime        @updatedAt
+  deletedAt   DateTime?
+  deletedById String?
   tenant      Tenant          @relation(fields: [tenantId], references: [id])
   createdBy   User            @relation(fields: [userId], references: [id])
   files       ProjectFile[]
@@ -158,6 +181,7 @@ model Project {
 
   @@index([tenantId])
   @@index([tenantId, createdAt])
+  @@index([tenantId, deletedAt])
 }
 
 model Task {
@@ -173,12 +197,15 @@ model Task {
   tenantId     String
   createdAt    DateTime  @default(now())
   updatedAt    DateTime  @updatedAt
+  deletedAt    DateTime?
+  deletedById  String?
   assignedTo   User      @relation(fields: [assignedToId], references: [id])
   project      Project   @relation(fields: [projectId], references: [id])
   tenant       Tenant    @relation(fields: [tenantId], references: [id])
 
   @@index([tenantId])
   @@index([tenantId, createdAt])
+  @@index([tenantId, deletedAt])
 }
 
 model Department {
@@ -220,11 +247,14 @@ model InventoryItem {
   tenantId     String
   createdAt    DateTime @default(now())
   updatedAt    DateTime @updatedAt
+  deletedAt    DateTime?
+  deletedById  String?
   tenant       Tenant   @relation(fields: [tenantId], references: [id])
 
   @@unique([tenantId, sku])
   @@index([tenantId])
   @@index([tenantId, createdAt])
+  @@index([tenantId, deletedAt])
 }
 
 model Notification {
@@ -232,14 +262,21 @@ model Notification {
   title     String
   message   String
   read      Boolean  @default(false)
+  readAt    DateTime?
   type      String
+  link      String?
+  metadata  Json?
+  dedupeKey String?
   userId    String
   tenantId  String
   createdAt DateTime @default(now())
   tenant    Tenant   @relation(fields: [tenantId], references: [id])
   user      User     @relation(fields: [userId], references: [id])
 
+  @@unique([tenantId, userId, dedupeKey])
   @@index([tenantId])
+  @@index([tenantId, userId, read, createdAt])
+  @@map("Notification")
 }
 
 model ProjectFile {
@@ -300,6 +337,8 @@ model Invoice {
   tenantId      String
   createdAt     DateTime  @default(now())
   updatedAt     DateTime  @updatedAt
+  deletedAt     DateTime?
+  deletedById   String?
   customer      Contact   @relation(fields: [customerId], references: [id])
   tenant        Tenant    @relation(fields: [tenantId], references: [id])
   payments      Payment[]
@@ -307,6 +346,7 @@ model Invoice {
   @@unique([tenantId, invoiceNumber])
   @@index([tenantId])
   @@index([tenantId, createdAt])
+  @@index([tenantId, deletedAt])
 }
 
 model Payment {
@@ -334,12 +374,15 @@ model Expense {
   userId       String
   tenantId     String
   createdAt    DateTime   @default(now())
+  deletedAt    DateTime?
+  deletedById  String?
   department   Department @relation(fields: [departmentId], references: [id])
   tenant       Tenant     @relation(fields: [tenantId], references: [id])
   createdBy    User       @relation(fields: [userId], references: [id])
 
   @@index([tenantId])
   @@index([tenantId, createdAt])
+  @@index([tenantId, deletedAt])
 }
 
 model Deal {
@@ -354,12 +397,15 @@ model Deal {
   tenantId     String
   createdAt    DateTime   @default(now())
   updatedAt    DateTime   @updatedAt
+  deletedAt    DateTime?
+  deletedById  String?
   contact      Contact    @relation(fields: [contactId], references: [id])
   tenant       Tenant     @relation(fields: [tenantId], references: [id])
   assignedTo   User       @relation("DealAssignedTo", fields: [userId], references: [id])
 
   @@index([tenantId])
   @@index([tenantId, createdAt])
+  @@index([tenantId, deletedAt])
 }
 
 model SupportTicket {
@@ -373,6 +419,8 @@ model SupportTicket {
   tenantId       String
   createdAt      DateTime     @default(now())
   updatedAt      DateTime     @updatedAt
+  deletedAt      DateTime?
+  deletedById    String?
   resolvedAt     DateTime?
   slaDueDate     DateTime?
   customerRating Int?
@@ -383,19 +431,27 @@ model SupportTicket {
 
   @@index([tenantId])
   @@index([tenantId, createdAt])
+  @@index([tenantId, deletedAt])
 }
 
 model AttendanceRecord {
-  id        String   @id @default(uuid())
-  userId    String
-  date      DateTime
-  status    String
-  tenantId  String
-  createdAt DateTime @default(now())
-  tenant    Tenant   @relation(fields: [tenantId], references: [id])
-  user      User     @relation(fields: [userId], references: [id])
+  id             String        @id @default(uuid())
+  userId         String
+  date           DateTime
+  status         String
+  leaveRequestId String?
+  tenantId       String
+  createdAt      DateTime      @default(now())
+  deletedAt      DateTime?
+  deletedById    String?
+  tenant         Tenant        @relation(fields: [tenantId], references: [id])
+  user           User          @relation(fields: [userId], references: [id])
+  leaveRequest   LeaveRequest? @relation(fields: [leaveRequestId], references: [id], onDelete: SetNull)
 
+  @@unique([tenantId, userId, date])
   @@index([tenantId])
+  @@index([tenantId, leaveRequestId])
+  @@index([tenantId, deletedAt])
 }
 
 model QuickAction {
@@ -427,6 +483,8 @@ model Document {
   updatedById  String?
   createdAt    DateTime       @default(now())
   updatedAt    DateTime       @updatedAt
+  deletedAt    DateTime?
+  deletedById  String?
 
   tenant     Tenant      @relation(fields: [tenantId], references: [id])
   department Department? @relation(fields: [departmentId], references: [id])
@@ -437,6 +495,7 @@ model Document {
   @@unique([tenantId, slug])
   @@index([tenantId, moduleId])
   @@index([tenantId, departmentId])
+  @@index([tenantId, deletedAt])
   @@map("documents")
 }
 
@@ -468,6 +527,8 @@ model AuditLog {
   action       String
   entity       String
   entityId     String?
+  moduleKey    String?
+  requestId    String?
   before       Json?
   after        Json?
   ip           String?
@@ -481,6 +542,7 @@ model AuditLog {
   @@index([tenantId, createdAt])
   @@index([tenantId, entity, entityId])
   @@index([tenantId, departmentId])
+  @@index([tenantId, moduleKey, createdAt])
   @@map("audit_logs")
 }
 
@@ -519,6 +581,7 @@ model Module {
   roleModulePermissions RoleModulePermission[]
   documents             Document[]
   formSubmissions       FormSubmission[]
+  attachments           Attachment[]
 
   @@unique([tenantId, key])
   @@unique([tenantId, path])
@@ -530,17 +593,19 @@ model Module {
 }
 
 model RoleModulePermission {
-  id           String     @id @default(uuid())
+  id           String           @id @default(uuid())
   tenantId     String
   roleId       String
   moduleId     String
   permissionId Int
-  role         Role       @relation(fields: [roleId], references: [id], onDelete: Cascade)
-  module       Module     @relation(fields: [moduleId], references: [id])
-  permission   Permission @relation(fields: [permissionId], references: [id])
+  effect       PermissionEffect @default(GRANT)
+  role         Role             @relation(fields: [roleId], references: [id], onDelete: Cascade)
+  module       Module           @relation(fields: [moduleId], references: [id])
+  permission   Permission       @relation(fields: [permissionId], references: [id])
 
   @@unique([tenantId, roleId, moduleId, permissionId])
   @@index([tenantId, roleId])
+  @@index([tenantId, roleId, effect])
   @@map("role_module_permissions")
 }
 
@@ -660,15 +725,19 @@ model Role {
   isSystem      Boolean       @default(false)
   isTenantAdmin Boolean       @default(false)
   dataScope     RoleDataScope @default(SELF)
+  parentRoleId  String?
   createdAt     DateTime      @default(now())
   updatedAt     DateTime      @updatedAt
 
   users                 User[]
   roleModulePermissions RoleModulePermission[]
   invitations           Invitation[]
+  parentRole            Role?         @relation("RoleInheritance", fields: [parentRoleId], references: [id], onDelete: SetNull)
+  childRoles            Role[]        @relation("RoleInheritance")
 
   @@unique([tenantId, slug])
   @@index([tenantId, rank])
+  @@index([tenantId, parentRoleId])
   @@map("roles")
 }
 
@@ -730,6 +799,120 @@ model TenantLifecycleEvent {
 
   @@index([tenantId, createdAt])
   @@map("tenant_lifecycle_events")
+}
+
+model UserSession {
+  id            String    @id @default(uuid())
+  userId        String
+  tenantId      String
+  userAgent     String?
+  ip            String?
+  deviceLabel   String?
+  fingerprint   String?
+  createdAt     DateTime  @default(now())
+  lastSeenAt    DateTime  @default(now())
+  expiresAt     DateTime
+  revokedAt     DateTime?
+  revokedReason String?
+  user          User      @relation(fields: [userId], references: [id], onDelete: Cascade)
+  tenant        Tenant    @relation(fields: [tenantId], references: [id], onDelete: Cascade)
+
+  @@index([tenantId, userId, revokedAt])
+  @@index([tenantId, expiresAt])
+  @@map("user_sessions")
+}
+
+model LeaveRequest {
+  id           String      @id @default(uuid())
+  tenantId     String
+  userId       String
+  type         LeaveType   @default(ANNUAL)
+  startDate    DateTime
+  endDate      DateTime
+  days         Float
+  reason       String
+  status       LeaveStatus @default(PENDING_TEAM_LEAD)
+  currentStage Int         @default(1)
+  teamLeadId   String?
+  hodId        String?
+  hrApproverId String?
+  decidedById  String?
+  decidedAt    DateTime?
+  decisionNote String?
+  submittedAt  DateTime    @default(now())
+  cancelledAt  DateTime?
+  deletedAt    DateTime?
+  deletedById  String?
+  createdAt    DateTime    @default(now())
+  updatedAt    DateTime    @updatedAt
+
+  tenant     Tenant             @relation(fields: [tenantId], references: [id], onDelete: Cascade)
+  user       User               @relation("LeaveRequester", fields: [userId], references: [id], onDelete: Restrict)
+  teamLead   User?              @relation("LeaveTeamLead", fields: [teamLeadId], references: [id], onDelete: SetNull)
+  hod        User?              @relation("LeaveHod", fields: [hodId], references: [id], onDelete: SetNull)
+  hrApprover User?              @relation("LeaveHrApprover", fields: [hrApproverId], references: [id], onDelete: SetNull)
+  decidedBy  User?              @relation("LeaveDecidedBy", fields: [decidedById], references: [id], onDelete: SetNull)
+  attendance AttendanceRecord[]
+
+  @@index([tenantId, userId, status])
+  @@index([tenantId, status, createdAt])
+  @@index([tenantId, startDate, endDate])
+  @@index([tenantId, deletedAt])
+  @@map("leave_requests")
+}
+
+model Attachment {
+  id           String    @id @default(uuid())
+  tenantId     String
+  entity       String
+  entityId     String
+  moduleId     String?
+  key          String
+  fileName     String
+  mimeType     String
+  size         Int
+  uploadedById String
+  createdAt    DateTime  @default(now())
+  deletedAt    DateTime?
+  deletedById  String?
+  tenant       Tenant    @relation(fields: [tenantId], references: [id], onDelete: Cascade)
+  uploader     User      @relation(fields: [uploadedById], references: [id], onDelete: Restrict)
+  module       Module?   @relation(fields: [moduleId], references: [id], onDelete: SetNull)
+
+  @@index([tenantId, entity, entityId])
+  @@index([tenantId, deletedAt])
+  @@map("attachments")
+}
+
+model NotificationPreference {
+  id       String  @id @default(uuid())
+  tenantId String
+  userId   String
+  type     String
+  inApp    Boolean @default(true)
+  email    Boolean @default(false)
+  tenant   Tenant  @relation(fields: [tenantId], references: [id], onDelete: Cascade)
+  user     User    @relation(fields: [userId], references: [id], onDelete: Cascade)
+
+  @@unique([tenantId, userId, type])
+  @@map("notification_preferences")
+}
+
+enum LeaveType {
+  ANNUAL
+  SICK
+  CASUAL
+  UNPAID
+  PARENTAL
+  OTHER
+}
+
+enum LeaveStatus {
+  PENDING_TEAM_LEAD
+  PENDING_HR
+  APPROVED
+  REJECTED
+  CANCELLED
 }
 
 enum TenantStatus {
@@ -798,6 +981,7 @@ enum ModuleType {
   KANBAN_BOARD
   DOCUMENT_HUB
   FORM_BUILDER
+  WORKFLOW
 }
 
 enum DocumentFormat {

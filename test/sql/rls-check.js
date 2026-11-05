@@ -54,6 +54,18 @@ const lifecycleEvent = {
 const permissionGroup = {
   id: crypto.randomUUID(),
 };
+const sessionA = { id: crypto.randomUUID() };
+const sessionB = { id: crypto.randomUUID() };
+const leaveA = { id: crypto.randomUUID() };
+const leaveB = { id: crypto.randomUUID() };
+const attachmentA = { id: crypto.randomUUID() };
+const attachmentB = { id: crypto.randomUUID() };
+const preferenceA = { id: crypto.randomUUID() };
+const preferenceB = { id: crypto.randomUUID() };
+const auditA = { id: crypto.randomUUID() };
+const auditB = { id: crypto.randomUUID() };
+const contactA = { id: crypto.randomUUID() };
+const contactB = { id: crypto.randomUUID() };
 
 async function connect(url, label) {
   const client = new Client({ connectionString: url });
@@ -87,6 +99,44 @@ async function withTenant(client, tenantId, callback) {
   } finally {
     await client.query('ROLLBACK');
   }
+}
+
+/**
+ * Assert a statement affects exactly `expected` rows inside a tenant context.
+ * A dedicated transaction keeps each assertion independent.
+ */
+async function expectRowCount(
+  client,
+  tenantId,
+  sql,
+  params,
+  expected,
+  message,
+) {
+  await withTenant(client, tenantId, async () => {
+    const result = await client.query(sql, params);
+    assert.equal(result.rowCount, expected, message);
+  });
+}
+
+/**
+ * Assert a statement is rejected by RLS in its own transaction, so an aborted
+ * transaction never poisons the next assertion.
+ */
+async function expectDeniedInTenant(client, tenantId, sql, params, message) {
+  await withTenant(client, tenantId, async () => {
+    try {
+      await client.query(sql, params);
+    } catch (error) {
+      assert.equal(
+        error.code,
+        '42501',
+        `${message}: expected 42501, got ${error.code}`,
+      );
+      return;
+    }
+    assert.fail(message);
+  });
 }
 
 async function seed(owner) {
@@ -146,6 +196,107 @@ async function seed(owner) {
       [systemAdmin.id, systemAdmin.email],
     );
 
+    // Phase 4 tenant-scoped tables: one row per tenant so cross-tenant
+    // visibility and write attempts can be asserted.
+    await owner.query(
+      `INSERT INTO "user_sessions"
+         (id, "userId", "tenantId", "userAgent", "expiresAt")
+       VALUES
+         ($1, $2, $3, 'RLS agent A', now() + interval '1 day'),
+         ($4, $5, $6, 'RLS agent B', now() + interval '1 day')`,
+      [
+        sessionA.id,
+        userA.id,
+        tenantA.id,
+        sessionB.id,
+        userB.id,
+        tenantB.id,
+      ],
+    );
+
+    await owner.query(
+      `INSERT INTO "leave_requests"
+         (id, "tenantId", "userId", type, "startDate", "endDate", days,
+          reason, "updatedAt")
+       VALUES
+         ($1, $2, $3, 'ANNUAL', now(), now() + interval '2 days', 3,
+          'RLS leave A', now()),
+         ($4, $5, $6, 'SICK', now(), now() + interval '1 day', 2,
+          'RLS leave B', now())`,
+      [
+        leaveA.id,
+        tenantA.id,
+        userA.id,
+        leaveB.id,
+        tenantB.id,
+        userB.id,
+      ],
+    );
+
+    await owner.query(
+      `INSERT INTO "attachments"
+         (id, "tenantId", entity, "entityId", key, "fileName", "mimeType",
+          size, "uploadedById")
+       VALUES
+         ($1, $2, 'Contact', $3, 'rls/a.txt', 'a.txt', 'text/plain', 12,
+          $4),
+         ($5, $6, 'Contact', $7, 'rls/b.txt', 'b.txt', 'text/plain', 12,
+          $8)`,
+      [
+        attachmentA.id,
+        tenantA.id,
+        contactA.id,
+        userA.id,
+        attachmentB.id,
+        tenantB.id,
+        contactB.id,
+        userB.id,
+      ],
+    );
+
+    await owner.query(
+      `INSERT INTO "notification_preferences"
+         (id, "tenantId", "userId", type, "inApp", email)
+       VALUES
+         ($1, $2, $3, 'TASK_ASSIGNED', true, false),
+         ($4, $5, $6, 'TASK_ASSIGNED', true, false)`,
+      [
+        preferenceA.id,
+        tenantA.id,
+        userA.id,
+        preferenceB.id,
+        tenantB.id,
+        userB.id,
+      ],
+    );
+
+    await owner.query(
+      `INSERT INTO "audit_logs"
+         (id, "tenantId", "actorId", action, entity, "moduleKey")
+       VALUES
+         ($1, $2, $3, 'CREATE', 'Contact', 'contacts'),
+         ($4, $5, $6, 'CREATE', 'Contact', 'contacts')`,
+      [
+        auditA.id,
+        tenantA.id,
+        userA.id,
+        auditB.id,
+        tenantB.id,
+        userB.id,
+      ],
+    );
+
+    // Soft-deleted business rows must still obey tenant isolation.
+    await owner.query(
+      `INSERT INTO "Contact"
+         (id, "firstName", "lastName", "userId", "tenantId", "deletedAt",
+          "updatedAt")
+       VALUES
+         ($1, 'Deleted', 'A', $2, $3, now(), now()),
+         ($4, 'Deleted', 'B', $5, $6, now(), now())`,
+      [contactA.id, userA.id, tenantA.id, contactB.id, userB.id, tenantB.id],
+    );
+
     await owner.query(
       `INSERT INTO "tenant_lifecycle_events"
          (id, "tenantId", "actorSystemAdminId", "fromStatus", "toStatus", reason)
@@ -163,6 +314,29 @@ async function seed(owner) {
 async function cleanup(owner) {
   const tenantIds = [tenantA.id, tenantB.id];
 
+  await owner.query('DELETE FROM "audit_logs" WHERE "tenantId" = ANY($1)', [
+    tenantIds,
+  ]);
+  await owner.query('DELETE FROM "attachments" WHERE "tenantId" = ANY($1)', [
+    tenantIds,
+  ]);
+  await owner.query(
+    'DELETE FROM "AttendanceRecord" WHERE "tenantId" = ANY($1)',
+    [tenantIds],
+  );
+  await owner.query('DELETE FROM "leave_requests" WHERE "tenantId" = ANY($1)', [
+    tenantIds,
+  ]);
+  await owner.query('DELETE FROM "user_sessions" WHERE "tenantId" = ANY($1)', [
+    tenantIds,
+  ]);
+  await owner.query(
+    'DELETE FROM "notification_preferences" WHERE "tenantId" = ANY($1)',
+    [tenantIds],
+  );
+  await owner.query('DELETE FROM "Contact" WHERE "tenantId" = ANY($1)', [
+    tenantIds,
+  ]);
   await owner.query(
     'DELETE FROM "tenant_lifecycle_events" WHERE "tenantId" = ANY($1)',
     [tenantIds],
@@ -278,6 +452,174 @@ async function runInvariantChecks(owner) {
   }
 }
 
+async function runPhase4RlsChecks(app) {
+  console.log('checking Phase 4 tenant-table isolation');
+
+  const cases = [
+    {
+      table: 'user_sessions',
+      own: sessionA.id,
+      foreign: sessionB.id,
+      columns: 'id, "deviceLabel"',
+    },
+    {
+      table: 'leave_requests',
+      own: leaveA.id,
+      foreign: leaveB.id,
+      columns: 'id, reason',
+    },
+    {
+      table: 'attachments',
+      own: attachmentA.id,
+      foreign: attachmentB.id,
+      columns: 'id, key',
+    },
+    {
+      table: 'notification_preferences',
+      own: preferenceA.id,
+      foreign: preferenceB.id,
+      columns: 'id, type',
+    },
+  ];
+
+  for (const testCase of cases) {
+    await withTenant(app, tenantA.id, async () => {
+      const result = await app.query(
+        `SELECT ${testCase.columns} FROM "${testCase.table}" ORDER BY id`,
+      );
+      assert.deepEqual(
+        result.rows.map((row) => row.id),
+        [testCase.own],
+        `crm_app saw ${testCase.table} rows from another tenant`,
+      );
+    });
+
+    await withTenant(app, tenantB.id, async () => {
+      const result = await app.query(
+        `SELECT id FROM "${testCase.table}" ORDER BY id`,
+      );
+      assert.deepEqual(
+        result.rows.map((row) => row.id),
+        [testCase.foreign],
+        `crm_app saw ${testCase.table} rows from another tenant`,
+      );
+    });
+
+    await expectRowCount(
+      app,
+      tenantA.id,
+      `UPDATE "${testCase.table}" SET "tenantId" = "tenantId" WHERE id = $1`,
+      [testCase.foreign],
+      0,
+      `crm_app updated a ${testCase.table} row outside the active context`,
+    );
+    await expectRowCount(
+      app,
+      tenantA.id,
+      `DELETE FROM "${testCase.table}" WHERE id = $1`,
+      [testCase.foreign],
+      0,
+      `crm_app deleted a ${testCase.table} row outside the active context`,
+    );
+  }
+
+  await expectDeniedInTenant(
+    app,
+    tenantA.id,
+    `INSERT INTO "user_sessions"
+       (id, "userId", "tenantId", "expiresAt")
+     VALUES ($1, $2, $3, now() + interval '1 day')`,
+    [crypto.randomUUID(), userB.id, tenantB.id],
+    'crm_app inserted a user_sessions row outside the active context',
+  );
+  await expectDeniedInTenant(
+    app,
+    tenantA.id,
+    `INSERT INTO "leave_requests"
+       (id, "tenantId", "userId", "startDate", "endDate", days, reason,
+        "updatedAt")
+     VALUES ($1, $2, $3, now(), now(), 1, 'cross tenant', now())`,
+    [crypto.randomUUID(), tenantB.id, userB.id],
+    'crm_app inserted a leave_requests row outside the active context',
+  );
+  await expectDeniedInTenant(
+    app,
+    tenantA.id,
+    `INSERT INTO "attachments"
+       (id, "tenantId", entity, "entityId", key, "fileName", "mimeType",
+        size, "uploadedById")
+     VALUES ($1, $2, 'Contact', $3, 'cross.txt', 'cross.txt', 'text/plain',
+             1, $4)`,
+    [crypto.randomUUID(), tenantB.id, contactB.id, userB.id],
+    'crm_app inserted an attachments row outside the active context',
+  );
+  await expectDeniedInTenant(
+    app,
+    tenantA.id,
+    `INSERT INTO "notification_preferences"
+       (id, "tenantId", "userId", type)
+     VALUES ($1, $2, $3, $4)`,
+    [
+      crypto.randomUUID(),
+      tenantB.id,
+      userB.id,
+      `RLS_TEST_${suffix}`,
+    ],
+    'crm_app inserted a notification_preferences row outside the active context',
+  );
+
+  console.log('checking audit log immutability');
+  await withTenant(app, tenantA.id, async () => {
+    let result = await app.query(
+      'SELECT id FROM "audit_logs" ORDER BY id',
+    );
+    assert.deepEqual(result.rows.map((row) => row.id), [auditA.id]);
+
+    const insert = await app.query(
+      `INSERT INTO "audit_logs"
+         (id, "tenantId", action, entity)
+       VALUES ($1, $2, 'CREATE', 'RLS') RETURNING id`,
+      [crypto.randomUUID(), tenantA.id],
+    );
+    assert.equal(insert.rowCount, 1, 'crm_app could not append an audit row');
+
+    result = await app.query('SELECT id FROM "audit_logs" ORDER BY id');
+    assert.equal(result.rowCount, 2);
+  });
+
+  await expectDeniedInTenant(
+    app,
+    tenantA.id,
+    `UPDATE "audit_logs" SET action = 'TAMPER' WHERE id = $1`,
+    [auditA.id],
+    'crm_app updated an audit row',
+  );
+  await expectDeniedInTenant(
+    app,
+    tenantA.id,
+    `DELETE FROM "audit_logs" WHERE id = $1`,
+    [auditA.id],
+    'crm_app deleted an audit row',
+  );
+
+  console.log('checking soft-delete isolation');
+  await withTenant(app, tenantA.id, async () => {
+    const result = await app.query(
+      'SELECT id, "deletedAt" FROM "Contact" ORDER BY id',
+    );
+    assert.deepEqual(result.rows.map((row) => row.id), [contactA.id]);
+    assert.ok(result.rows[0].deletedAt, 'soft-deleted row was not returned');
+  });
+  await expectRowCount(
+    app,
+    tenantA.id,
+    'UPDATE "Contact" SET "firstName" = \'x\' WHERE id = $1',
+    [contactB.id],
+    0,
+    'crm_app updated a soft-deleted Contact from another tenant',
+  );
+}
+
 async function runRlsChecks(app, system) {
   console.log('checking crm_app without tenant context');
   let result = await app.query('SELECT id FROM "tenants"');
@@ -386,8 +728,8 @@ async function runRlsChecks(app, system) {
     [[tenantA.id, tenantB.id]],
   );
   assert.deepEqual(
-    result.rows.map((row) => row.id),
-    [tenantA.id, tenantB.id],
+    result.rows.map((row) => row.id).sort(),
+    [tenantA.id, tenantB.id].sort(),
     'crm_system could not read tenant registry rows',
   );
 
@@ -432,6 +774,7 @@ async function main() {
 
     await runInvariantChecks(owner);
     await runRlsChecks(app, system);
+    await runPhase4RlsChecks(app);
 
     console.log('RLS checks passed');
   } finally {
