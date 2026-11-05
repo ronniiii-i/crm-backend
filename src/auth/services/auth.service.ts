@@ -79,8 +79,8 @@ export class AuthService {
         },
         include: {
           role: true,
-          department: { select: { id: true, key: true } },
-          managedDepartment: { select: { id: true, key: true } },
+          department: { select: { id: true, key: true, name: true } },
+          managedDepartment: { select: { id: true, key: true, name: true } },
         },
       }),
     );
@@ -120,8 +120,8 @@ export class AuthService {
         where: { id: user.id },
         include: {
           role: true,
-          department: { select: { id: true, key: true } },
-          managedDepartment: { select: { id: true, key: true } },
+          department: { select: { id: true, key: true, name: true } },
+          managedDepartment: { select: { id: true, key: true, name: true } },
         },
       }),
     )) as any;
@@ -169,12 +169,17 @@ export class AuthService {
       },
       departmentId: refreshedUser.departmentId,
       department: refreshedUser.department
-        ? { id: refreshedUser.department.id, key: refreshedUser.department.key }
+        ? {
+            id: refreshedUser.department.id,
+            key: refreshedUser.department.key,
+            name: refreshedUser.department.name,
+          }
         : null,
       managedDepartment: refreshedUser.managedDepartment
         ? {
             id: refreshedUser.managedDepartment.id,
             key: refreshedUser.managedDepartment.key,
+            name: refreshedUser.managedDepartment.name,
           }
         : null,
       avatar: refreshedUser.avatarUrl ?? null,
@@ -323,8 +328,8 @@ export class AuthService {
         include: {
           role: true,
           tenant: { select: { name: true } },
-          department: { select: { id: true, key: true } },
-          managedDepartment: { select: { id: true, key: true } },
+          department: { select: { id: true, key: true, name: true } },
+          managedDepartment: { select: { id: true, key: true, name: true } },
         },
       }),
     );
@@ -382,12 +387,17 @@ export class AuthService {
         },
         departmentId: sessionUser.departmentId,
         department: sessionUser.department
-          ? { id: sessionUser.department.id, key: sessionUser.department.key }
+          ? {
+              id: sessionUser.department.id,
+              key: sessionUser.department.key,
+              name: sessionUser.department.name,
+            }
           : null,
         managedDepartment: sessionUser.managedDepartment
           ? {
               id: sessionUser.managedDepartment.id,
               key: sessionUser.managedDepartment.key,
+              name: sessionUser.managedDepartment.name,
             }
           : null,
         avatar: sessionUser.avatarUrl ?? null,
@@ -424,13 +434,20 @@ export class AuthService {
   }
 
   async getAclModules(user: any): Promise<any> {
-    return (await (this.frontendAdapter as any).getSessionAccess?.(user)) || {};
+    // The sidebar consumes the renderer-aware navigation payload. Returning
+    // the array directly keeps this endpoint aligned with
+    // FrontendAdapterService (and with the client, which also accepts
+    // `{ modules }` / `{ accessibleModules }`).
+    return this.frontendAdapter.getAccessibleModules(user);
   }
 
   async getAclPermissions(user: any): Promise<any> {
-    const access =
-      (await (this.frontendAdapter as any).getSessionAccess?.(user)) || {};
-    return access?.permissions ?? {};
+    const [details, enhanced] = await Promise.all([
+      this.permissionResolution.getEffectivePermissionDetails(user),
+      this.permissionResolution.hasEnhancedPermissions(user),
+    ]);
+
+    return { permissions: Array.from(details.values()), enhanced };
   }
 
   async findUserById(id: string) {

@@ -159,6 +159,78 @@ describe('CacheService', () => {
       await expect(service.get(keyOne)).resolves.toBeUndefined();
       await expect(service.get(keyTwo)).resolves.toEqual({ b: 2 });
     });
+
+    it('invalidates every key matching a glob pattern', async () => {
+      const modulesOne = service.tenantKey(
+        'user:user-1:modules:v2',
+        'tenant-a',
+      );
+      const modulesTwo = service.tenantKey(
+        'user:user-2:modules:v2',
+        'tenant-a',
+      );
+      const permissions = service.tenantKey(
+        'user:user-1:effective-permissions',
+        'tenant-a',
+      );
+      const otherTenant = service.tenantKey(
+        'user:user-1:modules:v2',
+        'tenant-b',
+      );
+
+      await service.set(modulesOne, { modules: ['contacts'] });
+      await service.set(modulesTwo, { modules: ['deals'] });
+      await service.set(permissions, { permissions: ['VIEW'] });
+      await service.set(otherTenant, { modules: ['invoices'] });
+
+      await service.invalidatePattern('tenant:tenant-a:user:*:modules*');
+
+      await expect(service.get(modulesOne)).resolves.toBeUndefined();
+      await expect(service.get(modulesTwo)).resolves.toBeUndefined();
+      await expect(service.get(permissions)).resolves.toEqual({
+        permissions: ['VIEW'],
+      });
+      await expect(service.get(otherTenant)).resolves.toEqual({
+        modules: ['invoices'],
+      });
+    });
+
+    it('invalidates navigation and permissions for every tenant user', async () => {
+      const modulesOne = service.tenantKey(
+        'user:user-1:modules:v2',
+        'tenant-a',
+      );
+      const modulesTwo = service.tenantKey(
+        'user:user-2:modules:v2',
+        'tenant-a',
+      );
+      const permissionsOne = service.tenantKey(
+        'user:user-1:effective-permissions',
+        'tenant-a',
+      );
+      const permissionsTwo = service.tenantKey(
+        'user:user-2:effective-permissions',
+        'tenant-a',
+      );
+      const otherTenant = service.tenantKey(
+        'user:user-1:modules:v2',
+        'tenant-b',
+      );
+
+      await service.set(modulesOne, { a: 1 });
+      await service.set(modulesTwo, { b: 2 });
+      await service.set(permissionsOne, { c: 3 });
+      await service.set(permissionsTwo, { d: 4 });
+      await service.set(otherTenant, { e: 5 });
+
+      await service.invalidateTenantAcls('tenant-a');
+
+      await expect(service.get(modulesOne)).resolves.toBeUndefined();
+      await expect(service.get(modulesTwo)).resolves.toBeUndefined();
+      await expect(service.get(permissionsOne)).resolves.toBeUndefined();
+      await expect(service.get(permissionsTwo)).resolves.toBeUndefined();
+      await expect(service.get(otherTenant)).resolves.toEqual({ e: 5 });
+    });
   });
 
   describe('graceful degradation', () => {

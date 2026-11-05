@@ -269,12 +269,9 @@ export class PermissionResolutionService {
     return details;
   }
 
-  /** Drop cached effective permissions for a user. */
+  /** Drop cached effective permissions and navigation payloads for a user. */
   async invalidateUserCache(userId: string, tenantId?: string): Promise<void> {
-    await this.cache.del(this.cacheKey(userId, tenantId));
-    await this.cache.del(
-      this.cache.tenantKey(`user:${userId}:modules`, tenantId),
-    );
+    await this.cache.invalidateUser(userId, tenantId);
   }
 
   /** Drop every cached entry for a tenant. */

@@ -2,14 +2,13 @@ import { Injectable } from '@nestjs/common';
 import { Prisma, Tenant, TenantStatus } from '@prisma/client';
 import * as bcrypt from 'bcryptjs';
 import { createHash, randomBytes } from 'node:crypto';
+import { DEFAULT_TRIAL_DAYS, PERMISSION_TYPES, RoleSlug } from './defaults';
 import {
-  DEFAULT_DEPARTMENTS,
-  DEFAULT_MODULES,
-  DEFAULT_ROLES,
-  DEFAULT_TRIAL_DAYS,
-  PERMISSION_TYPES,
-  RoleSlug,
-} from './defaults';
+  ProvisionTenantOptions,
+  WorkspaceTemplate,
+  WorkspaceTemplateKey,
+  resolveWorkspaceTemplate,
+} from './templates';
 
 const DAY_MS = 24 * 60 * 60 * 1000;
 const VERIFICATION_TTL_MS = 72 * 60 * 60 * 1000;
@@ -34,6 +33,8 @@ export interface ProvisionTenantResult {
   adminUserId: string;
   /** Raw token for the caller to email. Only its SHA-256 hash is stored. */
   verificationToken: string;
+  /** Template actually applied after production/env enforcement. */
+  template: WorkspaceTemplateKey;
 }
 
 /**
@@ -50,6 +51,7 @@ export class TenantProvisioningService {
   async provisionTenantData(
     tx: Prisma.TransactionClient,
     params: ProvisionTenantParams,
+    options: ProvisionTenantOptions = {},
   ): Promise<ProvisionTenantResult> {
     const tenantId = params.tenantId;
     const slug = normalizeSlug(params.slug);
@@ -59,6 +61,7 @@ export class TenantProvisioningService {
       'Default Workspace';
     const ownerName = params.ownerName.trim();
     const ownerEmail = normalizeEmail(params.ownerEmail);
+    const template = resolveWorkspaceTemplate(options);
 
     if (!tenantId || !slug || !workspaceName || !ownerName || !ownerEmail) {
       throw new Error(
@@ -98,7 +101,7 @@ export class TenantProvisioningService {
     });
 
     await tx.department.createMany({
-      data: DEFAULT_DEPARTMENTS.map((department) => ({
+      data: template.departments.map((department) => ({
         tenantId,
         key: department.key,
         name: department.name,
@@ -117,7 +120,7 @@ export class TenantProvisioningService {
     );
 
     await tx.role.createMany({
-      data: DEFAULT_ROLES.map((role) => ({
+      data: template.roles.map((role) => ({
         tenantId,
         slug: role.slug,
         name: role.name,
@@ -144,29 +147,7 @@ export class TenantProvisioningService {
     }
 
     await tx.module.createMany({
-      data: DEFAULT_MODULES.map((module) => {
-        const departmentId = module.departmentKey
-          ? departmentIdByKey.get(module.departmentKey)
-          : null;
-
-        if (module.departmentKey && !departmentId) {
-          throw new Error(
-            `Module "${module.key}" references unknown department "${module.departmentKey}".`,
-          );
-        }
-
-        return {
-          tenantId,
-          key: module.key,
-          name: module.name,
-          path: module.path,
-          icon: module.icon ?? null,
-          group: module.group,
-          order: module.order,
-          isNavigable: module.isNavigable,
-          departmentId,
-        };
-      }),
+      data: buildModuleCreateManyData(template, tenantId, departmentIdByKey),
       skipDuplicates: true,
     });
 
@@ -181,7 +162,7 @@ export class TenantProvisioningService {
     const grants: Prisma.RoleModulePermissionCreateManyInput[] = [];
     const seenGrants = new Set<string>();
 
-    for (const module of DEFAULT_MODULES) {
+    for (const module of template.modules) {
       const moduleId = moduleIdByKey.get(module.key);
       if (!moduleId) {
         throw new Error(
@@ -252,8 +233,52 @@ export class TenantProvisioningService {
       tenant,
       adminUserId: adminUser.id,
       verificationToken,
+      template: template.key,
     };
   }
+}
+
+/**
+ * Build the module rows for a template. Exported so unit tests can assert the
+ * provisioning shape without a database.
+ */
+export function buildModuleCreateManyData(
+  template: WorkspaceTemplate,
+  tenantId: string,
+  departmentIdByKey: Map<string, string>,
+): Prisma.ModuleCreateManyInput[] {
+  return template.modules.map((module) => {
+    const departmentId = module.departmentKey
+      ? departmentIdByKey.get(module.departmentKey)
+      : undefined;
+
+    if (module.departmentKey && !departmentId) {
+      throw new Error(
+        `Module "${module.key}" references unknown department "${module.departmentKey}".`,
+      );
+    }
+
+    return {
+      tenantId,
+      key: module.key,
+      name: module.name,
+      // Canonical dynamic route for department modules; workspace modules
+      // keep their existing apex paths.
+      path: module.departmentKey
+        ? `/dept/${module.departmentKey}/${module.key}`
+        : module.path,
+      icon: module.icon ?? null,
+      group: module.group,
+      order: module.order,
+      isNavigable: module.isNavigable,
+      departmentId: departmentId ?? null,
+      type: module.type,
+      targetEntity: module.targetEntity,
+      config: module.config as Prisma.InputJsonValue,
+      dataScope: null,
+      isActive: true,
+    };
+  });
 }
 
 export function hashVerificationToken(token: string): string {

@@ -4,12 +4,14 @@ import { User, Prisma } from '@prisma/client';
 import { UpdateUserDto } from './dto/update-user.dto';
 import { getTenantId } from '../tenant/tenant-context';
 import { SessionStateService } from '../auth/services/session-state.service';
+import { CacheService } from '../cache/cache.service';
 
 @Injectable()
 export class UsersService {
   constructor(
     private prisma: PrismaService,
     private readonly sessionState: SessionStateService,
+    private readonly cache: CacheService,
   ) {}
 
   /**
@@ -139,6 +141,9 @@ export class UsersService {
 
     if (invalidating) {
       await this.sessionState.flushUser(user.tenantId, id);
+      // Navigation payloads and effective permissions embed the user's role
+      // and department; drop them both so the change is visible immediately.
+      await this.cache.invalidateUser(id, user.tenantId);
     }
 
     return updated;
@@ -155,6 +160,7 @@ export class UsersService {
       db.user.delete({ where: { id } }),
     );
     await this.sessionState.flushUser(user.tenantId, id);
+    await this.cache.invalidateUser(id, user.tenantId);
     return deleted;
   }
 }

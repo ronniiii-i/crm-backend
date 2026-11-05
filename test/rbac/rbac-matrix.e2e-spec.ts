@@ -19,20 +19,24 @@ const Role = {
   STAFF: 'STAFF',
 } as const;
 
-/** The module groups declared by the specification. */
-const SPEC_MODULES = [
-  'dashboard',
-  'user-management',
-  'notifications',
-  'settings',
-  'finance',
-  'it',
-  'sales',
-  'customer-support',
-  'hr',
-  'administration',
-  'operations',
-] as const;
+/**
+ * The module groups declared by the specification, mapped to their canonical
+ * Phase 3 paths. Departmental modules live under `/dept/<key>`; the remaining
+ * groups are tenant-wide workspace modules.
+ */
+const SPEC_GROUPS: Array<{ name: string; prefix: string }> = [
+  { name: 'dashboard', prefix: '/dashboard' },
+  { name: 'user-management', prefix: '/user-management' },
+  { name: 'notifications', prefix: '/notifications' },
+  { name: 'settings', prefix: '/settings' },
+  { name: 'finance', prefix: '/dept/finance' },
+  { name: 'it', prefix: '/dept/information_technology' },
+  { name: 'sales', prefix: '/dept/sales' },
+  { name: 'customer-support', prefix: '/dept/customer_support' },
+  { name: 'hr', prefix: '/dept/human_resources' },
+  { name: 'administration', prefix: '/dept/administration' },
+  { name: 'operations', prefix: '/dept/operations' },
+];
 
 const ALL_ROLES = [Role.ADMIN, Role.HOD, Role.LEAD, Role.STAFF] as const;
 const ALL_PERMISSIONS = [
@@ -45,9 +49,11 @@ const ALL_PERMISSIONS = [
 describe('RBAC matrix', () => {
   it('covers every module group declared in the spec', () => {
     const paths = ALL_ROUTES.map((r) => r.path);
-    for (const group of SPEC_MODULES) {
+    for (const group of SPEC_GROUPS) {
       expect(
-        paths.some((p) => p === `/${group}` || p.startsWith(`/${group}/`)),
+        paths.some(
+          (p) => p === group.prefix || p.startsWith(`${group.prefix}/`),
+        ),
       ).toBe(true);
     }
   });
@@ -105,9 +111,28 @@ describe('RBAC matrix', () => {
   });
 
   describe('HOD', () => {
-    it('never holds CREATE on any module', () => {
+    it('holds CRUD on every departmental module', () => {
+      for (const route of ALL_ROUTES.filter((r) =>
+        r.path.startsWith('/dept/'),
+      )) {
+        expect(route.permissions[Role.HOD]).toEqual(
+          expect.arrayContaining([
+            Permission.VIEW,
+            Permission.CREATE,
+            Permission.EDIT,
+            Permission.DELETE,
+          ]),
+        );
+      }
+    });
+
+    it('never holds CREATE outside department modules or invitation management', () => {
       for (const route of ALL_ROUTES) {
-        expect(route.permissions[Role.HOD]).not.toContain(Permission.CREATE);
+        if (!route.permissions[Role.HOD].includes(Permission.CREATE)) continue;
+        expect(
+          route.path.startsWith('/dept/') ||
+            route.path === '/user-management?tab=invitations',
+        ).toBe(true);
       }
     });
   });
@@ -141,12 +166,33 @@ describe('RBAC matrix', () => {
   });
 
   describe('administrative modules', () => {
-    const adminOnly = ALL_ROUTES.filter((r) => r.path === '/user-management');
+    const userManagement = ALL_ROUTES.filter(
+      (r) => r.path === '/user-management',
+    );
 
-    it('restricts user management to ADMIN', () => {
-      for (const route of adminOnly) {
+    it('restricts user management writes to ADMIN', () => {
+      expect(userManagement.length).toBeGreaterThan(0);
+      for (const route of userManagement) {
+        expect(route.permissions[Role.ADMIN]).toEqual(
+          expect.arrayContaining([
+            Permission.VIEW,
+            Permission.CREATE,
+            Permission.EDIT,
+            Permission.DELETE,
+          ]),
+        );
         for (const role of [Role.HOD, Role.LEAD, Role.STAFF]) {
-          expect(route.permissions[role]).toEqual([]);
+          expect(route.permissions[role]).not.toContain(Permission.CREATE);
+          expect(route.permissions[role]).not.toContain(Permission.EDIT);
+          expect(route.permissions[role]).not.toContain(Permission.DELETE);
+        }
+      }
+    });
+
+    it('lets every role read the user directory', () => {
+      for (const route of userManagement) {
+        for (const role of ALL_ROLES) {
+          expect(route.permissions[role]).toContain(Permission.VIEW);
         }
       }
     });

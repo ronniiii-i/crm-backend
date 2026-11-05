@@ -13,7 +13,9 @@ const VALID_ENV = {
   NODE_ENV: 'test',
   PORT: '3030',
   DATABASE_URL: 'postgresql://crm_app:pass@localhost:5432/crm',
+  SYSTEM_DATABASE_URL: 'postgresql://crm_system:pass@localhost:5432/crm',
   JWT_SECRET: 'a-very-long-and-unique-secret-value',
+  SYSTEM_JWT_SECRET: 'another-very-long-and-unique-secret',
 };
 
 describe('env validation', () => {
