@@ -75,6 +75,8 @@ const envSchema = z.object({
 
   FRONTEND_URL: z.string().default('http://localhost:3000'),
 
+  // Deprecated: replaced by the EMAIL_* block below in Phase 4. Still
+  // validated until the Stage 3 cut-over removes the Nodemailer stack.
   MAIL_HOST: z.string().optional(),
   MAIL_PORT: z.coerce.number().int().positive().optional(),
   MAIL_USER: z.string().optional(),
@@ -82,6 +84,49 @@ const envSchema = z.object({
   MAIL_FROM: z.string().optional(),
 
   RECAPTCHA_SECRET: z.string().optional(),
+
+  // -------------------------------------------------------------------------
+  // Phase 4 platform configuration
+  // -------------------------------------------------------------------------
+
+  /** Number of trusted reverse-proxy hops; "false" disables trust proxy. */
+  TRUST_PROXY: z.string().default('1'),
+
+  RATE_LIMIT_ENFORCE: z.enum(['true', 'false']).default('true'),
+  RATE_LIMIT_AUTH_PER_MIN: z.coerce.number().int().positive().default(15),
+  RATE_LIMIT_API_PER_MIN: z.coerce.number().int().positive().default(600),
+  RATE_LIMIT_WRITE_PER_MIN: z.coerce.number().int().positive().default(120),
+  RATE_LIMIT_EXPORT_PER_HOUR: z.coerce.number().int().positive().default(10),
+
+  AUTH_SESSION_TTL_HOURS: z.coerce.number().int().positive().default(168),
+
+  EMAIL_ENABLED: z.enum(['true', 'false']).default('true'),
+  RESEND_API_KEY: z.string().optional(),
+  EMAIL_FROM: z.string().optional(),
+  EMAIL_REPLY_TO: z.string().optional(),
+  EMAIL_OVERRIDE_TO: z.string().optional(),
+  APP_URL: z.string().url().default('http://localhost:3000'),
+
+  STORAGE_DRIVER: z.enum(['local', 'r2']).default('local'),
+  STORAGE_MAX_AVATAR_BYTES: z.coerce.number().int().positive().default(5_242_880),
+  STORAGE_MAX_ATTACHMENT_BYTES: z.coerce
+    .number()
+    .int()
+    .positive()
+    .default(26_214_400),
+  R2_ACCOUNT_ID: z.string().optional(),
+  R2_ACCESS_KEY_ID: z.string().optional(),
+  R2_SECRET_ACCESS_KEY: z.string().optional(),
+  R2_BUCKET: z.string().optional(),
+  R2_PUBLIC_BASE_URL: z.string().optional(),
+  R2_ENDPOINT: z.string().optional(),
+
+  SSE_ENABLED: z.enum(['true', 'false']).default('true'),
+
+  SOFT_DELETE_ENFORCE: z.enum(['true', 'false']).default('true'),
+  SOFT_DELETE_RETENTION_DAYS: z.coerce.number().int().positive().default(90),
+
+  EXPORT_MAX_ROWS: z.coerce.number().int().positive().default(100_000),
 });
 
 export type Env = z.infer<typeof envSchema>;
