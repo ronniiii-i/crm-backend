@@ -381,6 +381,9 @@ describe('ACL cache invalidation hooks', () => {
         findFirst: async (args: any) =>
           permissions.find((permission) => permission.type === args.where.type),
       },
+      auditLog: {
+        create: async () => undefined,
+      },
     };
 
     const prisma = {
@@ -389,7 +392,24 @@ describe('ACL cache invalidation hooks', () => {
       ),
     };
 
-    const service = new AccessControlService(prisma as any, cache);
+    const permissionsService = {
+      getRoleChain: jest.fn(async (roleId: string) => [
+        {
+          id: roleId,
+          slug: 'role-1',
+          name: 'Role 1',
+          rank: 100,
+          dataScope: 'SELF',
+          isTenantAdmin: false,
+          parentRoleId: null,
+        },
+      ]),
+    };
+    const service = new AccessControlService(
+      prisma as any,
+      cache,
+      permissionsService as any,
+    );
     const { modulesKey, permissionsKey } = await seedUserCaches('user-1');
 
     await service.updateRolePermissions(TENANT, 'role-1', [

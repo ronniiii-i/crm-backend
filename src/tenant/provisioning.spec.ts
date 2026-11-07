@@ -1,4 +1,5 @@
 import { ModuleType } from '@prisma/client';
+import { DEFAULT_ROLES } from './defaults';
 import { CLEAN_SLATE_TEMPLATE, DEMO_TEMPLATE } from './templates';
 import { buildModuleCreateManyData } from './tenant-provisioning.service';
 
@@ -10,6 +11,37 @@ const departmentIds = new Map(
     `dept-${index}`,
   ]),
 );
+
+describe('tenant provisioning role hierarchy', () => {
+  const bySlug = new Map(DEFAULT_ROLES.map((role) => [role.slug, role]));
+
+  it('links Department Head -> Team Lead -> Staff', () => {
+    expect(bySlug.get('department_head')?.parentSlug).toBe('team_lead');
+    expect(bySlug.get('team_lead')?.parentSlug).toBe('staff');
+  });
+
+  it('keeps Tenant Admin and Staff at the root of the hierarchy', () => {
+    expect(bySlug.get('tenant_admin')?.parentSlug).toBeNull();
+    expect(bySlug.get('staff')?.parentSlug).toBeNull();
+  });
+
+  it('only ever inherits from a less privileged role', () => {
+    for (const role of DEFAULT_ROLES) {
+      if (!role.parentSlug) continue;
+      const parent = bySlug.get(role.parentSlug);
+      expect(parent).toBeDefined();
+      expect(parent!.rank).toBeLessThan(role.rank);
+    }
+  });
+
+  it('preserves the hierarchy in both workspace templates', () => {
+    for (const template of [CLEAN_SLATE_TEMPLATE, DEMO_TEMPLATE]) {
+      const roles = new Map(template.roles.map((role) => [role.slug, role]));
+      expect(roles.get('department_head')?.parentSlug).toBe('team_lead');
+      expect(roles.get('team_lead')?.parentSlug).toBe('staff');
+    }
+  });
+});
 
 describe('tenant provisioning module shape', () => {
   const rows = buildModuleCreateManyData(

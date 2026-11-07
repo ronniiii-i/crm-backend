@@ -390,15 +390,16 @@ export class CacheService implements OnModuleInit, OnModuleDestroy {
   }
 
   /**
-   * Coarse ACL invalidation for a whole tenant: navigation payloads and
-   * effective permission sets for every user. Used when a role, grant,
-   * department or module definition changes.
+   * Coarse ACL invalidation for a whole tenant: navigation payloads,
+   * effective permission sets for every user, and cached role inheritance
+   * chains. Used when a role, grant, department or module definition changes.
    */
   async invalidateTenantAcls(tenantId: string): Promise<void> {
     await this.invalidatePattern(`tenant:${tenantId}:user:*:modules*`);
     await this.invalidatePattern(
       `tenant:${tenantId}:user:*:effective-permissions`,
     );
+    await this.invalidatePattern(`tenant:${tenantId}:role-chain:*`);
   }
 
   /** Drop every cache entry belonging to a tenant (e.g. on tenant purge). */

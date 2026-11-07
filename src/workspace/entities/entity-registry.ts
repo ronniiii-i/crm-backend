@@ -60,6 +60,10 @@ function build<T extends EntityKey>(
     supportedScopes: ScopeName[];
     readOnly?: boolean;
     nestedFields?: Record<string, string[]>;
+    selfField?: string;
+    selfCanEdit?: boolean;
+    selfEditableFields?: string[];
+    reassignable?: boolean;
   },
 ): EntityDescriptor {
   const allFields = [...config.fields, ...config.includes.map((i) => i.field)];
@@ -91,6 +95,10 @@ function build<T extends EntityKey>(
       .map((field) => field.name),
     supportedScopes: config.supportedScopes,
     readOnly: config.readOnly,
+    selfField: config.selfField,
+    selfCanEdit: config.selfCanEdit,
+    selfEditableFields: config.selfEditableFields,
+    reassignable: config.reassignable,
   };
 }
 
@@ -123,6 +131,8 @@ function descriptor(key: EntityKey): EntityDescriptor {
           userField: 'userId',
           departmentVia: 'createdBy',
         },
+        selfField: 'userId',
+        selfCanEdit: false,
         status: {
           field: 'status',
           values: ['Lead', 'Prospect', 'Qualified', 'Customer', 'Inactive'],
@@ -173,6 +183,8 @@ function descriptor(key: EntityKey): EntityDescriptor {
         ],
         searchFields: searchableFields(fields),
         owner: { userField: 'userId', departmentField: 'departmentId' },
+        selfField: 'userId',
+        selfCanEdit: false,
         supportedScopes: ['TENANT', 'DEPARTMENT', 'TEAM', 'SELF'],
       });
 
@@ -251,6 +263,10 @@ function descriptor(key: EntityKey): EntityDescriptor {
         ],
         searchFields: searchableFields(fields),
         owner: { userField: 'userId', departmentVia: 'assignedTo' },
+        selfField: 'userId',
+        selfCanEdit: true,
+        selfEditableFields: ['status', 'customFields'],
+        reassignable: true,
         status: {
           field: 'status',
           values: [
@@ -280,6 +296,16 @@ function descriptor(key: EntityKey): EntityDescriptor {
         ],
         searchFields: searchableFields(fields),
         owner: { userField: 'userId', departmentVia: 'assignedTo' },
+        selfField: 'userId',
+        selfCanEdit: true,
+        selfEditableFields: [
+          'status',
+          'priority',
+          'description',
+          'customFields',
+          'resolvedAt',
+        ],
+        reassignable: true,
         status: {
           field: 'status',
           values: ['OPEN', 'IN_PROGRESS', 'RESOLVED', 'CLOSED'],
@@ -304,6 +330,17 @@ function descriptor(key: EntityKey): EntityDescriptor {
         ],
         searchFields: searchableFields(fields),
         owner: { userField: 'assignedToId', departmentVia: 'assignedTo' },
+        selfField: 'assignedToId',
+        selfCanEdit: true,
+        selfEditableFields: [
+          'title',
+          'description',
+          'status',
+          'priority',
+          'dueDate',
+          'customFields',
+        ],
+        reassignable: true,
         status: {
           field: 'status',
           values: ['Todo', 'In Progress', 'Review', 'Completed'],
@@ -321,6 +358,8 @@ function descriptor(key: EntityKey): EntityDescriptor {
         searchFields: searchableFields(fields),
         defaultSort: { field: 'date', dir: 'desc' },
         owner: { userField: 'userId', departmentVia: 'user' },
+        selfField: 'userId',
+        selfCanEdit: false,
         status: {
           field: 'status',
           values: ['Present', 'Absent', 'Late', 'Leave'],

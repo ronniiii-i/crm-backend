@@ -19,6 +19,7 @@ export interface FakeRow {
 export interface FakeDbState {
   users?: FakeRow[];
   modules?: FakeRow[];
+  roles?: FakeRow[];
   roleModulePermissions?: FakeRow[];
   permissionGroups?: FakeRow[];
   permissionGroupItems?: FakeRow[];
@@ -35,6 +36,7 @@ export interface FakeDbState {
 }
 
 const TENANT_COLUMN: Record<string, string> = {
+  role: 'tenantId',
   roleModulePermission: 'tenantId',
   permissionGroup: 'tenantId',
   permissionGroupItem: 'tenantId',
@@ -102,6 +104,11 @@ function createTenantTx(tenantId: string | undefined, state: FakeDbState) {
       findUnique: async (args: any = {}) =>
         filter(scope(state.modules), args)[0],
     },
+    role: {
+      findMany: async (args: any = {}) => filter(scope(state.roles), args),
+      findFirst: async (args: any = {}) => filter(scope(state.roles), args)[0],
+      findUnique: async (args: any = {}) => filter(scope(state.roles), args)[0],
+    },
     roleModulePermission: {
       findMany: async (args: any = {}) =>
         filter(scope(state.roleModulePermissions), args),
@@ -148,6 +155,16 @@ function filter(rows: FakeRow[], args: any = {}): FakeRow[] {
     if (where.tenantId && row.tenantId !== where.tenantId) return false;
     if (where.id && row.id !== where.id) return false;
     if (where.role && row.role !== where.role) return false;
+    if (where.roleId) {
+      if (typeof where.roleId === 'object' && Array.isArray(where.roleId.in)) {
+        if (!where.roleId.in.includes(row.roleId)) return false;
+      } else if (row.roleId !== where.roleId) {
+        return false;
+      }
+    }
+    if (where.parentRoleId && row.parentRoleId !== where.parentRoleId)
+      return false;
+    if (where.slug && row.slug !== where.slug) return false;
     if (where.moduleId && row.moduleId !== where.moduleId) return false;
     if (where.userId && row.userId !== where.userId) return false;
     if (where.groupId && row.groupId !== where.groupId) return false;
@@ -181,6 +198,7 @@ export function rolePermissionRow(params: {
   role: string;
   moduleId: string;
   permissionType: PermissionType;
+  effect?: PermissionEffect;
   id?: string;
 }): FakeRow {
   return {
@@ -189,8 +207,10 @@ export function rolePermissionRow(params: {
       `rpm-${params.role}-${params.moduleId}-${params.permissionType}`,
     tenantId: params.tenantId,
     role: params.role,
+    roleId: params.role,
     moduleId: params.moduleId,
     permissionType: params.permissionType,
+    effect: params.effect ?? PermissionEffect.GRANT,
     permission: { type: params.permissionType },
   };
 }

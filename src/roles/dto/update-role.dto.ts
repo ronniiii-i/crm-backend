@@ -1,4 +1,12 @@
-import { IsIn, IsInt, IsOptional, IsString, Max, Min } from 'class-validator';
+import {
+  IsIn,
+  IsInt,
+  IsOptional,
+  IsString,
+  IsUUID,
+  Max,
+  Min,
+} from 'class-validator';
 
 export class UpdateRoleDto {
   @IsOptional()
@@ -18,4 +26,9 @@ export class UpdateRoleDto {
   @IsOptional()
   @IsIn(['TENANT', 'DEPARTMENT', 'TEAM', 'SELF'])
   dataScope?: 'TENANT' | 'DEPARTMENT' | 'TEAM' | 'SELF';
+
+  /** Pass `null` to detach the role from its parent. */
+  @IsOptional()
+  @IsUUID()
+  parentRoleId?: string | null;
 }

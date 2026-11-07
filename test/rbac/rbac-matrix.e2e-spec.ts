@@ -112,9 +112,7 @@ describe('RBAC matrix', () => {
 
   describe('HOD', () => {
     it('holds CRUD on every departmental module', () => {
-      for (const route of ALL_ROUTES.filter((r) =>
-        r.path.startsWith('/dept/'),
-      )) {
+      for (const route of ALL_ROUTES.filter((r) => !!r.department)) {
         expect(route.permissions[Role.HOD]).toEqual(
           expect.arrayContaining([
             Permission.VIEW,
@@ -130,7 +128,7 @@ describe('RBAC matrix', () => {
       for (const route of ALL_ROUTES) {
         if (!route.permissions[Role.HOD].includes(Permission.CREATE)) continue;
         expect(
-          route.path.startsWith('/dept/') ||
+          !!route.department ||
             route.path === '/user-management?tab=invitations',
         ).toBe(true);
       }
@@ -144,9 +142,22 @@ describe('RBAC matrix', () => {
       }
     });
 
-    it('never holds CREATE on any module', () => {
+    it('holds VIEW, CREATE and EDIT on every departmental module', () => {
+      for (const route of ALL_ROUTES.filter((r) => !!r.department)) {
+        expect(route.permissions[Role.LEAD]).toEqual(
+          expect.arrayContaining([
+            Permission.VIEW,
+            Permission.CREATE,
+            Permission.EDIT,
+          ]),
+        );
+      }
+    });
+
+    it('never holds CREATE outside department modules', () => {
       for (const route of ALL_ROUTES) {
-        expect(route.permissions[Role.LEAD]).not.toContain(Permission.CREATE);
+        if (!route.permissions[Role.LEAD].includes(Permission.CREATE)) continue;
+        expect(!!route.department).toBe(true);
       }
     });
   });
@@ -158,10 +169,32 @@ describe('RBAC matrix', () => {
       }
     });
 
-    it('never holds CREATE on any module', () => {
-      for (const route of ALL_ROUTES) {
-        expect(route.permissions[Role.STAFF]).not.toContain(Permission.CREATE);
+    it('holds VIEW and CREATE on every departmental module', () => {
+      for (const route of ALL_ROUTES.filter((r) => !!r.department)) {
+        expect(route.permissions[Role.STAFF]).toEqual(
+          expect.arrayContaining([Permission.VIEW, Permission.CREATE]),
+        );
       }
+    });
+
+    it('never holds CREATE outside department modules', () => {
+      for (const route of ALL_ROUTES) {
+        if (!route.permissions[Role.STAFF].includes(Permission.CREATE))
+          continue;
+        expect(!!route.department).toBe(true);
+      }
+    });
+
+    it('cannot edit the leave workflow module directly', () => {
+      const leave = ALL_ROUTES.find(
+        (route) => route.id === 'attendance-leave-management',
+      );
+      expect(leave).toBeDefined();
+      expect(leave!.permissions[Role.STAFF]).toEqual(
+        expect.arrayContaining([Permission.VIEW, Permission.CREATE]),
+      );
+      expect(leave!.permissions[Role.STAFF]).not.toContain(Permission.EDIT);
+      expect(leave!.permissions[Role.STAFF]).not.toContain(Permission.DELETE);
     });
   });
 

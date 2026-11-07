@@ -1,8 +1,12 @@
-import { Injectable } from '@nestjs/common';
+import { Injectable, Logger } from '@nestjs/common';
 import { PrismaService } from '../../prisma/prisma.service';
 import { CacheService } from '../../cache/cache.service';
 import { getTenantId } from '../../tenant/tenant-context';
-import { PermissionType, PermissionEffect } from '@prisma/client';
+import {
+  PermissionType,
+  PermissionEffect,
+  RoleDataScope,
+} from '@prisma/client';
 import { UserForAcl } from '../permission-types';
 
 /** Where a permission came from. Used by the UI to render `Role+` badges. */
@@ -11,6 +15,12 @@ export type PermissionSourceType = 'ROLE' | 'GROUP' | 'OVERRIDE';
 export interface PermissionSource {
   type: PermissionSourceType;
   effect?: PermissionEffect;
+  /** Role that produced this source (ROLE sources only). */
+  roleId?: string;
+  roleSlug?: string;
+  roleName?: string;
+  /** True when the role is an ancestor of the actor's direct role. */
+  inherited?: boolean;
   groupId?: string;
   groupName?: string;
 }
@@ -20,6 +30,17 @@ export interface EffectivePermission {
   permissionType: PermissionType;
   granted: boolean;
   sources: PermissionSource[];
+}
+
+/** One role in the root -> child inheritance chain. */
+export interface RoleChainEntry {
+  id: string;
+  slug: string;
+  name: string;
+  rank: number;
+  dataScope: RoleDataScope;
+  isTenantAdmin: boolean;
+  parentRoleId: string | null;
 }
 
 export interface HasPermissionParams {
@@ -34,17 +55,25 @@ export interface HasPermissionParams {
   isTenantAdmin: boolean;
 }
 
+const MAX_ROLE_CHAIN_DEPTH = 8;
+const ROLE_CHAIN_TTL_SECONDS = 10 * 60;
+
 /**
  * Resolves the effective permission set for a user using the hybrid ACL model:
  *
- *   1. Base role permissions (RoleModulePermission)
+ *   1. Base role permissions (RoleModulePermission), walking the role's
+ *      inheritance chain root -> child so a child GRANT/REVOKE wins.
  *   2. Permission groups assigned directly to the user or to their department
  *   3. Per-user overrides (GRANT/REVOKE) — highest precedence
  *
  * All lookups run inside a tenant transaction so Postgres RLS applies.
+ * Inheritance never widens the actor's own data scope and `isTenantAdmin`
+ * is never inherited.
  */
 @Injectable()
 export class PermissionResolutionService {
+  private readonly logger = new Logger(PermissionResolutionService.name);
+
   constructor(
     private readonly prisma: PrismaService,
     private readonly cache: CacheService,
@@ -55,6 +84,96 @@ export class PermissionResolutionService {
       `user:${userId}:effective-permissions`,
       tenantId,
     );
+  }
+
+  private roleChainCacheKey(roleId: string, tenantId?: string): string {
+    return this.cache.tenantKey(`role-chain:${roleId}`, tenantId);
+  }
+
+  /**
+   * Root -> child role inheritance chain for a role, capped at
+   * `MAX_ROLE_CHAIN_DEPTH`. Cycles are logged and truncated rather than
+   * looping forever. Results are cached for 10 minutes and invalidated with
+   * the tenant ACL bump.
+   */
+  async getRoleChain(
+    roleId: string,
+    tenantId?: string,
+  ): Promise<RoleChainEntry[]> {
+    if (!roleId) return [];
+
+    const cacheKey = this.roleChainCacheKey(roleId, tenantId);
+    const cached = await this.cache.get<RoleChainEntry[]>(cacheKey);
+    if (cached) return cached;
+
+    const load = (db: any) => this.loadRoleChain(db, roleId, tenantId);
+    const chain = tenantId
+      ? await this.prisma.withTenant(tenantId, load)
+      : await load(this.prisma);
+
+    await this.cache.set(cacheKey, chain, ROLE_CHAIN_TTL_SECONDS);
+    return chain;
+  }
+
+  private async loadRoleChain(
+    db: any,
+    roleId: string,
+    tenantId?: string,
+  ): Promise<RoleChainEntry[]> {
+    const chain: RoleChainEntry[] = [];
+    const seen = new Set<string>();
+    let current: string | null = roleId;
+    let depth = 0;
+
+    while (current && depth < MAX_ROLE_CHAIN_DEPTH) {
+      if (seen.has(current)) {
+        this.logger.error(
+          `Role inheritance cycle detected at role ${current} (tenant ${
+            tenantId ?? 'unknown'
+          }); truncating chain.`,
+        );
+        break;
+      }
+      seen.add(current);
+
+      const role = await db.role?.findFirst?.({
+        where: {
+          id: current,
+          ...(tenantId ? { tenantId } : {}),
+        },
+      });
+
+      if (!role) {
+        // Fixtures and legacy callers may key permissions by an opaque role
+        // id with no `roles` row. Treat that as a single-role chain.
+        if (depth === 0) {
+          chain.push(syntheticRole(roleId));
+        }
+        break;
+      }
+
+      chain.push({
+        id: role.id,
+        slug: role.slug ?? role.id,
+        name: role.name ?? role.slug ?? role.id,
+        rank: typeof role.rank === 'number' ? role.rank : 0,
+        dataScope: role.dataScope ?? RoleDataScope.SELF,
+        isTenantAdmin: role.isTenantAdmin === true,
+        parentRoleId: role.parentRoleId ?? null,
+      });
+
+      current = role.parentRoleId ?? null;
+      depth += 1;
+    }
+
+    if (current && depth >= MAX_ROLE_CHAIN_DEPTH) {
+      this.logger.warn(
+        `Role inheritance chain for ${roleId} exceeded ${MAX_ROLE_CHAIN_DEPTH} levels; truncating.`,
+      );
+    }
+
+    // Resolver walks root -> child so later (child) rows override earlier ones.
+    return chain.reverse();
   }
 
   /**
@@ -98,9 +217,14 @@ export class PermissionResolutionService {
       );
     }
 
+    const roleId = getRoleId(user);
+    const chain = roleId ? await this.getRoleChain(roleId, tenantId) : [];
+
     const details = tenantId
-      ? await this.prisma.withTenant(tenantId, (tx) => this.compute(user, tx))
-      : await this.compute(user, this.prisma);
+      ? await this.prisma.withTenant(tenantId, (tx) =>
+          this.compute(user, tx, chain),
+        )
+      : await this.compute(user, this.prisma, chain);
 
     await this.cache.set(cacheKey, Array.from(details.values()), 300);
     return details;
@@ -176,6 +300,7 @@ export class PermissionResolutionService {
   private async compute(
     user: UserForAcl,
     db: any,
+    chain: RoleChainEntry[],
   ): Promise<Map<string, EffectivePermission>> {
     const details = new Map<string, EffectivePermission>();
 
@@ -192,24 +317,59 @@ export class PermissionResolutionService {
       return details.get(key)!;
     };
 
-    // 1. Base role permissions
-    const roleId = (user as any).roleId || (user as any).role?.id || user.role;
-    if (!roleId) {
-      return details;
-    }
+    // 1. Base role permissions, walking the inheritance chain root -> child.
+    const currentRoleId = getRoleId(user);
+    const effectiveChain =
+      chain.length > 0
+        ? chain
+        : currentRoleId
+          ? [syntheticRole(currentRoleId)]
+          : [];
 
-    const rolePermissions = await db.roleModulePermission.findMany({
-      where: { roleId, ...(user.tenantId ? { tenantId: user.tenantId } : {}) },
-      include: { permission: true },
-    });
+    if (effectiveChain.length > 0) {
+      const roleIds = effectiveChain.map((role) => role.id);
+      const rolePermissions = await db.roleModulePermission.findMany({
+        where: {
+          roleId: { in: roleIds },
+          ...(user.tenantId ? { tenantId: user.tenantId } : {}),
+        },
+        include: { permission: true },
+      });
 
-    for (const rolePermission of rolePermissions) {
-      const entry = ensure(
-        rolePermission.moduleId,
-        rolePermission.permission.type,
-      );
-      entry.granted = true;
-      entry.sources.push({ type: 'ROLE' });
+      const byRole = new Map<string, any[]>();
+      for (const rolePermission of rolePermissions) {
+        const roleId =
+          rolePermission.roleId ??
+          rolePermission.role ??
+          rolePermission.role?.id;
+        if (!roleId) continue;
+        if (!byRole.has(roleId)) byRole.set(roleId, []);
+        byRole.get(roleId)!.push(rolePermission);
+      }
+
+      for (const role of effectiveChain) {
+        for (const rolePermission of byRole.get(role.id) ?? []) {
+          const entry = ensure(
+            rolePermission.moduleId,
+            rolePermission.permission?.type ?? rolePermission.permissionType,
+          );
+          const effect =
+            rolePermission.effect === PermissionEffect.REVOKE
+              ? PermissionEffect.REVOKE
+              : PermissionEffect.GRANT;
+
+          // Child wins over parent: each row overwrites the granted flag.
+          entry.granted = effect === PermissionEffect.GRANT;
+          entry.sources.push({
+            type: 'ROLE',
+            effect,
+            roleId: role.id,
+            roleSlug: role.slug,
+            roleName: role.name,
+            inherited: role.id !== currentRoleId,
+          });
+        }
+      }
     }
 
     // 2. Permission groups assigned to the user or their department
@@ -278,4 +438,24 @@ export class PermissionResolutionService {
   async invalidateTenantCache(tenantId: string): Promise<void> {
     await this.cache.flushTenant(tenantId);
   }
+}
+
+function getRoleId(user: UserForAcl): string | null {
+  const candidate =
+    (user as any).roleId ?? (user as any).role?.id ?? (user as any).role;
+  return typeof candidate === 'string' && candidate.length > 0
+    ? candidate
+    : null;
+}
+
+function syntheticRole(roleId: string): RoleChainEntry {
+  return {
+    id: roleId,
+    slug: roleId,
+    name: roleId,
+    rank: 0,
+    dataScope: RoleDataScope.SELF,
+    isTenantAdmin: false,
+    parentRoleId: null,
+  };
 }

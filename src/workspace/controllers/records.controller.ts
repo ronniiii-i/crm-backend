@@ -36,6 +36,12 @@ export class RecordsController {
     return this.queries.list(access, query);
   }
 
+  @Get('assignees')
+  @RequireModuleAction('VIEW')
+  assignees(@CurrentModuleAccess() access: ResolvedModuleAccess) {
+    return this.writes.listAssignees(access);
+  }
+
   @Get(':id')
   @RequireModuleAction('VIEW')
   findOne(
@@ -43,6 +49,18 @@ export class RecordsController {
     @Param('id') id: string,
   ) {
     return this.queries.getOne(access, id);
+  }
+
+  @Post(':id/reassign')
+  @RequireModuleAction('EDIT')
+  reassign(
+    @CurrentModuleAccess() access: ResolvedModuleAccess,
+    @Param('id') id: string,
+    @Body() body: Record<string, unknown>,
+    @Ip() ip: string,
+    @Headers('user-agent') userAgent?: string,
+  ) {
+    return this.writes.reassign(access, id, body, { ip, userAgent });
   }
 
   @Post()

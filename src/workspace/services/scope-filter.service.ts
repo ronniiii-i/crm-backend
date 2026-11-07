@@ -167,8 +167,9 @@ export class ScopeFilterService {
       return { tenantId: actor.tenantId };
     }
 
-    if (descriptor.owner.userField) {
-      return { [descriptor.owner.userField]: value };
+    const directField = descriptor.selfField ?? descriptor.owner.userField;
+    if (directField) {
+      return { [directField]: value };
     }
 
     if (descriptor.owner.userVia) {

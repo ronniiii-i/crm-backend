@@ -11,12 +11,20 @@ import { CacheService } from '../cache/cache.service';
 import { CreateRoleDto } from './dto/create-role.dto';
 import { UpdateRoleDto } from './dto/update-role.dto';
 
+const MAX_ROLE_CHAIN_DEPTH = 8;
+
 function slugify(name: string): string {
   return name
     .toLowerCase()
     .trim()
     .replace(/[^a-z0-9]+/g, '_')
     .replace(/^_+|_+$/g, '');
+}
+
+interface RoleShape {
+  id?: string;
+  rank: number;
+  isTenantAdmin: boolean;
 }
 
 @Injectable()
@@ -39,6 +47,12 @@ export class RolesService {
       tx.role.findMany({
         where: { tenantId },
         include: {
+          parentRole: {
+            select: { id: true, name: true, slug: true, rank: true },
+          },
+          childRoles: {
+            select: { id: true, name: true, slug: true, rank: true },
+          },
           _count: {
             select: {
               users: true,
@@ -71,7 +85,17 @@ export class RolesService {
 
   async get(tenantId: string, id: string) {
     const role = await this.scoped(tenantId, (tx) =>
-      tx.role.findFirst({ where: { id, tenantId } }),
+      tx.role.findFirst({
+        where: { id, tenantId },
+        include: {
+          parentRole: {
+            select: { id: true, name: true, slug: true, rank: true },
+          },
+          childRoles: {
+            select: { id: true, name: true, slug: true, rank: true },
+          },
+        },
+      }),
     );
     if (!role) throw new NotFoundException('Role not found');
     return { success: true, role };
@@ -94,25 +118,60 @@ export class RolesService {
       });
       if (existing) throw new ConflictException('Role already exists');
 
-      return tx.role.create({
+      const rank = dto.rank ?? 500;
+      const parent = await this.assertParentValid(
+        tx,
+        tenantId,
+        {
+          rank,
+          isTenantAdmin: false,
+        },
+        dto.parentRoleId,
+      );
+
+      const created = await tx.role.create({
         data: {
           tenantId,
           name: dto.name,
           slug,
           description: dto.description,
-          rank: dto.rank ?? 500,
+          rank,
           dataScope: dto.dataScope ?? 'SELF',
           isSystem: false,
           isTenantAdmin: false,
+          parentRoleId: parent?.id ?? null,
+        },
+        include: {
+          parentRole: { select: { id: true, name: true, slug: true } },
         },
       });
+
+      if (parent) {
+        await this.recordAudit(
+          tx,
+          tenantId,
+          user,
+          created.id,
+          'ROLE_CREATE',
+          {
+            parentRoleId: null,
+            parentRoleSlug: null,
+          },
+          {
+            parentRoleId: parent.id,
+            parentRoleSlug: parent.slug,
+          },
+        );
+      }
+
+      return created;
     });
 
     await this.cache.invalidateTenantAcls(tenantId);
     return { success: true, role };
   }
 
-  async update(tenantId: string, id: string, dto: UpdateRoleDto) {
+  async update(tenantId: string, user: any, id: string, dto: UpdateRoleDto) {
     const updated = await this.scoped(tenantId, async (tx) => {
       const role = await tx.role.findFirst({ where: { id, tenantId } });
       if (!role) throw new NotFoundException('Role not found');
@@ -122,11 +181,49 @@ export class RolesService {
         }
         if (dto.name)
           throw new BadRequestException('Tenant admin role cannot be renamed');
+        if (dto.parentRoleId !== undefined)
+          throw new BadRequestException(
+            'Tenant admin role cannot inherit from another role',
+          );
       }
       if (role.isSystem && dto.name)
         throw new BadRequestException('System role name cannot be changed');
       if (dto.dataScope === 'TENANT' && !role.isTenantAdmin) {
         throw new BadRequestException('Custom roles cannot use TENANT scope');
+      }
+
+      const nextRank = dto.rank ?? role.rank;
+      const parentChanged = dto.parentRoleId !== undefined;
+      const nextParentId = parentChanged ? dto.parentRoleId : role.parentRoleId;
+
+      if (role.isTenantAdmin && nextParentId) {
+        throw new BadRequestException(
+          'Tenant admin role cannot inherit from another role',
+        );
+      }
+
+      const parent = await this.assertParentValid(
+        tx,
+        tenantId,
+        {
+          id: role.id,
+          rank: nextRank,
+          isTenantAdmin: role.isTenantAdmin,
+        },
+        nextParentId,
+      );
+
+      if (dto.rank !== undefined && dto.rank !== role.rank) {
+        const children = await tx.role.findMany({
+          where: { tenantId, parentRoleId: role.id },
+          select: { id: true, name: true, rank: true },
+        });
+        const invalidChild = children.find((child) => child.rank <= nextRank);
+        if (invalidChild) {
+          throw new BadRequestException(
+            `Rank ${nextRank} would make "${invalidChild.name}" (rank ${invalidChild.rank}) inherit from a more privileged role.`,
+          );
+        }
       }
 
       const result = await tx.role.update({
@@ -136,6 +233,10 @@ export class RolesService {
           description: dto.description,
           rank: dto.rank,
           dataScope: dto.dataScope,
+          parentRoleId: parentChanged ? (parent?.id ?? null) : undefined,
+        },
+        include: {
+          parentRole: { select: { id: true, name: true, slug: true } },
         },
       });
 
@@ -146,6 +247,33 @@ export class RolesService {
           where: { tenantId, roleId: id },
           data: { sessionVersion: { increment: 1 } },
         });
+      }
+
+      if (
+        parentChanged &&
+        (role.parentRoleId ?? null) !== (parent?.id ?? null)
+      ) {
+        const previousParent = role.parentRoleId
+          ? await tx.role.findFirst({
+              where: { id: role.parentRoleId, tenantId },
+              select: { id: true, slug: true },
+            })
+          : null;
+        await this.recordAudit(
+          tx,
+          tenantId,
+          user,
+          role.id,
+          'ROLE_PARENT_CHANGE',
+          {
+            parentRoleId: previousParent?.id ?? null,
+            parentRoleSlug: previousParent?.slug ?? null,
+          },
+          {
+            parentRoleId: parent?.id ?? null,
+            parentRoleSlug: parent?.slug ?? null,
+          },
+        );
       }
 
       return { role, result };
@@ -180,5 +308,119 @@ export class RolesService {
 
     await this.cache.invalidateTenantAcls(tenantId);
     return { success: true };
+  }
+
+  /**
+   * Validates a prospective parent link.
+   *
+   * Rules: the parent must exist in the same tenant, must not be the role
+   * itself, must not be the tenant admin role, must be less privileged (lower
+   * rank) than the child, and must not create a cycle or exceed the depth cap.
+   */
+  private async assertParentValid(
+    tx: Prisma.TransactionClient,
+    tenantId: string,
+    child: RoleShape,
+    parentRoleId: string | null | undefined,
+  ) {
+    if (!parentRoleId) return null;
+
+    if (child.isTenantAdmin) {
+      throw new BadRequestException(
+        'Tenant admin role cannot inherit from another role',
+      );
+    }
+    if (child.id && parentRoleId === child.id) {
+      throw new BadRequestException('A role cannot inherit from itself');
+    }
+
+    const parent = await tx.role.findFirst({
+      where: { id: parentRoleId, tenantId },
+      select: {
+        id: true,
+        slug: true,
+        name: true,
+        rank: true,
+        isTenantAdmin: true,
+        parentRoleId: true,
+      },
+    });
+    if (!parent) throw new BadRequestException('Parent role not found');
+    if (parent.isTenantAdmin) {
+      throw new BadRequestException(
+        'The tenant admin role cannot be used as a parent',
+      );
+    }
+    if (parent.rank >= child.rank) {
+      throw new BadRequestException(
+        'Parent role must be less privileged than the child role',
+      );
+    }
+
+    let current = parent;
+    const seen = new Set<string>();
+    if (child.id) seen.add(child.id);
+    // child + parent = 2 roles.
+    let depth = 2;
+
+    while (current.parentRoleId) {
+      if (depth >= MAX_ROLE_CHAIN_DEPTH) {
+        throw new BadRequestException(
+          `Role inheritance cannot exceed ${MAX_ROLE_CHAIN_DEPTH} levels`,
+        );
+      }
+      if (seen.has(current.parentRoleId)) {
+        throw new BadRequestException('Role inheritance cycle detected');
+      }
+      seen.add(current.parentRoleId);
+
+      const next = await tx.role.findFirst({
+        where: { id: current.parentRoleId, tenantId },
+        select: {
+          id: true,
+          slug: true,
+          name: true,
+          rank: true,
+          isTenantAdmin: true,
+          parentRoleId: true,
+        },
+      });
+      if (!next) break;
+      if (child.id && next.id === child.id) {
+        throw new BadRequestException('Role inheritance cycle detected');
+      }
+      current = next;
+      depth += 1;
+    }
+
+    if (depth > MAX_ROLE_CHAIN_DEPTH) {
+      throw new BadRequestException(
+        `Role inheritance cannot exceed ${MAX_ROLE_CHAIN_DEPTH} levels`,
+      );
+    }
+
+    return parent;
+  }
+
+  private async recordAudit(
+    tx: Prisma.TransactionClient,
+    tenantId: string,
+    user: any,
+    roleId: string,
+    action: string,
+    before: Record<string, unknown>,
+    after: Record<string, unknown>,
+  ): Promise<void> {
+    await tx.auditLog.create({
+      data: {
+        tenantId,
+        actorId: user?.id ?? user?.sub ?? null,
+        action,
+        entity: 'role',
+        entityId: roleId,
+        before: before as Prisma.InputJsonValue,
+        after: after as Prisma.InputJsonValue,
+      },
+    });
   }
 }

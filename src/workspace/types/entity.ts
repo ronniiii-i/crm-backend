@@ -66,7 +66,19 @@ export interface EntityOwnerMeta {
   userVia?: string;
 }
 
-export interface EntityDescriptor {
+export interface EntitySelfMeta {
+  /**
+   * Scalar column compared against the actor id for `SELF` reads and
+   * ownership checks. When omitted, `owner.userField` is used.
+   */
+  selfField?: string;
+  /** Whether a `SELF`-scoped actor may edit matching records. */
+  selfCanEdit?: boolean;
+  /** Allowlisted fields a `SELF`-scoped actor may write. */
+  selfEditableFields?: string[];
+}
+
+export interface EntityDescriptor extends EntitySelfMeta {
   key: EntityKey;
   /** Prisma delegate name. Never exposed to clients. */
   delegate: string;
@@ -88,6 +100,8 @@ export interface EntityDescriptor {
   supportedScopes: ScopeName[];
   /** Entities exposed read-only through the workspace API. */
   readOnly?: boolean;
+  /** Whether the record can be reassigned to another user. */
+  reassignable?: boolean;
 }
 
 /** Prisma where fragment; typed loosely because it is built per entity. */

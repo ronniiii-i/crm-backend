@@ -361,6 +361,233 @@ describe('PermissionResolutionService (hybrid ACL)', () => {
     });
   });
 
+  describe('role inheritance', () => {
+    const ROLE_ROOT = 'role-staff';
+    const ROLE_CHILD = 'role-team-lead';
+
+    const roles = [
+      {
+        id: ROLE_ROOT,
+        tenantId: TENANT_A,
+        slug: 'staff',
+        name: 'Staff',
+        rank: 100,
+        dataScope: 'SELF',
+        isTenantAdmin: false,
+        parentRoleId: null,
+      },
+      {
+        id: ROLE_CHILD,
+        tenantId: TENANT_A,
+        slug: 'team_lead',
+        name: 'Team Lead',
+        rank: 400,
+        dataScope: 'TEAM',
+        isTenantAdmin: false,
+        parentRoleId: ROLE_ROOT,
+      },
+    ];
+
+    const leadUser = {
+      id: 'user-lead',
+      role: ROLE_CHILD,
+      tenantId: TENANT_A,
+      departmentId: 'dept-finance',
+      managedDepartmentId: undefined,
+    };
+
+    it('resolves the root -> child chain and caches it', async () => {
+      const prisma = build({ roles });
+      const chain = await service.getRoleChain(ROLE_CHILD, TENANT_A);
+
+      expect(chain.map((entry) => entry.id)).toEqual([ROLE_ROOT, ROLE_CHILD]);
+      await service.getRoleChain(ROLE_CHILD, TENANT_A);
+      expect(prisma.withTenant).toHaveBeenCalledTimes(1);
+    });
+
+    it('inherits grants from the parent role', async () => {
+      build({
+        roles,
+        roleModulePermissions: [
+          rolePermissionRow({
+            tenantId: TENANT_A,
+            role: ROLE_ROOT,
+            moduleId: MODULE_FINANCE,
+            permissionType: PermissionType.VIEW,
+          }),
+        ],
+      });
+
+      const details = await service.getEffectivePermissionDetails(leadUser);
+      const entry = details.get(`${MODULE_FINANCE}:${PermissionType.VIEW}`);
+
+      expect(entry?.granted).toBe(true);
+      expect(entry?.sources).toEqual(
+        expect.arrayContaining([
+          expect.objectContaining({
+            type: 'ROLE',
+            roleId: ROLE_ROOT,
+            inherited: true,
+          }),
+        ]),
+      );
+    });
+
+    it('lets the child role add grants on top of the parent', async () => {
+      build({
+        roles,
+        roleModulePermissions: [
+          rolePermissionRow({
+            tenantId: TENANT_A,
+            role: ROLE_ROOT,
+            moduleId: MODULE_FINANCE,
+            permissionType: PermissionType.VIEW,
+          }),
+          rolePermissionRow({
+            tenantId: TENANT_A,
+            role: ROLE_CHILD,
+            moduleId: MODULE_FINANCE,
+            permissionType: PermissionType.EDIT,
+          }),
+        ],
+      });
+
+      const details = await service.getEffectivePermissionDetails(leadUser);
+      expect(
+        details.get(`${MODULE_FINANCE}:${PermissionType.VIEW}`)?.granted,
+      ).toBe(true);
+      expect(
+        details.get(`${MODULE_FINANCE}:${PermissionType.EDIT}`)?.granted,
+      ).toBe(true);
+    });
+
+    it('lets a child REVOKE override a parent GRANT', async () => {
+      build({
+        roles,
+        roleModulePermissions: [
+          rolePermissionRow({
+            tenantId: TENANT_A,
+            role: ROLE_ROOT,
+            moduleId: MODULE_FINANCE,
+            permissionType: PermissionType.VIEW,
+          }),
+          rolePermissionRow({
+            tenantId: TENANT_A,
+            role: ROLE_CHILD,
+            moduleId: MODULE_FINANCE,
+            permissionType: PermissionType.VIEW,
+            effect: PermissionEffect.REVOKE,
+          }),
+        ],
+      });
+
+      const details = await service.getEffectivePermissionDetails(leadUser);
+      const entry = details.get(`${MODULE_FINANCE}:${PermissionType.VIEW}`);
+
+      expect(entry?.granted).toBe(false);
+      expect(entry?.sources).toEqual(
+        expect.arrayContaining([
+          expect.objectContaining({
+            type: 'ROLE',
+            roleId: ROLE_CHILD,
+            effect: PermissionEffect.REVOKE,
+          }),
+        ]),
+      );
+    });
+
+    it('does not let the parent REVOKE mask a child GRANT', async () => {
+      build({
+        roles,
+        roleModulePermissions: [
+          rolePermissionRow({
+            tenantId: TENANT_A,
+            role: ROLE_ROOT,
+            moduleId: MODULE_FINANCE,
+            permissionType: PermissionType.EDIT,
+            effect: PermissionEffect.REVOKE,
+          }),
+          rolePermissionRow({
+            tenantId: TENANT_A,
+            role: ROLE_CHILD,
+            moduleId: MODULE_FINANCE,
+            permissionType: PermissionType.EDIT,
+          }),
+        ],
+      });
+
+      const details = await service.getEffectivePermissionDetails(leadUser);
+      expect(
+        details.get(`${MODULE_FINANCE}:${PermissionType.EDIT}`)?.granted,
+      ).toBe(true);
+    });
+
+    it('handles roles without a parent as a single-entry chain', async () => {
+      build({ roles });
+      const chain = await service.getRoleChain(ROLE_ROOT, TENANT_A);
+      expect(chain.map((entry) => entry.id)).toEqual([ROLE_ROOT]);
+    });
+
+    it('stops a cyclic inheritance chain instead of looping', async () => {
+      build({
+        roles: [
+          {
+            id: 'role-a',
+            tenantId: TENANT_A,
+            slug: 'role_a',
+            name: 'Role A',
+            rank: 10,
+            dataScope: 'SELF',
+            isTenantAdmin: false,
+            parentRoleId: 'role-b',
+          },
+          {
+            id: 'role-b',
+            tenantId: TENANT_A,
+            slug: 'role_b',
+            name: 'Role B',
+            rank: 5,
+            dataScope: 'SELF',
+            isTenantAdmin: false,
+            parentRoleId: 'role-a',
+          },
+        ],
+      });
+
+      await expect(
+        service.getRoleChain('role-a', TENANT_A),
+      ).resolves.toHaveLength(2);
+    });
+
+    it('caps the chain at eight roles', async () => {
+      const chainRoles = Array.from({ length: 12 }, (_, index) => ({
+        id: `role-depth-${index}`,
+        tenantId: TENANT_A,
+        slug: `role_depth_${index}`,
+        name: `Role ${index}`,
+        rank: 100 - index,
+        dataScope: 'SELF',
+        isTenantAdmin: false,
+        parentRoleId: index === 0 ? null : `role-depth-${index - 1}`,
+      }));
+
+      build({ roles: chainRoles });
+      const chain = await service.getRoleChain('role-depth-11', TENANT_A);
+      expect(chain).toHaveLength(8);
+    });
+
+    it('drops cached role chains on tenant ACL invalidation', async () => {
+      const prisma = build({ roles });
+
+      await service.getRoleChain(ROLE_CHILD, TENANT_A);
+      expect(prisma.withTenant).toHaveBeenCalledTimes(1);
+
+      await cache.invalidateTenantAcls(TENANT_A);
+      await service.getRoleChain(ROLE_CHILD, TENANT_A);
+      expect(prisma.withTenant).toHaveBeenCalledTimes(2);
+    });
+  });
+
   describe('tenant isolation', () => {
     it('never resolves permissions from another tenant', async () => {
       build({
@@ -416,7 +643,9 @@ describe('PermissionResolutionService (hybrid ACL)', () => {
       await service.getEffectivePermissionDetails(baseUser);
       await service.getEffectivePermissionDetails(baseUser);
 
-      expect(prisma.withTenant).toHaveBeenCalledTimes(1);
+      // One tenant transaction for the role chain, one for the resolver;
+      // both results are cached so the second read makes no calls.
+      expect(prisma.withTenant).toHaveBeenCalledTimes(2);
     });
 
     it('keeps tenants isolated in the cache', async () => {

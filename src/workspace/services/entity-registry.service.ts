@@ -70,6 +70,7 @@ export class EntityRegistryService {
       groupableFields: descriptor.groupableFields,
       supportedScopes: descriptor.supportedScopes,
       readOnly: descriptor.readOnly === true,
+      reassignable: descriptor.reassignable === true,
     };
   }
 

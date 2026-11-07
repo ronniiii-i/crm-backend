@@ -5,8 +5,9 @@ import {
   Injectable,
   NotFoundException,
 } from '@nestjs/common';
-import { Prisma } from '@prisma/client';
+import { Prisma, PermissionType } from '@prisma/client';
 import { PrismaService } from '../../prisma/prisma.service';
+import { PermissionResolutionService } from '../../auth/services/permission-resolution.service';
 import { EntityDescriptor, FieldMeta } from '../types/entity';
 import { AuditService } from './audit.service';
 import { EntityQueryService } from './entity-query.service';
@@ -43,6 +44,7 @@ export class EntityWriteService {
     private readonly audit: AuditService,
     private readonly queries: EntityQueryService,
     private readonly scopeFilter: ScopeFilterService,
+    private readonly permissions: PermissionResolutionService,
   ) {}
 
   async create(
@@ -121,6 +123,8 @@ export class EntityWriteService {
         throw this.notFound(descriptor);
       }
 
+      this.assertSelfEdit(access, descriptor, before, data);
+
       const row = await (tx as any)[descriptor.delegate].update({
         where: { id },
         data,
@@ -163,6 +167,14 @@ export class EntityWriteService {
 
       if (!before) {
         throw this.notFound(descriptor);
+      }
+
+      if (access.scope === 'SELF' && !access.actor.isTenantAdmin) {
+        throw new ForbiddenException({
+          code: 'SELF_DELETE_FORBIDDEN',
+          message: `${descriptor.label} cannot be deleted at the SELF scope.`,
+          entity: descriptor.key,
+        });
       }
 
       try {
@@ -251,9 +263,346 @@ export class EntityWriteService {
     );
   }
 
+  /**
+   * Reassign a record to another user with an explicit capability check.
+   *
+   * This is deliberately separate from the generic update so the actor's
+   * scope, the target's eligibility, and the target's module visibility are
+   * all verified before the owner column changes.
+   */
+  async reassign(
+    access: ResolvedModuleAccess,
+    id: string,
+    body: Record<string, unknown>,
+    context: WriteContext = {},
+  ): Promise<unknown> {
+    const descriptor = this.queries.requireEntity(access);
+    this.assertWritable(descriptor);
+    this.assertId(descriptor, id);
+
+    if (!descriptor.reassignable) {
+      throw new BadRequestException({
+        code: 'REASSIGN_UNSUPPORTED',
+        message: `${descriptor.label} cannot be reassigned.`,
+      });
+    }
+
+    const assignmentField = descriptor.owner.userField ?? descriptor.selfField;
+    if (!assignmentField) {
+      throw new BadRequestException({
+        code: 'REASSIGN_UNSUPPORTED',
+        message: `${descriptor.label} has no assignee field.`,
+      });
+    }
+
+    const targetId = body?.assignedToId;
+    if (typeof targetId !== 'string' || !UUID_PATTERN.test(targetId)) {
+      throw new BadRequestException({
+        code: 'INVALID_ASSIGNEE',
+        message: 'A valid assignedToId is required.',
+        field: 'assignedToId',
+      });
+    }
+
+    const actor = access.actor;
+    if (
+      !actor.isTenantAdmin &&
+      !['TENANT', 'DEPARTMENT', 'TEAM'].includes(access.scope)
+    ) {
+      throw new ForbiddenException({
+        code: 'REASSIGN_FORBIDDEN',
+        message: `You cannot reassign ${descriptor.label} at the ${access.scope} scope.`,
+      });
+    }
+
+    const scope = await this.scopes(access, descriptor);
+
+    return this.prisma.withTenant(actor.tenantId, async (tx) => {
+      const before = await (tx as any)[descriptor.delegate].findFirst({
+        where: { AND: [scope, { id }] },
+        select: this.fullSelect(descriptor),
+      });
+      if (!before) throw this.notFound(descriptor);
+
+      const target = await tx.user.findFirst({
+        where: { id: targetId, tenantId: actor.tenantId },
+        select: {
+          id: true,
+          name: true,
+          email: true,
+          departmentId: true,
+          roleId: true,
+          status: true,
+          role: { select: { isTenantAdmin: true } },
+        },
+      });
+
+      if (!target || (target.status && target.status !== 'ACTIVE')) {
+        throw new BadRequestException({
+          code: 'TARGET_UNAVAILABLE',
+          message:
+            'The selected user is not an active member of this workspace.',
+        });
+      }
+
+      await this.assertTargetInActorScope(tx, access, target);
+
+      const targetIsAdmin = (target.role as any)?.isTenantAdmin === true;
+      if (!targetIsAdmin) {
+        const effective = await this.permissions.getEffectivePermissions({
+          id: target.id,
+          role: target.roleId,
+          tenantId: actor.tenantId,
+          departmentId: target.departmentId ?? null,
+          managedDepartmentId: null,
+        });
+        const canView =
+          effective.get(access.module.id)?.has(PermissionType.VIEW) === true;
+        if (!canView) {
+          throw new BadRequestException({
+            code: 'TARGET_NO_ACCESS',
+            message:
+              'The selected user cannot view this module, so the assignment would be invisible to them.',
+          });
+        }
+      }
+
+      const row = await (tx as any)[descriptor.delegate].update({
+        where: { id },
+        data: { [assignmentField]: targetId },
+        select: this.fullSelect(descriptor),
+      });
+
+      await this.audit.record(tx, descriptor, {
+        tenantId: actor.tenantId,
+        departmentId: this.auditDepartment(descriptor, row),
+        actorId: actor.id,
+        action: 'REASSIGN',
+        entity: descriptor.key,
+        entityId: id,
+        before,
+        after: row,
+        ip: context.ip,
+        userAgent: context.userAgent,
+      });
+
+      return row;
+    });
+  }
+
+  /** Eligible reassignment targets for the actor's scope and the module. */
+  async listAssignees(access: ResolvedModuleAccess) {
+    const descriptor = this.queries.requireEntity(access);
+    if (!descriptor.reassignable) {
+      throw new BadRequestException({
+        code: 'REASSIGN_UNSUPPORTED',
+        message: `${descriptor.label} cannot be reassigned.`,
+      });
+    }
+
+    const actor = access.actor;
+    const select = {
+      id: true,
+      name: true,
+      email: true,
+      departmentId: true,
+      roleId: true,
+      status: true,
+      role: { select: { isTenantAdmin: true } },
+    } as const;
+
+    return this.prisma.withTenant(actor.tenantId, async (tx) => {
+      let candidates: any[] = [];
+
+      if (actor.isTenantAdmin) {
+        candidates = await tx.user.findMany({
+          where: { tenantId: actor.tenantId, status: 'ACTIVE' },
+          select,
+          orderBy: { name: 'asc' },
+        });
+      } else if (access.scope === 'TEAM') {
+        const teamIds = await this.ledTeamIds(tx, actor);
+        let memberIds: string[] = [];
+        if (teamIds.length > 0) {
+          const members = await tx.teamMember.findMany({
+            where: { tenantId: actor.tenantId, teamId: { in: teamIds } },
+            select: { userId: true },
+          });
+          memberIds = members.map((member) => member.userId);
+        } else if (actor.departmentId) {
+          // No led team: fall back to the actor's department.
+          const departmentUsers = await tx.user.findMany({
+            where: {
+              tenantId: actor.tenantId,
+              departmentId: actor.departmentId,
+            },
+            select: { id: true },
+          });
+          memberIds = departmentUsers.map((user) => user.id);
+        }
+
+        candidates = await tx.user.findMany({
+          where: {
+            tenantId: actor.tenantId,
+            status: 'ACTIVE',
+            id: { in: Array.from(new Set([actor.id, ...memberIds])) },
+          },
+          select,
+          orderBy: { name: 'asc' },
+        });
+      } else if (access.scope === 'DEPARTMENT') {
+        const departmentId =
+          actor.managedDepartmentId ?? actor.departmentId ?? null;
+        candidates = departmentId
+          ? await tx.user.findMany({
+              where: {
+                tenantId: actor.tenantId,
+                departmentId,
+                status: 'ACTIVE',
+              },
+              select,
+              orderBy: { name: 'asc' },
+            })
+          : [];
+      }
+
+      const users: Array<Record<string, unknown>> = [];
+      for (const candidate of candidates) {
+        if (candidate.role?.isTenantAdmin === true) {
+          users.push(candidate);
+          continue;
+        }
+
+        const effective = await this.permissions.getEffectivePermissions({
+          id: candidate.id,
+          role: candidate.roleId,
+          tenantId: actor.tenantId,
+          departmentId: candidate.departmentId ?? null,
+          managedDepartmentId: null,
+        });
+        if (
+          effective.get(access.module.id)?.has(PermissionType.VIEW) === true
+        ) {
+          users.push(candidate);
+        }
+      }
+
+      return { users };
+    });
+  }
+
   // ---------------------------------------------------------------------
   // Validation helpers
   // ---------------------------------------------------------------------
+
+  private async assertTargetInActorScope(
+    tx: Prisma.TransactionClient,
+    access: ResolvedModuleAccess,
+    target: {
+      id: string;
+      departmentId?: string | null;
+    },
+  ): Promise<void> {
+    const actor = access.actor;
+    if (actor.isTenantAdmin) return;
+
+    if (access.scope === 'TEAM') {
+      if (target.id === actor.id) return;
+      const teamIds = await this.ledTeamIds(tx, actor);
+      if (teamIds.length > 0) {
+        const membership = await tx.teamMember.findFirst({
+          where: {
+            tenantId: actor.tenantId,
+            userId: target.id,
+            teamId: { in: teamIds },
+          },
+          select: { id: true },
+        });
+        if (!membership) {
+          throw new BadRequestException({
+            code: 'TARGET_OUT_OF_TEAM',
+            message: 'The selected user is not a member of a team you lead.',
+          });
+        }
+        return;
+      }
+
+      if (!actor.departmentId || target.departmentId !== actor.departmentId) {
+        throw new BadRequestException({
+          code: 'TARGET_OUT_OF_DEPARTMENT',
+          message:
+            'The selected user is not a member of your team or department.',
+        });
+      }
+      return;
+    }
+
+    if (access.scope === 'DEPARTMENT') {
+      const departmentId =
+        actor.managedDepartmentId ?? actor.departmentId ?? null;
+      if (!departmentId || target.departmentId !== departmentId) {
+        throw new BadRequestException({
+          code: 'TARGET_OUT_OF_DEPARTMENT',
+          message: 'The selected user is not a member of your department.',
+        });
+      }
+      return;
+    }
+
+    throw new ForbiddenException({
+      code: 'REASSIGN_FORBIDDEN',
+      message: `You cannot reassign ${access.entity?.label ?? 'records'} at the ${access.scope} scope.`,
+    });
+  }
+
+  private async ledTeamIds(
+    tx: Prisma.TransactionClient,
+    actor: ResolvedModuleAccess['actor'],
+  ): Promise<string[]> {
+    const teams = await tx.team.findMany({
+      where: { tenantId: actor.tenantId, leadUserId: actor.id },
+      select: { id: true },
+    });
+    return teams.map((team) => team.id);
+  }
+
+  private assertSelfEdit(
+    access: ResolvedModuleAccess,
+    descriptor: EntityDescriptor,
+    before: Record<string, unknown>,
+    data: Record<string, unknown>,
+  ): void {
+    if (access.actor.isTenantAdmin || access.scope !== 'SELF') return;
+
+    if (descriptor.selfCanEdit !== true) {
+      throw new ForbiddenException({
+        code: 'SELF_EDIT_FORBIDDEN',
+        message: `${descriptor.label} cannot be edited at the SELF scope.`,
+        entity: descriptor.key,
+      });
+    }
+
+    const selfField = descriptor.selfField ?? descriptor.owner.userField;
+    if (!selfField || before[selfField] !== access.actor.id) {
+      throw new ForbiddenException({
+        code: 'SELF_EDIT_FORBIDDEN',
+        message: `You can only edit ${descriptor.label} records assigned to you.`,
+        entity: descriptor.key,
+      });
+    }
+
+    const allowed = new Set(descriptor.selfEditableFields ?? []);
+    for (const key of Object.keys(data)) {
+      if (!allowed.has(key)) {
+        throw new ForbiddenException({
+          code: 'FIELD_FORBIDDEN',
+          message: `Field "${key}" cannot be edited at the SELF scope.`,
+          field: key,
+          entity: descriptor.key,
+        });
+      }
+    }
+  }
 
   private assertWritable(descriptor: EntityDescriptor): void {
     if (descriptor.readOnly) {

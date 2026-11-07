@@ -31,6 +31,12 @@ export interface DefaultRole {
   dataScope: RoleDataScope;
   isSystem: true;
   isTenantAdmin: boolean;
+  /**
+   * Slug of the role this role inherits from. Parent roles must be less
+   * privileged (higher `rank` number). Provisioning links them in a second
+   * pass after every role exists.
+   */
+  parentSlug?: RoleSlug | null;
 }
 
 /** Loose, versioned renderer config stored on `modules.config`. */
@@ -71,9 +77,14 @@ const DEPARTMENT_HEAD_ACTIONS: PermissionType[] = [
 ];
 const TEAM_LEAD_ACTIONS: PermissionType[] = [
   PermissionType.VIEW,
+  PermissionType.CREATE,
   PermissionType.EDIT,
 ];
-const STAFF_ACTIONS: PermissionType[] = [PermissionType.VIEW];
+const STAFF_ACTIONS: PermissionType[] = [
+  PermissionType.VIEW,
+  PermissionType.CREATE,
+  PermissionType.EDIT,
+];
 
 /** Order of the eight system departments created for every workspace. */
 export const DEFAULT_DEPARTMENTS: DefaultDepartment[] = [
@@ -101,6 +112,7 @@ export const DEFAULT_ROLES: DefaultRole[] = [
     dataScope: RoleDataScope.TENANT,
     isSystem: true,
     isTenantAdmin: true,
+    parentSlug: null,
   },
   {
     slug: 'department_head',
@@ -110,6 +122,7 @@ export const DEFAULT_ROLES: DefaultRole[] = [
     dataScope: RoleDataScope.DEPARTMENT,
     isSystem: true,
     isTenantAdmin: false,
+    parentSlug: 'team_lead',
   },
   {
     slug: 'team_lead',
@@ -119,6 +132,7 @@ export const DEFAULT_ROLES: DefaultRole[] = [
     dataScope: RoleDataScope.TEAM,
     isSystem: true,
     isTenantAdmin: false,
+    parentSlug: 'staff',
   },
   {
     slug: 'staff',
@@ -128,6 +142,7 @@ export const DEFAULT_ROLES: DefaultRole[] = [
     dataScope: RoleDataScope.SELF,
     isSystem: true,
     isTenantAdmin: false,
+    parentSlug: null,
   },
 ];
 
@@ -1594,7 +1609,15 @@ export const DEFAULT_MODULES: DefaultModule[] = [
     '/hr/attendance-leave-management',
     'Human Resources',
     51,
-    { icon: 'CalendarCheck', departmentKey: 'human_resources' },
+    {
+      icon: 'CalendarCheck',
+      departmentKey: 'human_resources',
+      // Staff may submit leave but never edit workflow status directly;
+      // approvals run through the Stage 5 state-machine endpoints.
+      overrides: {
+        staff: [PermissionType.VIEW, PermissionType.CREATE],
+      },
+    },
   ),
   module(
     'recruitment-job-postings',

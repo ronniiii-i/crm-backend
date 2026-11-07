@@ -4,6 +4,7 @@ import {
   IsNotEmpty,
   IsOptional,
   IsString,
+  IsUUID,
   Max,
   Min,
 } from 'class-validator';
@@ -26,4 +27,9 @@ export class CreateRoleDto {
   @IsOptional()
   @IsIn(['TENANT', 'DEPARTMENT', 'TEAM', 'SELF'])
   dataScope?: 'TENANT' | 'DEPARTMENT' | 'TEAM' | 'SELF';
+
+  /** Optional parent role; the parent must be less privileged. */
+  @IsOptional()
+  @IsUUID()
+  parentRoleId?: string | null;
 }

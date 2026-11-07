@@ -148,6 +148,22 @@ export class TenantProvisioningService {
       );
     }
 
+    // Second pass: link inherited roles now that every role id exists.
+    for (const role of template.roles) {
+      if (!role.parentSlug) continue;
+      const childId = roleIdBySlug.get(role.slug);
+      const parentId = roleIdBySlug.get(role.parentSlug);
+      if (!childId || !parentId) {
+        throw new Error(
+          `Role inheritance for "${role.slug}" references missing role "${role.parentSlug}".`,
+        );
+      }
+      await tx.role.update({
+        where: { id: childId },
+        data: { parentRoleId: parentId },
+      });
+    }
+
     await tx.module.createMany({
       data: buildModuleCreateManyData(template, tenantId, departmentIdByKey),
       skipDuplicates: true,

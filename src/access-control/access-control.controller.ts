@@ -32,6 +32,7 @@ export class AccessControlController {
       user.tenantId,
       id,
       body?.grants ?? body,
+      user,
     );
   }
 }
