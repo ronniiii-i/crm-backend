@@ -1,5 +1,4 @@
 import { Module } from '@nestjs/common';
-import { APP_GUARD } from '@nestjs/core';
 import { JwtModule } from '@nestjs/jwt';
 import { optionalEnv, requireEnv } from '../config/env';
 import { MemorySlidingWindowStore } from './memory-sliding-window.store';
@@ -14,9 +13,9 @@ import { RateLimitService } from './rate-limit.service';
 /**
  * Identity-aware rate limiting.
  *
- * The guard is registered here (rather than in `AppModule`) so its
- * dependencies resolve from this module's context. `APP_GUARD` providers are
- * global, and this module is imported once by `AppModule`.
+ * The guard itself is registered by `AppModule` as the first global guard so
+ * it runs before JWT/tenant/permission guards; this module owns its
+ * dependencies and exports the guard for that registration.
  */
 @Module({
   imports: [
@@ -34,10 +33,6 @@ import { RateLimitService } from './rate-limit.service';
     RedisSlidingWindowStore,
     RateLimitService,
     RateLimitGuard,
-    {
-      provide: APP_GUARD,
-      useClass: RateLimitGuard,
-    },
   ],
   exports: [RateLimitService, RateLimitGuard],
 })

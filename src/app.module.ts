@@ -18,6 +18,7 @@ import { APP_GUARD, APP_INTERCEPTOR } from '@nestjs/core';
 import { ScheduleModule } from '@nestjs/schedule';
 import { TenantInterceptor } from './tenant/tenant.interceptor';
 import { RateLimitModule } from './rate-limit/rate-limit.module';
+import { RateLimitGuard } from './rate-limit/rate-limit.guard';
 import { TenantMiddleware } from './tenant/tenant.middleware';
 import { JwtAuthGuard } from './auth/guards/jwt-auth.guard';
 import { TenantLifecycleGuard } from './tenant/tenant-lifecycle.guard';
@@ -65,6 +66,10 @@ import { TenantSettingsService } from './tenant/tenant-settings.service';
     PrismaService,
     MailService,
     TenantSettingsService,
+    {
+      provide: APP_GUARD,
+      useExisting: RateLimitGuard,
+    },
     {
       provide: APP_GUARD,
       useClass: JwtAuthGuard,
