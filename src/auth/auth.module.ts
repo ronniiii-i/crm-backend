@@ -2,7 +2,6 @@ import { Module } from '@nestjs/common';
 import { JwtModule } from '@nestjs/jwt';
 import { PassportModule } from '@nestjs/passport';
 import { AuthService } from './services/auth.service';
-import { MailService } from '../mail/mail.service';
 import { AuthController } from './controllers/auth.controller';
 import { AuthAclController } from './controllers/access-control.controller';
 import { SessionController } from './controllers/session.controller';
@@ -35,7 +34,6 @@ import { NewDeviceNotifier } from './services/new-device-notifier.service';
   providers: [
     AuthService,
     JwtStrategy,
-    MailService,
     DataFilterService,
     RouteRegistry,
     FrontendAdapterService,

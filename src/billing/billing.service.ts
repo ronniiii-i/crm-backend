@@ -1,14 +1,14 @@
 import { Injectable } from '@nestjs/common';
 import { PrismaService } from '../prisma/prisma.service';
 import { TenantStateService } from '../tenant/tenant-state.service';
-import { MailService } from '../mail/mail.service';
+import { EmailService } from '../email/email.service';
 
 @Injectable()
 export class BillingService {
   constructor(
     private readonly prisma: PrismaService,
     private readonly tenantState: TenantStateService,
-    private readonly mailService: MailService,
+    private readonly email: EmailService,
   ) {}
 
   async getBilling(tenantId: string) {
@@ -39,17 +39,14 @@ export class BillingService {
   }
 
   async contact(user: any, body: any) {
-    try {
-      await (this.mailService as any).sendContactEmail?.({
-        name: user.name,
-        email: user.email,
-        subject: 'Billing/Upgrade Request',
-        message: body?.message || 'Upgrade request',
-        company: body?.company,
-      });
-    } catch {
-      // A mail outage must not fail the billing contact request.
-    }
+    await this.email.send('contact', {
+      name: String(user?.name ?? ''),
+      email: String(user?.email ?? ''),
+      company: body?.company ? String(body.company) : undefined,
+      topic: 'Billing/Upgrade Request',
+      message: String(body?.message ?? 'Upgrade request'),
+      tenantId: user?.tenantId,
+    });
     return { success: true };
   }
 }

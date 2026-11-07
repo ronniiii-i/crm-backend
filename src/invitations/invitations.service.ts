@@ -1,12 +1,14 @@
 import {
   Injectable,
+  Logger,
   BadRequestException,
   ConflictException,
   ForbiddenException,
   NotFoundException,
 } from '@nestjs/common';
 import { PrismaService } from '../prisma/prisma.service';
-import { MailService } from '../mail/mail.service';
+import { EmailService } from '../email/email.service';
+import { EmailLinkService } from '../email/email-link.service';
 import { JwtService } from '@nestjs/jwt';
 import { randomBytes, createHash } from 'node:crypto';
 import * as bcrypt from 'bcryptjs';
@@ -20,9 +22,12 @@ function hashToken(token: string): string {
 
 @Injectable()
 export class InvitationsService {
+  private readonly logger = new Logger(InvitationsService.name);
+
   constructor(
     private readonly prisma: PrismaService,
-    private readonly mailService: MailService,
+    private readonly email: EmailService,
+    private readonly emailLink: EmailLinkService,
     private readonly jwtService: JwtService,
     private readonly tenantResolver: TenantResolverService,
     private readonly cache: CacheService,
@@ -50,7 +55,7 @@ export class InvitationsService {
     const tokenHash = hashToken(token);
     const expiresAt = addDays(new Date(), 7);
 
-    const { invitation, tenant } = await this.prisma.withTenant(
+    const { invitation, tenant, role } = await this.prisma.withTenant(
       tenantId,
       async (tx) => {
         const existingUser = await tx.user.findFirst({ where: { email } });
@@ -109,20 +114,28 @@ export class InvitationsService {
           },
         });
 
-        return { invitation: created, tenant: workspace };
+        return { invitation: created, tenant: workspace, role };
       },
     );
 
-    try {
-      const sent = await (this.mailService as any).sendInvitationEmail?.(
-        email,
-        tenant.name,
-        token,
-        tenant.slug,
+    const result = await this.email.send('invitation', {
+      to: email,
+      inviteeEmail: email,
+      inviterName: inviter?.name || 'A workspace administrator',
+      workspaceName: tenant.name,
+      roleName: role.name,
+      acceptUrl: this.emailLink.build(tenant.slug, `invite/${token}`),
+      expiresAt,
+      tenantId,
+      idempotencyKey: `invitation:${invitation.id}`,
+    });
+    if (!result.delivered) {
+      this.logger.warn(
+        JSON.stringify({
+          event: 'invitation.email_failed',
+          invitationId: invitation.id,
+        }),
       );
-      if (!sent) console.log(`Invite: ${email} -> ${token}`);
-    } catch {
-      console.log(`Invite: ${email} -> ${token}`);
     }
 
     return {
@@ -135,12 +148,14 @@ export class InvitationsService {
   async resend(tenantId: string, inviter: any, id: string) {
     const token = randomBytes(32).toString('hex');
     const tokenHash = hashToken(token);
+    const expiresAt = addDays(new Date(), 7);
 
     const { invitation, tenant } = await this.prisma.withTenant(
       tenantId,
       async (tx) => {
         const current = await tx.invitation.findFirst({
           where: { id, tenantId },
+          include: { role: true },
         });
         if (!current) throw new NotFoundException('Invitation not found');
         if (current.status !== 'PENDING')
@@ -150,7 +165,7 @@ export class InvitationsService {
           where: { id },
           data: {
             tokenHash,
-            expiresAt: addDays(new Date(), 7),
+            expiresAt,
             lastSentAt: new Date(),
             sendCount: { increment: 1 },
           },
@@ -159,21 +174,30 @@ export class InvitationsService {
         const workspace = await tx.tenant.findUnique({
           where: { id: tenantId },
         });
+        if (!workspace) throw new NotFoundException('Tenant not found');
 
         return { invitation: current, tenant: workspace };
       },
     );
 
-    try {
-      const sent = await (this.mailService as any).sendInvitationEmail?.(
-        invitation.email,
-        tenant?.name || '',
-        token,
-        tenant?.slug || '',
+    const result = await this.email.send('invitation', {
+      to: invitation.email,
+      inviteeEmail: invitation.email,
+      inviterName: inviter?.name || 'A workspace administrator',
+      workspaceName: tenant.name,
+      roleName: invitation.role?.name || 'member',
+      acceptUrl: this.emailLink.build(tenant.slug, `invite/${token}`),
+      expiresAt,
+      tenantId,
+      idempotencyKey: `invitation:${invitation.id}:${invitation.sendCount + 1}`,
+    });
+    if (!result.delivered) {
+      this.logger.warn(
+        JSON.stringify({
+          event: 'invitation.email_failed',
+          invitationId: invitation.id,
+        }),
       );
-      if (!sent) console.log(`Invite: ${invitation.email} -> ${token}`);
-    } catch {
-      console.log(`Invite: ${invitation.email} -> ${token}`);
     }
 
     return { success: true };

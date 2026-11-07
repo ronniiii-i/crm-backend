@@ -7,7 +7,8 @@ import { randomUUID } from 'node:crypto';
 import { PrismaService } from '../prisma/prisma.service';
 import { TenantResolverService } from '../tenant/tenant-resolver.service';
 import { TenantProvisioningService } from '../tenant/tenant-provisioning.service';
-import { MailService } from '../mail/mail.service';
+import { EmailService } from '../email/email.service';
+import { EmailLinkService } from '../email/email-link.service';
 
 @Injectable()
 export class PublicService {
@@ -15,7 +16,8 @@ export class PublicService {
     private readonly prisma: PrismaService,
     private readonly tenantResolver: TenantResolverService,
     private readonly provisioning: TenantProvisioningService,
-    private readonly mailService: MailService,
+    private readonly email: EmailService,
+    private readonly emailLink: EmailLinkService,
   ) {}
 
   async getWorkspace(slug: string) {
@@ -62,9 +64,8 @@ export class PublicService {
     if (!available) throw new ConflictException('Slug not available');
 
     const tenantId = randomUUID();
-    const { tenant, verificationToken } = await this.prisma.withTenant(
-      tenantId,
-      (tx) =>
+    const { tenant, verificationToken, verificationExpiresAt } =
+      await this.prisma.withTenant(tenantId, (tx) =>
         this.provisioning.provisionTenantData(tx, {
           tenantId,
           workspaceName,
@@ -73,17 +74,19 @@ export class PublicService {
           ownerEmail,
           adminPassword: password,
         }),
-    );
-
-    try {
-      await this.mailService.sendVerificationEmail(
-        ownerEmail,
-        ownerName,
-        verificationToken,
       );
-    } catch {
-      // Self-serve onboarding must not fail because email delivery is down.
-    }
+
+    await this.email.send('welcome', {
+      to: ownerEmail,
+      name: ownerName,
+      workspaceName: tenant.name,
+      verifyUrl: this.emailLink.build(tenant.slug, 'verify-email', {
+        token: verificationToken,
+      }),
+      expiresAt: verificationExpiresAt,
+      tenantId,
+      idempotencyKey: `welcome:${tenantId}:${ownerEmail}`,
+    });
 
     return {
       success: true,
@@ -93,11 +96,13 @@ export class PublicService {
   }
 
   async contact(body: any) {
-    try {
-      await (this.mailService as any).sendContactEmail?.(body);
-    } catch {
-      // A mail outage must not fail the contact form submission.
-    }
+    await this.email.send('contact', {
+      name: String(body?.name ?? body?.fullName ?? ''),
+      email: String(body?.email ?? ''),
+      company: body?.company ? String(body.company) : undefined,
+      topic: body?.topic ? String(body.topic) : undefined,
+      message: String(body?.message ?? ''),
+    });
     return { success: true };
   }
 }

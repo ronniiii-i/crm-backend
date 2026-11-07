@@ -83,6 +83,42 @@ describe('env validation', () => {
       /PORT/,
     );
   });
+
+  it('accepts a complete production email configuration', () => {
+    const env = validateEnv({
+      ...VALID_ENV,
+      NODE_ENV: 'production',
+      RESEND_API_KEY: 're_test_key',
+      EMAIL_FROM: 'Clasp Workspace <notifications@claspworkspace.com>',
+      APP_URL: 'https://claspworkspace.com',
+    } as any);
+
+    expect(env.NODE_ENV).toBe('production');
+    expect(env.EMAIL_FROM).toContain('notifications@claspworkspace.com');
+    expect(env.APP_URL).toBe('https://claspworkspace.com');
+  });
+
+  it('rejects production without Resend, sender or APP_URL', () => {
+    let message = '';
+    try {
+      validateEnv({ ...VALID_ENV, NODE_ENV: 'production' } as any);
+    } catch (error) {
+      message = (error as Error).message;
+    }
+
+    expect(message).toContain('RESEND_API_KEY');
+    expect(message).toContain('EMAIL_FROM');
+    expect(message).toContain('APP_URL');
+  });
+
+  it('rejects a malformed EMAIL_FROM address', () => {
+    expect(() =>
+      validateEnv({
+        ...VALID_ENV,
+        EMAIL_FROM: 'Clasp Workspace <not-an-address>',
+      } as any),
+    ).toThrow(/EMAIL_FROM/);
+  });
 });
 
 describe('requireEnv', () => {

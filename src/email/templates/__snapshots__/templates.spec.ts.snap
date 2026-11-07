@@ -1,0 +1,477 @@
+// Jest Snapshot v1, https://goo.gl/fbAQLP
+
+exports[`email templates renders a contact request with a mailto reply action 1`] = `
+{
+  "html": "<!doctype html>
+<html lang="en">
+  <head>
+    <meta charset="utf-8" />
+    <meta name="viewport" content="width=device-width, initial-scale=1" />
+    <title>New contact request</title>
+  </head>
+  <body style="margin:0;padding:0;background-color:#f1f5f9;font-family:-apple-system,BlinkMacSystemFont,'Segoe UI',Roboto,Helvetica,Arial,sans-serif;color:#0f172a;">
+    <div style="display:none;max-height:0;overflow:hidden;opacity:0;">Ada Lovelace sent a message through the contact form.</div>
+    <table role="presentation" width="100%" cellspacing="0" cellpadding="0" border="0" style="background-color:#f1f5f9;">
+      <tr>
+        <td align="center" style="padding:32px 12px;">
+          <table role="presentation" width="100%" cellspacing="0" cellpadding="0" border="0" style="max-width:560px;background-color:#ffffff;border-radius:12px;border:1px solid #e2e8f0;">
+            <tr>
+              <td style="padding:24px 32px 8px 32px;font-size:13px;font-weight:700;letter-spacing:0.08em;text-transform:uppercase;color:#2563eb;">Clasp Workspace</td>
+            </tr>
+            <tr>
+              <td style="padding:8px 32px 24px 32px;">
+                <h1 style="margin:0 0 16px 0;font-size:22px;line-height:1.3;font-weight:700;color:#0f172a;">New contact request</h1>
+                
+                <p style="margin:0 0 14px 0;font-size:15px;line-height:1.6;">A message was submitted through the contact form.</p><p style="margin:0 0 14px 0;font-size:15px;line-height:1.6;">Please call me.</p>
+                <table role="presentation" cellspacing="0" cellpadding="0" border="0" style="margin:18px 0;padding:12px 16px;background-color:#f8fafc;border-radius:8px;border:1px solid #e2e8f0;"><tr><td style="padding:4px 12px 4px 0;color:#64748b;font-size:14px;vertical-align:top;">Name</td><td style="padding:4px 0;color:#0f172a;font-size:14px;vertical-align:top;">Ada Lovelace</td></tr><tr><td style="padding:4px 12px 4px 0;color:#64748b;font-size:14px;vertical-align:top;">Email</td><td style="padding:4px 0;color:#0f172a;font-size:14px;vertical-align:top;">ada@example.com</td></tr><tr><td style="padding:4px 12px 4px 0;color:#64748b;font-size:14px;vertical-align:top;">Company</td><td style="padding:4px 0;color:#0f172a;font-size:14px;vertical-align:top;">Analytical Engines</td></tr><tr><td style="padding:4px 12px 4px 0;color:#64748b;font-size:14px;vertical-align:top;">Topic</td><td style="padding:4px 0;color:#0f172a;font-size:14px;vertical-align:top;">Billing</td></tr></table>
+                <table role="presentation" cellspacing="0" cellpadding="0" border="0" style="margin:24px 0 8px 0;"><tr><td style="border-radius:8px;background-color:#2563eb;"><a href="mailto:ada@example.com" style="display:inline-block;padding:12px 22px;font-size:15px;font-weight:600;color:#ffffff;text-decoration:none;border-radius:8px;">Reply by email</a></td></tr></table>
+                <p style="margin:20px 0 0 0;font-size:13px;line-height:1.5;color:#64748b;">Reply directly to this email to respond to the sender.</p>
+              </td>
+            </tr>
+            <tr>
+              <td style="padding:16px 32px 24px 32px;border-top:1px solid #e2e8f0;color:#64748b;font-size:12px;line-height:1.6;">
+                
+                <div>Clasp Workspace &middot; Need help? <a href="mailto:support@claspworkspace.com" style="color:#2563eb;text-decoration:none;">support@claspworkspace.com</a></div>
+              </td>
+            </tr>
+          </table>
+        </td>
+      </tr>
+    </table>
+  </body>
+</html>",
+  "subject": "Contact request: Billing",
+  "text": "New contact request
+
+A message was submitted through the contact form.
+
+Please call me.
+
+Name: Ada Lovelace
+Email: ada@example.com
+Company: Analytical Engines
+Topic: Billing
+
+Reply by email: mailto:ada@example.com
+
+Reply directly to this email to respond to the sender.
+
+Clasp Workspace
+Support: support@claspworkspace.com",
+}
+`;
+
+exports[`email templates renders a leave decision with an optional note 1`] = `
+{
+  "html": "<!doctype html>
+<html lang="en">
+  <head>
+    <meta charset="utf-8" />
+    <meta name="viewport" content="width=device-width, initial-scale=1" />
+    <title>Leave request approved</title>
+  </head>
+  <body style="margin:0;padding:0;background-color:#f1f5f9;font-family:-apple-system,BlinkMacSystemFont,'Segoe UI',Roboto,Helvetica,Arial,sans-serif;color:#0f172a;">
+    <div style="display:none;max-height:0;overflow:hidden;opacity:0;">Your Annual leave request was approved.</div>
+    <table role="presentation" width="100%" cellspacing="0" cellpadding="0" border="0" style="background-color:#f1f5f9;">
+      <tr>
+        <td align="center" style="padding:32px 12px;">
+          <table role="presentation" width="100%" cellspacing="0" cellpadding="0" border="0" style="max-width:560px;background-color:#ffffff;border-radius:12px;border:1px solid #e2e8f0;">
+            <tr>
+              <td style="padding:24px 32px 8px 32px;font-size:13px;font-weight:700;letter-spacing:0.08em;text-transform:uppercase;color:#2563eb;">Clasp Workspace</td>
+            </tr>
+            <tr>
+              <td style="padding:8px 32px 24px 32px;">
+                <h1 style="margin:0 0 16px 0;font-size:22px;line-height:1.3;font-weight:700;color:#0f172a;">Leave request approved</h1>
+                <p style="margin:0 0 14px 0;font-size:15px;line-height:1.6;">Hi Ada Lovelace,</p>
+                <p style="margin:0 0 14px 0;font-size:15px;line-height:1.6;">HR Lead approved your Annual leave request for 2026-11-12 to 2026-11-14.</p><p style="margin:0 0 14px 0;font-size:15px;line-height:1.6;">Note from HR Lead: Enjoy the break.</p>
+                <table role="presentation" cellspacing="0" cellpadding="0" border="0" style="margin:18px 0;padding:12px 16px;background-color:#f8fafc;border-radius:8px;border:1px solid #e2e8f0;"><tr><td style="padding:4px 12px 4px 0;color:#64748b;font-size:14px;vertical-align:top;">Leave type</td><td style="padding:4px 0;color:#0f172a;font-size:14px;vertical-align:top;">Annual</td></tr><tr><td style="padding:4px 12px 4px 0;color:#64748b;font-size:14px;vertical-align:top;">Dates</td><td style="padding:4px 0;color:#0f172a;font-size:14px;vertical-align:top;">2026-11-12 to 2026-11-14</td></tr><tr><td style="padding:4px 12px 4px 0;color:#64748b;font-size:14px;vertical-align:top;">Status</td><td style="padding:4px 0;color:#0f172a;font-size:14px;vertical-align:top;">approved</td></tr></table>
+                <table role="presentation" cellspacing="0" cellpadding="0" border="0" style="margin:24px 0 8px 0;"><tr><td style="border-radius:8px;background-color:#2563eb;"><a href="https://app.example.com/acme/leave/req1" style="display:inline-block;padding:12px 22px;font-size:15px;font-weight:600;color:#ffffff;text-decoration:none;border-radius:8px;">View request</a></td></tr></table>
+                
+              </td>
+            </tr>
+            <tr>
+              <td style="padding:16px 32px 24px 32px;border-top:1px solid #e2e8f0;color:#64748b;font-size:12px;line-height:1.6;">
+                <div style="margin-bottom:4px;color:#475569;font-weight:600;">Acme</div>
+                <div>Clasp Workspace &middot; Need help? <a href="mailto:support@claspworkspace.com" style="color:#2563eb;text-decoration:none;">support@claspworkspace.com</a></div>
+              </td>
+            </tr>
+          </table>
+        </td>
+      </tr>
+    </table>
+  </body>
+</html>",
+  "subject": "Your leave request was approved",
+  "text": "Leave request approved
+
+Hi Ada Lovelace,
+
+HR Lead approved your Annual leave request for 2026-11-12 to 2026-11-14.
+
+Note from HR Lead: Enjoy the break.
+
+Leave type: Annual
+Dates: 2026-11-12 to 2026-11-14
+Status: approved
+
+View request: https://app.example.com/acme/leave/req1
+
+Acme
+Clasp Workspace
+Support: support@claspworkspace.com",
+}
+`;
+
+exports[`email templates renders a leave request for the current approver 1`] = `
+{
+  "html": "<!doctype html>
+<html lang="en">
+  <head>
+    <meta charset="utf-8" />
+    <meta name="viewport" content="width=device-width, initial-scale=1" />
+    <title>Leave request needs your review</title>
+  </head>
+  <body style="margin:0;padding:0;background-color:#f1f5f9;font-family:-apple-system,BlinkMacSystemFont,'Segoe UI',Roboto,Helvetica,Arial,sans-serif;color:#0f172a;">
+    <div style="display:none;max-height:0;overflow:hidden;opacity:0;">Ada Lovelace submitted a Annual leave request.</div>
+    <table role="presentation" width="100%" cellspacing="0" cellpadding="0" border="0" style="background-color:#f1f5f9;">
+      <tr>
+        <td align="center" style="padding:32px 12px;">
+          <table role="presentation" width="100%" cellspacing="0" cellpadding="0" border="0" style="max-width:560px;background-color:#ffffff;border-radius:12px;border:1px solid #e2e8f0;">
+            <tr>
+              <td style="padding:24px 32px 8px 32px;font-size:13px;font-weight:700;letter-spacing:0.08em;text-transform:uppercase;color:#2563eb;">Clasp Workspace</td>
+            </tr>
+            <tr>
+              <td style="padding:8px 32px 24px 32px;">
+                <h1 style="margin:0 0 16px 0;font-size:22px;line-height:1.3;font-weight:700;color:#0f172a;">Leave request needs your review</h1>
+                <p style="margin:0 0 14px 0;font-size:15px;line-height:1.6;">Hi Team Lead,</p>
+                <p style="margin:0 0 14px 0;font-size:15px;line-height:1.6;">Ada Lovelace submitted a Annual leave request for 2026-11-12 to 2026-11-14 (3 days).</p><p style="margin:0 0 14px 0;font-size:15px;line-height:1.6;">It is awaiting your review at the Team Lead stage.</p>
+                <table role="presentation" cellspacing="0" cellpadding="0" border="0" style="margin:18px 0;padding:12px 16px;background-color:#f8fafc;border-radius:8px;border:1px solid #e2e8f0;"><tr><td style="padding:4px 12px 4px 0;color:#64748b;font-size:14px;vertical-align:top;">Leave type</td><td style="padding:4px 0;color:#0f172a;font-size:14px;vertical-align:top;">Annual</td></tr><tr><td style="padding:4px 12px 4px 0;color:#64748b;font-size:14px;vertical-align:top;">Dates</td><td style="padding:4px 0;color:#0f172a;font-size:14px;vertical-align:top;">2026-11-12 to 2026-11-14</td></tr><tr><td style="padding:4px 12px 4px 0;color:#64748b;font-size:14px;vertical-align:top;">Duration</td><td style="padding:4px 0;color:#0f172a;font-size:14px;vertical-align:top;">3 days</td></tr><tr><td style="padding:4px 12px 4px 0;color:#64748b;font-size:14px;vertical-align:top;">Stage</td><td style="padding:4px 0;color:#0f172a;font-size:14px;vertical-align:top;">Team Lead</td></tr></table>
+                <table role="presentation" cellspacing="0" cellpadding="0" border="0" style="margin:24px 0 8px 0;"><tr><td style="border-radius:8px;background-color:#2563eb;"><a href="https://app.example.com/acme/leave/req1" style="display:inline-block;padding:12px 22px;font-size:15px;font-weight:600;color:#ffffff;text-decoration:none;border-radius:8px;">Review request</a></td></tr></table>
+                
+              </td>
+            </tr>
+            <tr>
+              <td style="padding:16px 32px 24px 32px;border-top:1px solid #e2e8f0;color:#64748b;font-size:12px;line-height:1.6;">
+                <div style="margin-bottom:4px;color:#475569;font-weight:600;">Acme</div>
+                <div>Clasp Workspace &middot; Need help? <a href="mailto:support@claspworkspace.com" style="color:#2563eb;text-decoration:none;">support@claspworkspace.com</a></div>
+              </td>
+            </tr>
+          </table>
+        </td>
+      </tr>
+    </table>
+  </body>
+</html>",
+  "subject": "Leave request from Ada Lovelace",
+  "text": "Leave request needs your review
+
+Hi Team Lead,
+
+Ada Lovelace submitted a Annual leave request for 2026-11-12 to 2026-11-14 (3 days).
+
+It is awaiting your review at the Team Lead stage.
+
+Leave type: Annual
+Dates: 2026-11-12 to 2026-11-14
+Duration: 3 days
+Stage: Team Lead
+
+Review request: https://app.example.com/acme/leave/req1
+
+Acme
+Clasp Workspace
+Support: support@claspworkspace.com",
+}
+`;
+
+exports[`email templates renders a task assignment with a due date 1`] = `
+{
+  "html": "<!doctype html>
+<html lang="en">
+  <head>
+    <meta charset="utf-8" />
+    <meta name="viewport" content="width=device-width, initial-scale=1" />
+    <title>You have a new task</title>
+  </head>
+  <body style="margin:0;padding:0;background-color:#f1f5f9;font-family:-apple-system,BlinkMacSystemFont,'Segoe UI',Roboto,Helvetica,Arial,sans-serif;color:#0f172a;">
+    <div style="display:none;max-height:0;overflow:hidden;opacity:0;">Grace Hopper assigned you &quot;Ship the release&quot;.</div>
+    <table role="presentation" width="100%" cellspacing="0" cellpadding="0" border="0" style="background-color:#f1f5f9;">
+      <tr>
+        <td align="center" style="padding:32px 12px;">
+          <table role="presentation" width="100%" cellspacing="0" cellpadding="0" border="0" style="max-width:560px;background-color:#ffffff;border-radius:12px;border:1px solid #e2e8f0;">
+            <tr>
+              <td style="padding:24px 32px 8px 32px;font-size:13px;font-weight:700;letter-spacing:0.08em;text-transform:uppercase;color:#2563eb;">Clasp Workspace</td>
+            </tr>
+            <tr>
+              <td style="padding:8px 32px 24px 32px;">
+                <h1 style="margin:0 0 16px 0;font-size:22px;line-height:1.3;font-weight:700;color:#0f172a;">You have a new task</h1>
+                <p style="margin:0 0 14px 0;font-size:15px;line-height:1.6;">Hi Ada Lovelace,</p>
+                <p style="margin:0 0 14px 0;font-size:15px;line-height:1.6;">Grace Hopper assigned you the task &quot;Ship the release&quot;.</p><p style="margin:0 0 14px 0;font-size:15px;line-height:1.6;">This task is due on 2026-11-20.</p>
+                <table role="presentation" cellspacing="0" cellpadding="0" border="0" style="margin:18px 0;padding:12px 16px;background-color:#f8fafc;border-radius:8px;border:1px solid #e2e8f0;"><tr><td style="padding:4px 12px 4px 0;color:#64748b;font-size:14px;vertical-align:top;">Assigned by</td><td style="padding:4px 0;color:#0f172a;font-size:14px;vertical-align:top;">Grace Hopper</td></tr><tr><td style="padding:4px 12px 4px 0;color:#64748b;font-size:14px;vertical-align:top;">Due date</td><td style="padding:4px 0;color:#0f172a;font-size:14px;vertical-align:top;">2026-11-20</td></tr></table>
+                <table role="presentation" cellspacing="0" cellpadding="0" border="0" style="margin:24px 0 8px 0;"><tr><td style="border-radius:8px;background-color:#2563eb;"><a href="https://app.example.com/acme/tasks/task1" style="display:inline-block;padding:12px 22px;font-size:15px;font-weight:600;color:#ffffff;text-decoration:none;border-radius:8px;">Open task</a></td></tr></table>
+                
+              </td>
+            </tr>
+            <tr>
+              <td style="padding:16px 32px 24px 32px;border-top:1px solid #e2e8f0;color:#64748b;font-size:12px;line-height:1.6;">
+                <div style="margin-bottom:4px;color:#475569;font-weight:600;">Acme</div>
+                <div>Clasp Workspace &middot; Need help? <a href="mailto:support@claspworkspace.com" style="color:#2563eb;text-decoration:none;">support@claspworkspace.com</a></div>
+              </td>
+            </tr>
+          </table>
+        </td>
+      </tr>
+    </table>
+  </body>
+</html>",
+  "subject": "New task: Ship the release",
+  "text": "You have a new task
+
+Hi Ada Lovelace,
+
+Grace Hopper assigned you the task "Ship the release".
+
+This task is due on 2026-11-20.
+
+Assigned by: Grace Hopper
+Due date: 2026-11-20
+
+Open task: https://app.example.com/acme/tasks/task1
+
+Acme
+Clasp Workspace
+Support: support@claspworkspace.com",
+}
+`;
+
+exports[`email templates renders the invitation email 1`] = `
+{
+  "html": "<!doctype html>
+<html lang="en">
+  <head>
+    <meta charset="utf-8" />
+    <meta name="viewport" content="width=device-width, initial-scale=1" />
+    <title>You&#39;re invited to Acme</title>
+  </head>
+  <body style="margin:0;padding:0;background-color:#f1f5f9;font-family:-apple-system,BlinkMacSystemFont,'Segoe UI',Roboto,Helvetica,Arial,sans-serif;color:#0f172a;">
+    <div style="display:none;max-height:0;overflow:hidden;opacity:0;">Join Acme as Team Lead.</div>
+    <table role="presentation" width="100%" cellspacing="0" cellpadding="0" border="0" style="background-color:#f1f5f9;">
+      <tr>
+        <td align="center" style="padding:32px 12px;">
+          <table role="presentation" width="100%" cellspacing="0" cellpadding="0" border="0" style="max-width:560px;background-color:#ffffff;border-radius:12px;border:1px solid #e2e8f0;">
+            <tr>
+              <td style="padding:24px 32px 8px 32px;font-size:13px;font-weight:700;letter-spacing:0.08em;text-transform:uppercase;color:#2563eb;">Clasp Workspace</td>
+            </tr>
+            <tr>
+              <td style="padding:8px 32px 24px 32px;">
+                <h1 style="margin:0 0 16px 0;font-size:22px;line-height:1.3;font-weight:700;color:#0f172a;">You&#39;re invited to Acme</h1>
+                
+                <p style="margin:0 0 14px 0;font-size:15px;line-height:1.6;">Alan Turing invited you to join Acme as Team Lead.</p><p style="margin:0 0 14px 0;font-size:15px;line-height:1.6;">This invitation expires on 2026-11-10.</p>
+                
+                <table role="presentation" cellspacing="0" cellpadding="0" border="0" style="margin:24px 0 8px 0;"><tr><td style="border-radius:8px;background-color:#2563eb;"><a href="https://app.example.com/acme/invite/tok123" style="display:inline-block;padding:12px 22px;font-size:15px;font-weight:600;color:#ffffff;text-decoration:none;border-radius:8px;">Accept invitation</a></td></tr></table>
+                <p style="margin:20px 0 0 0;font-size:13px;line-height:1.5;color:#64748b;">This invitation was sent to you by a workspace administrator. If you were not expecting it, you can ignore this email.</p>
+              </td>
+            </tr>
+            <tr>
+              <td style="padding:16px 32px 24px 32px;border-top:1px solid #e2e8f0;color:#64748b;font-size:12px;line-height:1.6;">
+                <div style="margin-bottom:4px;color:#475569;font-weight:600;">Acme</div>
+                <div>Clasp Workspace &middot; Need help? <a href="mailto:support@claspworkspace.com" style="color:#2563eb;text-decoration:none;">support@claspworkspace.com</a></div>
+              </td>
+            </tr>
+          </table>
+        </td>
+      </tr>
+    </table>
+  </body>
+</html>",
+  "subject": "Alan Turing invited you to Acme",
+  "text": "You're invited to Acme
+
+Alan Turing invited you to join Acme as Team Lead.
+
+This invitation expires on 2026-11-10.
+
+Accept invitation: https://app.example.com/acme/invite/tok123
+
+This invitation was sent to you by a workspace administrator. If you were not expecting it, you can ignore this email.
+
+Acme
+Clasp Workspace
+Support: support@claspworkspace.com",
+}
+`;
+
+exports[`email templates renders the password reset email 1`] = `
+{
+  "html": "<!doctype html>
+<html lang="en">
+  <head>
+    <meta charset="utf-8" />
+    <meta name="viewport" content="width=device-width, initial-scale=1" />
+    <title>Reset your password</title>
+  </head>
+  <body style="margin:0;padding:0;background-color:#f1f5f9;font-family:-apple-system,BlinkMacSystemFont,'Segoe UI',Roboto,Helvetica,Arial,sans-serif;color:#0f172a;">
+    <div style="display:none;max-height:0;overflow:hidden;opacity:0;">Use the secure link below to choose a new password.</div>
+    <table role="presentation" width="100%" cellspacing="0" cellpadding="0" border="0" style="background-color:#f1f5f9;">
+      <tr>
+        <td align="center" style="padding:32px 12px;">
+          <table role="presentation" width="100%" cellspacing="0" cellpadding="0" border="0" style="max-width:560px;background-color:#ffffff;border-radius:12px;border:1px solid #e2e8f0;">
+            <tr>
+              <td style="padding:24px 32px 8px 32px;font-size:13px;font-weight:700;letter-spacing:0.08em;text-transform:uppercase;color:#2563eb;">Clasp Workspace</td>
+            </tr>
+            <tr>
+              <td style="padding:8px 32px 24px 32px;">
+                <h1 style="margin:0 0 16px 0;font-size:22px;line-height:1.3;font-weight:700;color:#0f172a;">Reset your password</h1>
+                <p style="margin:0 0 14px 0;font-size:15px;line-height:1.6;">Hi Grace Hopper,</p>
+                <p style="margin:0 0 14px 0;font-size:15px;line-height:1.6;">We received a request to reset the password for your Acme account.</p><p style="margin:0 0 14px 0;font-size:15px;line-height:1.6;">This link expires on 2026-11-10.</p>
+                
+                <table role="presentation" cellspacing="0" cellpadding="0" border="0" style="margin:24px 0 8px 0;"><tr><td style="border-radius:8px;background-color:#2563eb;"><a href="https://app.example.com/acme/reset-password?token=def456" style="display:inline-block;padding:12px 22px;font-size:15px;font-weight:600;color:#ffffff;text-decoration:none;border-radius:8px;">Reset password</a></td></tr></table>
+                <p style="margin:20px 0 0 0;font-size:13px;line-height:1.5;color:#64748b;">If you did not request a password reset, you can ignore this email. Your password will not change until the link above is used.</p>
+              </td>
+            </tr>
+            <tr>
+              <td style="padding:16px 32px 24px 32px;border-top:1px solid #e2e8f0;color:#64748b;font-size:12px;line-height:1.6;">
+                <div style="margin-bottom:4px;color:#475569;font-weight:600;">Acme</div>
+                <div>Clasp Workspace &middot; Need help? <a href="mailto:support@claspworkspace.com" style="color:#2563eb;text-decoration:none;">support@claspworkspace.com</a></div>
+              </td>
+            </tr>
+          </table>
+        </td>
+      </tr>
+    </table>
+  </body>
+</html>",
+  "subject": "Reset your Clasp Workspace password",
+  "text": "Reset your password
+
+Hi Grace Hopper,
+
+We received a request to reset the password for your Acme account.
+
+This link expires on 2026-11-10.
+
+Reset password: https://app.example.com/acme/reset-password?token=def456
+
+If you did not request a password reset, you can ignore this email. Your password will not change until the link above is used.
+
+Acme
+Clasp Workspace
+Support: support@claspworkspace.com",
+}
+`;
+
+exports[`email templates renders the post-reset security notice 1`] = `
+{
+  "html": "<!doctype html>
+<html lang="en">
+  <head>
+    <meta charset="utf-8" />
+    <meta name="viewport" content="width=device-width, initial-scale=1" />
+    <title>Your password was changed</title>
+  </head>
+  <body style="margin:0;padding:0;background-color:#f1f5f9;font-family:-apple-system,BlinkMacSystemFont,'Segoe UI',Roboto,Helvetica,Arial,sans-serif;color:#0f172a;">
+    <div style="display:none;max-height:0;overflow:hidden;opacity:0;">A security notice about your account password.</div>
+    <table role="presentation" width="100%" cellspacing="0" cellpadding="0" border="0" style="background-color:#f1f5f9;">
+      <tr>
+        <td align="center" style="padding:32px 12px;">
+          <table role="presentation" width="100%" cellspacing="0" cellpadding="0" border="0" style="max-width:560px;background-color:#ffffff;border-radius:12px;border:1px solid #e2e8f0;">
+            <tr>
+              <td style="padding:24px 32px 8px 32px;font-size:13px;font-weight:700;letter-spacing:0.08em;text-transform:uppercase;color:#2563eb;">Clasp Workspace</td>
+            </tr>
+            <tr>
+              <td style="padding:8px 32px 24px 32px;">
+                <h1 style="margin:0 0 16px 0;font-size:22px;line-height:1.3;font-weight:700;color:#0f172a;">Your password was changed</h1>
+                <p style="margin:0 0 14px 0;font-size:15px;line-height:1.6;">Hi Grace Hopper,</p>
+                <p style="margin:0 0 14px 0;font-size:15px;line-height:1.6;">The password for your Acme account was just changed.</p><p style="margin:0 0 14px 0;font-size:15px;line-height:1.6;">For your security, every other active session has been signed out.</p>
+                
+                <table role="presentation" cellspacing="0" cellpadding="0" border="0" style="margin:24px 0 8px 0;"><tr><td style="border-radius:8px;background-color:#2563eb;"><a href="https://app.example.com/acme/login" style="display:inline-block;padding:12px 22px;font-size:15px;font-weight:600;color:#ffffff;text-decoration:none;border-radius:8px;">Sign in</a></td></tr></table>
+                <p style="margin:20px 0 0 0;font-size:13px;line-height:1.5;color:#64748b;">If you did not make this change, contact your workspace administrator immediately.</p>
+              </td>
+            </tr>
+            <tr>
+              <td style="padding:16px 32px 24px 32px;border-top:1px solid #e2e8f0;color:#64748b;font-size:12px;line-height:1.6;">
+                <div style="margin-bottom:4px;color:#475569;font-weight:600;">Acme</div>
+                <div>Clasp Workspace &middot; Need help? <a href="mailto:support@claspworkspace.com" style="color:#2563eb;text-decoration:none;">support@claspworkspace.com</a></div>
+              </td>
+            </tr>
+          </table>
+        </td>
+      </tr>
+    </table>
+  </body>
+</html>",
+  "subject": "Your Clasp Workspace password was changed",
+  "text": "Your password was changed
+
+Hi Grace Hopper,
+
+The password for your Acme account was just changed.
+
+For your security, every other active session has been signed out.
+
+Sign in: https://app.example.com/acme/login
+
+If you did not make this change, contact your workspace administrator immediately.
+
+Acme
+Clasp Workspace
+Support: support@claspworkspace.com",
+}
+`;
+
+exports[`email templates renders the welcome email with a verification link 1`] = `
+{
+  "html": "<!doctype html>
+<html lang="en">
+  <head>
+    <meta charset="utf-8" />
+    <meta name="viewport" content="width=device-width, initial-scale=1" />
+    <title>Welcome, Ada Lovelace</title>
+  </head>
+  <body style="margin:0;padding:0;background-color:#f1f5f9;font-family:-apple-system,BlinkMacSystemFont,'Segoe UI',Roboto,Helvetica,Arial,sans-serif;color:#0f172a;">
+    <div style="display:none;max-height:0;overflow:hidden;opacity:0;">Verify your email to activate Acme.</div>
+    <table role="presentation" width="100%" cellspacing="0" cellpadding="0" border="0" style="background-color:#f1f5f9;">
+      <tr>
+        <td align="center" style="padding:32px 12px;">
+          <table role="presentation" width="100%" cellspacing="0" cellpadding="0" border="0" style="max-width:560px;background-color:#ffffff;border-radius:12px;border:1px solid #e2e8f0;">
+            <tr>
+              <td style="padding:24px 32px 8px 32px;font-size:13px;font-weight:700;letter-spacing:0.08em;text-transform:uppercase;color:#2563eb;">Clasp Workspace</td>
+            </tr>
+            <tr>
+              <td style="padding:8px 32px 24px 32px;">
+                <h1 style="margin:0 0 16px 0;font-size:22px;line-height:1.3;font-weight:700;color:#0f172a;">Welcome, Ada Lovelace</h1>
+                
+                <p style="margin:0 0 14px 0;font-size:15px;line-height:1.6;">Your workspace Acme is ready. Verify your email address to activate your account.</p><p style="margin:0 0 14px 0;font-size:15px;line-height:1.6;">This link expires on 2026-11-10.</p>
+                
+                <table role="presentation" cellspacing="0" cellpadding="0" border="0" style="margin:24px 0 8px 0;"><tr><td style="border-radius:8px;background-color:#2563eb;"><a href="https://app.example.com/acme/verify-email?token=abc123" style="display:inline-block;padding:12px 22px;font-size:15px;font-weight:600;color:#ffffff;text-decoration:none;border-radius:8px;">Verify email</a></td></tr></table>
+                <p style="margin:20px 0 0 0;font-size:13px;line-height:1.5;color:#64748b;">If you did not create this workspace, you can safely ignore this email.</p>
+              </td>
+            </tr>
+            <tr>
+              <td style="padding:16px 32px 24px 32px;border-top:1px solid #e2e8f0;color:#64748b;font-size:12px;line-height:1.6;">
+                <div style="margin-bottom:4px;color:#475569;font-weight:600;">Acme</div>
+                <div>Clasp Workspace &middot; Need help? <a href="mailto:support@claspworkspace.com" style="color:#2563eb;text-decoration:none;">support@claspworkspace.com</a></div>
+              </td>
+            </tr>
+          </table>
+        </td>
+      </tr>
+    </table>
+  </body>
+</html>",
+  "subject": "Welcome to Clasp Workspace",
+  "text": "Welcome, Ada Lovelace
+
+Your workspace Acme is ready. Verify your email address to activate your account.
+
+This link expires on 2026-11-10.
+
+Verify email: https://app.example.com/acme/verify-email?token=abc123
+
+If you did not create this workspace, you can safely ignore this email.
+
+Acme
+Clasp Workspace
+Support: support@claspworkspace.com",
+}
+`;

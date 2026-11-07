@@ -33,6 +33,8 @@ export interface ProvisionTenantResult {
   adminUserId: string;
   /** Raw token for the caller to email. Only its SHA-256 hash is stored. */
   verificationToken: string;
+  /** Absolute expiry of the verification token, for the welcome email. */
+  verificationExpiresAt: Date;
   /** Template actually applied after production/env enforcement. */
   template: WorkspaceTemplateKey;
 }
@@ -210,6 +212,7 @@ export class TenantProvisioningService {
     });
 
     const verificationToken = randomBytes(32).toString('hex');
+    const verificationExpiresAt = new Date(Date.now() + VERIFICATION_TTL_MS);
     const password =
       params.adminPassword && params.adminPassword.length > 0
         ? params.adminPassword
@@ -224,7 +227,7 @@ export class TenantProvisioningService {
         roleId: tenantAdminRole.id,
         isVerified: false,
         verifyTokenHash: hashToken(verificationToken),
-        verifyExpiresAt: new Date(Date.now() + VERIFICATION_TTL_MS),
+        verifyExpiresAt: verificationExpiresAt,
       },
       select: { id: true },
     });
@@ -233,6 +236,7 @@ export class TenantProvisioningService {
       tenant,
       adminUserId: adminUser.id,
       verificationToken,
+      verificationExpiresAt,
       template: template.key,
     };
   }

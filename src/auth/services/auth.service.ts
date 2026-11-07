@@ -6,7 +6,8 @@ import { createHash, randomBytes } from 'node:crypto';
 import { PrismaService } from '../../prisma/prisma.service';
 import { TenantResolverService } from '../../tenant/tenant-resolver.service';
 import { TenantStateService } from '../../tenant/tenant-state.service';
-import { MailService } from '../../mail/mail.service';
+import { EmailService } from '../../email/email.service';
+import { EmailLinkService } from '../../email/email-link.service';
 import { SessionStateService } from './session-state.service';
 import { PermissionResolutionService } from './permission-resolution.service';
 import { FrontendAdapterService } from '../frontend-adapter.service';
@@ -49,7 +50,8 @@ export class AuthService {
   constructor(
     private readonly jwtService: JwtService,
     private readonly prisma: PrismaService,
-    private readonly mailService: MailService,
+    private readonly email: EmailService,
+    private readonly emailLink: EmailLinkService,
     private readonly tenantResolver: TenantResolverService,
     private readonly tenantState: TenantStateService,
     private readonly permissionResolution: PermissionResolutionService,
@@ -273,23 +275,36 @@ export class AuthService {
 
     const resetToken = randomBytes(32).toString('hex');
     const resetTokenHash = hashToken(resetToken);
+    const expiresAt = addHours(new Date(), 1);
 
     await this.prisma.withTenant(workspace.id, (tx) =>
       tx.user.update({
         where: { id: user.id },
         data: {
           resetTokenHash,
-          resetExpiresAt: addHours(new Date(), 1),
+          resetExpiresAt: expiresAt,
         },
       }),
     );
 
-    await this.mailService.sendPasswordResetEmail(
-      user.email,
-      user.name,
-      resetToken,
-    );
-    return { success: true, message: 'Password reset email sent' };
+    await this.email.send('password-reset', {
+      to: user.email,
+      name: user.name,
+      workspaceName: workspace.name,
+      resetUrl: this.emailLink.build(workspace.slug, 'reset-password', {
+        token: resetToken,
+      }),
+      expiresAt,
+      tenantId: workspace.id,
+      idempotencyKey: `password-reset:${user.id}:${resetTokenHash}`,
+    });
+
+    // The response is identical for existing and unknown accounts so an
+    // attacker cannot enumerate addresses through the reset flow.
+    return {
+      success: true,
+      message: 'If an account exists, you will receive an email',
+    };
   }
 
   async resetPassword(
@@ -333,6 +348,15 @@ export class AuthService {
     // A password reset is a security event: invalidate every existing
     // session and bump the global session version.
     await this.userSession.revokeAll(workspace.id, user.id);
+
+    await this.email.send('password-changed', {
+      to: user.email,
+      name: user.name,
+      workspaceName: workspace.name,
+      signInUrl: this.emailLink.build(workspace.slug, 'login'),
+      tenantId: workspace.id,
+      idempotencyKey: `password-changed:${user.id}:${tokenHash}`,
+    });
 
     return { success: true, message: 'Password reset successful' };
   }

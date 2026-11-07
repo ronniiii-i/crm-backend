@@ -5,7 +5,7 @@ import { AppService } from './app.service';
 import { AuthModule } from './auth/auth.module';
 import { PrismaService } from './prisma/prisma.service';
 import { PrismaModule } from './prisma/prisma.module';
-import { MailService } from './mail/mail.service';
+import { EmailModule } from './email/email.module';
 import { ProjectsModule } from './projects/projects.module';
 import { CoreModule } from './core/core.module';
 import { CacheModule } from './cache/cache.module';
@@ -41,6 +41,7 @@ import { TenantSettingsService } from './tenant/tenant-settings.service';
       isGlobal: true,
     }),
     ScheduleModule.forRoot(),
+    EmailModule,
     TenantModule,
     RateLimitModule,
     AuthModule,
@@ -64,7 +65,6 @@ import { TenantSettingsService } from './tenant/tenant-settings.service';
   providers: [
     AppService,
     PrismaService,
-    MailService,
     TenantSettingsService,
     {
       provide: APP_GUARD,
