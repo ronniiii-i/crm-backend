@@ -131,12 +131,30 @@ export interface FormConfig {
   successMessage: string;
 }
 
+export interface WorkflowStageConfig {
+  value: string;
+  label: string;
+}
+
+export interface WorkflowConfig {
+  version: typeof MODULE_CONFIG_VERSION;
+  entity: string | null;
+  /** Identifies the state machine that drives this module. */
+  workflow: string;
+  stages: WorkflowStageConfig[];
+  /** Fields a requester supplies when creating a record. */
+  requesterFields: string[];
+  allowCreate: boolean;
+  allowCancel: boolean;
+}
+
 export type ModuleConfig =
   | TableConfig
   | KanbanConfig
   | DashboardConfig
   | DocumentConfig
-  | FormConfig;
+  | FormConfig
+  | WorkflowConfig;
 
 export interface ModuleConfigByType {
   [ModuleType.DATA_TABLE]: TableConfig;
@@ -144,4 +162,5 @@ export interface ModuleConfigByType {
   [ModuleType.DASHBOARD_VIEW]: DashboardConfig;
   [ModuleType.DOCUMENT_HUB]: DocumentConfig;
   [ModuleType.FORM_BUILDER]: FormConfig;
+  [ModuleType.WORKFLOW]: WorkflowConfig;
 }

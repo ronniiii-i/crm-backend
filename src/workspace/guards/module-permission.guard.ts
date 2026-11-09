@@ -31,12 +31,17 @@ export class ModulePermissionGuard implements CanActivate {
   ) {}
 
   async canActivate(context: ExecutionContext): Promise<boolean> {
-    const action = this.reflector.getAllAndOverride<ModuleAction>(
-      MODULE_ACTION_KEY,
-      [context.getHandler(), context.getClass()],
-    );
+    const declared = this.reflector.getAllAndOverride<
+      ModuleAction | ModuleAction[]
+    >(MODULE_ACTION_KEY, [context.getHandler(), context.getClass()]);
 
-    if (!action) {
+    const actions: ModuleAction[] = Array.isArray(declared)
+      ? declared
+      : declared
+        ? [declared]
+        : [];
+
+    if (actions.length === 0) {
       // Fail closed: a workspace route without declared metadata is a bug.
       throw new ForbiddenException({
         code: 'MODULE_ACTION_UNDECLARED',
@@ -56,12 +61,20 @@ export class ModulePermissionGuard implements CanActivate {
       });
     }
 
-    const access = await this.access.requireAction(
-      user as Parameters<ModuleAccessService['requireAction']>[0],
-      deptKey,
-      moduleKey,
-      action,
-    );
+    const access =
+      actions.length === 1
+        ? await this.access.requireAction(
+            user as Parameters<ModuleAccessService['requireAction']>[0],
+            deptKey,
+            moduleKey,
+            actions[0],
+          )
+        : await this.access.requireAnyAction(
+            user as Parameters<ModuleAccessService['requireAnyAction']>[0],
+            deptKey,
+            moduleKey,
+            actions,
+          );
 
     request.moduleAccess = access;
     return true;

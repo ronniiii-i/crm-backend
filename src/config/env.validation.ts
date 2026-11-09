@@ -68,6 +68,11 @@ const envSchema = z
     REDIS_KEY_PREFIX: z.string().min(1).default('claspworkspace'),
     REDIS_CONNECT_TIMEOUT: z.coerce.number().int().positive().default(3000),
     /**
+     * Optional Redis connection string used for cross-instance notification
+     * fan-out. When absent the in-process bus is used.
+     */
+    REDIS_URL: z.string().url().optional(),
+    /**
      * When Redis is unreachable, serve a bounded in-process cache instead of
      * disabling caching entirely. Entries are capped at 60s so a permission
      * change is observed quickly even without cross-instance invalidation.
@@ -138,6 +143,12 @@ const envSchema = z
     R2_ENDPOINT: z.string().optional(),
 
     SSE_ENABLED: z.enum(['true', 'false']).default('true'),
+
+    /**
+     * When false, only a Tenant Admin may submit a leave request whose start
+     * date is in the past. When true, every requester may backdate.
+     */
+    LEAVE_ALLOW_BACKDATED: z.enum(['true', 'false']).default('false'),
 
     SOFT_DELETE_ENFORCE: z.enum(['true', 'false']).default('true'),
     SOFT_DELETE_RETENTION_DAYS: z.coerce.number().int().positive().default(90),

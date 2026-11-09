@@ -5,6 +5,7 @@ import {
   ConflictException,
   ForbiddenException,
   NotFoundException,
+  Optional,
 } from '@nestjs/common';
 import { PrismaService } from '../prisma/prisma.service';
 import { EmailService } from '../email/email.service';
@@ -15,6 +16,7 @@ import * as bcrypt from 'bcryptjs';
 import { addDays } from 'date-fns';
 import { TenantResolverService } from '../tenant/tenant-resolver.service';
 import { CacheService } from '../cache/cache.service';
+import { NotificationsService } from '../notifications/notifications.service';
 
 function hashToken(token: string): string {
   return createHash('sha256').update(token, 'utf8').digest('hex');
@@ -31,6 +33,7 @@ export class InvitationsService {
     private readonly jwtService: JwtService,
     private readonly tenantResolver: TenantResolverService,
     private readonly cache: CacheService,
+    @Optional() private readonly notifications?: NotificationsService,
   ) {}
 
   async list(tenantId: string) {
@@ -310,6 +313,22 @@ export class InvitationsService {
     });
 
     await this.cache.invalidateUser(user.id, tenant.id);
+
+    if (this.notifications && invitation.invitedByUserId) {
+      await this.notifications.notify({
+        tenantId: tenant.id,
+        userId: invitation.invitedByUserId,
+        type: 'SYSTEM',
+        title: 'Invitation accepted',
+        message: `${user.name} accepted your invitation and joined the workspace.`,
+        link: '/user-management',
+        dedupeKey: `INVITATION_ACCEPTED:${invitation.id}`,
+        metadata: {
+          invitationId: invitation.id,
+          userId: user.id,
+        },
+      });
+    }
 
     const payload = {
       sub: user.id,

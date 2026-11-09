@@ -294,6 +294,30 @@ function formConfig(
   };
 }
 
+const LEAVE_STAGES = [
+  { value: 'PENDING_TEAM_LEAD', label: 'Team Lead review' },
+  { value: 'PENDING_HR', label: 'HR review' },
+  { value: 'APPROVED', label: 'Approved' },
+  { value: 'REJECTED', label: 'Rejected' },
+  { value: 'CANCELLED', label: 'Cancelled' },
+];
+
+function workflowConfig(
+  workflow: string,
+  stages: Array<{ value: string; label: string }>,
+  requesterFields: string[],
+): ModuleConfig {
+  return {
+    version: 1,
+    entity: 'leave_requests',
+    workflow,
+    stages,
+    requesterFields,
+    allowCreate: true,
+    allowCancel: true,
+  };
+}
+
 function widget(
   id: string,
   kind: 'stat' | 'bar' | 'line' | 'pie',
@@ -943,8 +967,14 @@ const MODULE_RENDERERS: Record<string, ModuleRenderer> = {
     targetEntity: 'users',
   },
   'attendance-leave-management': {
-    type: ModuleType.DATA_TABLE,
-    targetEntity: 'attendance_records',
+    type: ModuleType.WORKFLOW,
+    targetEntity: 'leave_requests',
+    config: workflowConfig('leave-approval', LEAVE_STAGES, [
+      'type',
+      'startDate',
+      'endDate',
+      'reason',
+    ]),
   },
   'recruitment-job-postings': {
     type: ModuleType.FORM_BUILDER,
@@ -1332,6 +1362,8 @@ function defaultModuleConfig(
       return documentConfig(DEFAULT_DOCUMENT_CATEGORIES);
     case ModuleType.FORM_BUILDER:
       return formConfig(targetEntity, [], 'Submit', 'Submitted.');
+    case ModuleType.WORKFLOW:
+      return workflowConfig('generic', [], []);
     default:
       return { version: 1 };
   }

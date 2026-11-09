@@ -4,6 +4,7 @@ import { PrismaModule } from '../prisma/prisma.module';
 import { AggregateController } from './controllers/aggregate.controller';
 import { CatalogController } from './controllers/catalog.controller';
 import { DocumentsController } from './controllers/documents.controller';
+import { LeaveController } from './controllers/leave.controller';
 import { RecordsController } from './controllers/records.controller';
 import { SubmissionsController } from './controllers/submissions.controller';
 import { ModulePermissionGuard } from './guards/module-permission.guard';
@@ -14,6 +15,7 @@ import { EntityQueryService } from './services/entity-query.service';
 import { EntityRegistryService } from './services/entity-registry.service';
 import { EntityWriteService } from './services/entity-write.service';
 import { FormSubmissionService } from './services/form-submission.service';
+import { LeaveWorkflowService } from './services/leave-workflow.service';
 import { ModuleAccessService } from './services/module-access.service';
 import { ModuleConfigService } from './services/module-config.service';
 import { ScopeFilterService } from './services/scope-filter.service';
@@ -35,6 +37,7 @@ import { WorkspaceController } from './workspace.controller';
     DocumentsController,
     SubmissionsController,
     CatalogController,
+    LeaveController,
   ],
   providers: [
     EntityRegistryService,
@@ -47,6 +50,7 @@ import { WorkspaceController } from './workspace.controller';
     AggregationService,
     DocumentService,
     FormSubmissionService,
+    LeaveWorkflowService,
     ModulePermissionGuard,
   ],
   exports: [

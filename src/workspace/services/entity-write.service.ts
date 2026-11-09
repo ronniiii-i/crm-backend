@@ -4,10 +4,14 @@ import {
   ForbiddenException,
   Injectable,
   NotFoundException,
+  Optional,
 } from '@nestjs/common';
 import { Prisma, PermissionType } from '@prisma/client';
 import { PrismaService } from '../../prisma/prisma.service';
 import { PermissionResolutionService } from '../../auth/services/permission-resolution.service';
+import { EmailLinkService } from '../../email/email-link.service';
+import { EmailService } from '../../email/email.service';
+import { NotificationsService } from '../../notifications/notifications.service';
 import { EntityDescriptor, FieldMeta } from '../types/entity';
 import { AuditService } from './audit.service';
 import { EntityQueryService } from './entity-query.service';
@@ -45,6 +49,9 @@ export class EntityWriteService {
     private readonly queries: EntityQueryService,
     private readonly scopeFilter: ScopeFilterService,
     private readonly permissions: PermissionResolutionService,
+    @Optional() private readonly notifications?: NotificationsService,
+    @Optional() private readonly email?: EmailService,
+    @Optional() private readonly emailLink?: EmailLinkService,
   ) {}
 
   async create(
@@ -58,36 +65,42 @@ export class EntityWriteService {
     const payload = this.assertPayload(descriptor, body);
     const prepared = this.prepareCreatePayload(descriptor, access, payload);
 
-    return this.prisma.withTenant(access.actor.tenantId, async (tx) => {
-      const data: Record<string, unknown> = {
-        ...prepared,
-        tenantId: access.actor.tenantId,
-      };
+    const row = await this.prisma.withTenant(
+      access.actor.tenantId,
+      async (tx) => {
+        const data: Record<string, unknown> = {
+          ...prepared,
+          tenantId: access.actor.tenantId,
+        };
 
-      if (descriptor.key === 'tasks' && !data.projectId) {
-        data.projectId = await this.resolveDefaultProject(tx, access);
-      }
+        if (descriptor.key === 'tasks' && !data.projectId) {
+          data.projectId = await this.resolveDefaultProject(tx, access);
+        }
 
-      const row = await (tx as any)[descriptor.delegate].create({
-        data,
-        select: this.fullSelect(descriptor),
-      });
+        const row = await (tx as any)[descriptor.delegate].create({
+          data,
+          select: this.fullSelect(descriptor),
+        });
 
-      await this.audit.record(tx, descriptor, {
-        tenantId: access.actor.tenantId,
-        departmentId: this.auditDepartment(descriptor, row),
-        actorId: access.actor.id,
-        action: 'CREATE',
-        entity: descriptor.key,
-        entityId: row.id,
-        before: null,
-        after: row,
-        ip: context.ip,
-        userAgent: context.userAgent,
-      });
+        await this.audit.record(tx, descriptor, {
+          tenantId: access.actor.tenantId,
+          departmentId: this.auditDepartment(descriptor, row),
+          actorId: access.actor.id,
+          action: 'CREATE',
+          entity: descriptor.key,
+          entityId: row.id,
+          before: null,
+          after: row,
+          ip: context.ip,
+          userAgent: context.userAgent,
+        });
 
-      return row;
-    });
+        return row;
+      },
+    );
+
+    await this.notifyTaskAssignment(access, descriptor, row, 'assigned');
+    return row;
   }
 
   async update(
@@ -113,39 +126,53 @@ export class EntityWriteService {
 
     const scope = await this.scopes(access, descriptor);
 
-    return this.prisma.withTenant(access.actor.tenantId, async (tx) => {
-      const before = await (tx as any)[descriptor.delegate].findFirst({
-        where: { AND: [scope, { id }] },
-        select: this.fullSelect(descriptor),
-      });
+    const result = await this.prisma.withTenant(
+      access.actor.tenantId,
+      async (tx) => {
+        const before = await (tx as any)[descriptor.delegate].findFirst({
+          where: { AND: [scope, { id }] },
+          select: this.fullSelect(descriptor),
+        });
 
-      if (!before) {
-        throw this.notFound(descriptor);
-      }
+        if (!before) {
+          throw this.notFound(descriptor);
+        }
 
-      this.assertSelfEdit(access, descriptor, before, data);
+        this.assertSelfEdit(access, descriptor, before, data);
 
-      const row = await (tx as any)[descriptor.delegate].update({
-        where: { id },
-        data,
-        select: this.fullSelect(descriptor),
-      });
+        const row = await (tx as any)[descriptor.delegate].update({
+          where: { id },
+          data,
+          select: this.fullSelect(descriptor),
+        });
 
-      await this.audit.record(tx, descriptor, {
-        tenantId: access.actor.tenantId,
-        departmentId: this.auditDepartment(descriptor, row),
-        actorId: access.actor.id,
-        action: 'UPDATE',
-        entity: descriptor.key,
-        entityId: id,
-        before,
-        after: row,
-        ip: context.ip,
-        userAgent: context.userAgent,
-      });
+        await this.audit.record(tx, descriptor, {
+          tenantId: access.actor.tenantId,
+          departmentId: this.auditDepartment(descriptor, row),
+          actorId: access.actor.id,
+          action: 'UPDATE',
+          entity: descriptor.key,
+          entityId: id,
+          before,
+          after: row,
+          ip: context.ip,
+          userAgent: context.userAgent,
+        });
 
-      return row;
-    });
+        return { row, before };
+      },
+    );
+
+    if (result.row.assignedToId !== result.before.assignedToId) {
+      await this.notifyTaskAssignment(
+        access,
+        descriptor,
+        result.row,
+        'reassigned',
+      );
+    }
+
+    return result.row;
   }
 
   async remove(
@@ -317,7 +344,7 @@ export class EntityWriteService {
 
     const scope = await this.scopes(access, descriptor);
 
-    return this.prisma.withTenant(actor.tenantId, async (tx) => {
+    const result = await this.prisma.withTenant(actor.tenantId, async (tx) => {
       const before = await (tx as any)[descriptor.delegate].findFirst({
         where: { AND: [scope, { id }] },
         select: this.fullSelect(descriptor),
@@ -386,8 +413,19 @@ export class EntityWriteService {
         userAgent: context.userAgent,
       });
 
-      return row;
+      return { row, before };
     });
+
+    if (result.row.assignedToId !== result.before.assignedToId) {
+      await this.notifyTaskAssignment(
+        access,
+        descriptor,
+        result.row,
+        'reassigned',
+      );
+    }
+
+    return result.row;
   }
 
   /** Eligible reassignment targets for the actor's scope and the module. */
@@ -609,6 +647,14 @@ export class EntityWriteService {
       throw new ForbiddenException({
         code: 'ENTITY_READ_ONLY',
         message: `${descriptor.label} are read-only through the workspace API.`,
+      });
+    }
+
+    if (descriptor.directWritesDenied) {
+      throw new ForbiddenException({
+        code: 'DIRECT_WRITE_DENIED',
+        message: `${descriptor.label} can only be changed through their workflow endpoint.`,
+        entity: descriptor.key,
       });
     }
   }
@@ -835,6 +881,113 @@ export class EntityWriteService {
     });
 
     return project.id;
+  }
+
+  /**
+   * Notify the assignee of a task create/reassign. Runs after the business
+   * transaction commits; delivery failures are swallowed by
+   * `NotificationsService` so they can never roll back the assignment.
+   */
+  private async notifyTaskAssignment(
+    access: ResolvedModuleAccess,
+    descriptor: EntityDescriptor,
+    row: Record<string, any>,
+    verb: 'assigned' | 'reassigned',
+  ): Promise<void> {
+    if (descriptor.key !== 'tasks' || !this.notifications) return;
+
+    const assigneeId = row.assignedToId;
+    if (typeof assigneeId !== 'string' || assigneeId === access.actor.id) {
+      return;
+    }
+
+    const taskId = String(row.id);
+    const link = `${access.module.path}?open=${encodeURIComponent(taskId)}`;
+
+    let emailPlan:
+      | {
+          input: {
+            to: string;
+            assigneeName: string;
+            taskTitle: string;
+            dueDate: Date | null;
+            assignerName: string;
+            taskUrl: string;
+            tenantId: string;
+            idempotencyKey: string;
+          };
+        }
+      | undefined;
+
+    if (this.email && this.emailLink) {
+      try {
+        const context = await this.prisma.withTenant(
+          access.actor.tenantId,
+          async (tx) => {
+            const [tenant, assignee, actor] = await Promise.all([
+              tx.tenant.findUnique({
+                where: { id: access.actor.tenantId },
+                select: { slug: true },
+              }),
+              tx.user.findFirst({
+                where: { id: assigneeId, tenantId: access.actor.tenantId },
+                select: { name: true, email: true },
+              }),
+              tx.user.findFirst({
+                where: { id: access.actor.id, tenantId: access.actor.tenantId },
+                select: { name: true },
+              }),
+            ]);
+            return { tenant, assignee, actor };
+          },
+        );
+
+        if (context.tenant?.slug && context.assignee?.email) {
+          emailPlan = {
+            input: {
+              to: context.assignee.email,
+              assigneeName: context.assignee.name,
+              taskTitle: String(row.title ?? 'Task'),
+              dueDate: row.dueDate ? new Date(row.dueDate) : null,
+              assignerName: context.actor?.name ?? 'A teammate',
+              taskUrl: this.emailLink.build(
+                context.tenant.slug,
+                access.module.path,
+                { open: taskId },
+              ),
+              tenantId: access.actor.tenantId,
+              idempotencyKey: `task-assigned:${taskId}:${assigneeId}:${
+                row.updatedAt instanceof Date
+                  ? row.updatedAt.toISOString()
+                  : String(row.updatedAt ?? '')
+              }`,
+            },
+          };
+        }
+      } catch {
+        // Best-effort context lookup; in-app delivery still proceeds.
+      }
+    }
+
+    await this.notifications.notify(
+      {
+        tenantId: access.actor.tenantId,
+        userId: assigneeId,
+        type: 'TASK_ASSIGNED',
+        title: verb === 'assigned' ? 'New task assigned' : 'Task reassigned',
+        message: `You were ${verb} "${String(row.title ?? 'a task')}".`,
+        link,
+        dedupeKey: `TASK_ASSIGNED:${taskId}:${assigneeId}:${verb}:${
+          row.updatedAt instanceof Date
+            ? row.updatedAt.toISOString()
+            : String(row.updatedAt ?? '')
+        }`,
+        metadata: { taskId, assignedBy: access.actor.id },
+      },
+      emailPlan
+        ? () => this.email!.send('task-assigned', emailPlan.input)
+        : undefined,
+    );
   }
 
   private notFound(descriptor: EntityDescriptor): NotFoundException {

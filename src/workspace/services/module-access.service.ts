@@ -116,6 +116,28 @@ export class ModuleAccessService {
     return access;
   }
 
+  /**
+   * Resolve and assert that at least one of `actions` is granted. Workflow
+   * routes use this so a transition can be authorised by `CREATE` or `EDIT`.
+   */
+  async requireAnyAction(
+    user: AuthUserLike,
+    deptKey: string,
+    moduleKey: string,
+    actions: ModuleAction[],
+  ): Promise<ResolvedModuleAccess> {
+    const access = await this.resolve(user, deptKey, moduleKey);
+    if (!actions.some((action) => access.actions.includes(action))) {
+      throw new ForbiddenException({
+        code: 'MODULE_FORBIDDEN',
+        message: `You need ${actions.join(' or ')} permission for ${access.module.name}.`,
+        moduleKey: access.module.key,
+        actions,
+      });
+    }
+    return access;
+  }
+
   assertAction(access: ResolvedModuleAccess, action: ModuleAction): void {
     if (!access.actions.includes(action)) {
       throw new ForbiddenException({

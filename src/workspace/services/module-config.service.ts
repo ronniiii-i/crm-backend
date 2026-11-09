@@ -10,6 +10,7 @@ import {
   MODULE_CONFIG_VERSION,
   ModuleConfig,
   TableConfig,
+  WorkflowConfig,
 } from '../types/module-config';
 import { EntityRegistryService } from './entity-registry.service';
 
@@ -83,6 +84,8 @@ export class ModuleConfigService {
         return this.validateDocument(config);
       case ModuleType.FORM_BUILDER:
         return this.validateForm(config);
+      case ModuleType.WORKFLOW:
+        return this.validateWorkflow(config);
       default:
         throw new BadRequestException({
           code: 'INVALID_MODULE_CONFIG',
@@ -119,6 +122,8 @@ export class ModuleConfigService {
         } satisfies DocumentConfig;
       case ModuleType.FORM_BUILDER:
         return this.formDefaults(descriptor);
+      case ModuleType.WORKFLOW:
+        return this.workflowDefaults(descriptor);
       default:
         return {
           version: MODULE_CONFIG_VERSION,
@@ -289,6 +294,21 @@ export class ModuleConfigService {
     };
   }
 
+  private workflowDefaults(
+    descriptor: EntityDescriptor | null,
+  ): WorkflowConfig {
+    return {
+      version: MODULE_CONFIG_VERSION,
+      entity: descriptor?.key ?? null,
+      workflow:
+        descriptor?.key === 'leave_requests' ? 'leave-approval' : 'generic',
+      stages: [],
+      requesterFields: [],
+      allowCreate: descriptor?.readOnly !== true,
+      allowCancel: true,
+    };
+  }
+
   private assertVersion(config: Record<string, unknown>) {
     const version = config.version;
     if (version !== undefined && version !== MODULE_CONFIG_VERSION) {
@@ -454,8 +474,47 @@ export class ModuleConfigService {
     return {
       ...(config as unknown as FormConfig),
       mode: 'create',
-      submitLabel: asText(config.submitLabel ?? 'Submit'),
-      successMessage: asText(config.successMessage ?? 'Saved.'),
+      fields: config.fields as FormFieldConfig[],
+    };
+  }
+
+  private validateWorkflow(config: Record<string, unknown>): WorkflowConfig {
+    if (typeof config.workflow !== 'string' || config.workflow.length === 0) {
+      throw invalid('WORKFLOW config requires a workflow identifier.');
+    }
+
+    if (
+      config.stages !== undefined &&
+      (!Array.isArray(config.stages) ||
+        config.stages.some(
+          (stage) =>
+            !stage ||
+            typeof stage !== 'object' ||
+            typeof (stage as Record<string, unknown>).value !== 'string' ||
+            typeof (stage as Record<string, unknown>).label !== 'string',
+        ))
+    ) {
+      throw invalid('Workflow stages require a value and label.');
+    }
+
+    if (
+      config.requesterFields !== undefined &&
+      (!Array.isArray(config.requesterFields) ||
+        config.requesterFields.some((field) => typeof field !== 'string'))
+    ) {
+      throw invalid('requesterFields must be an array of field names.');
+    }
+
+    return {
+      ...(config as unknown as WorkflowConfig),
+      stages: Array.isArray(config.stages)
+        ? (config.stages as WorkflowConfig['stages'])
+        : [],
+      requesterFields: Array.isArray(config.requesterFields)
+        ? (config.requesterFields as string[])
+        : [],
+      allowCreate: config.allowCreate !== false,
+      allowCancel: config.allowCancel !== false,
     };
   }
 }

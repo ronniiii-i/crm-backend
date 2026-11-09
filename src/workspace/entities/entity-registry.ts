@@ -64,6 +64,7 @@ function build<T extends EntityKey>(
     selfCanEdit?: boolean;
     selfEditableFields?: string[];
     reassignable?: boolean;
+    directWritesDenied?: boolean;
   },
 ): EntityDescriptor {
   const allFields = [...config.fields, ...config.includes.map((i) => i.field)];
@@ -99,6 +100,7 @@ function build<T extends EntityKey>(
     selfCanEdit: config.selfCanEdit,
     selfEditableFields: config.selfEditableFields,
     reassignable: config.reassignable,
+    directWritesDenied: config.directWritesDenied,
   };
 }
 
@@ -363,6 +365,44 @@ function descriptor(key: EntityKey): EntityDescriptor {
         status: {
           field: 'status',
           values: ['Present', 'Absent', 'Late', 'Leave'],
+        },
+        supportedScopes: ['TENANT', 'DEPARTMENT', 'TEAM', 'SELF'],
+      });
+
+    case 'leave_requests':
+      return build(key, {
+        delegate: 'leaveRequest',
+        nestedFields: {
+          user: ['name', 'email', 'departmentId'],
+          teamLead: ['name', 'email'],
+          hod: ['name', 'email'],
+          hrApprover: ['name', 'email'],
+          decidedBy: ['name', 'email'],
+        },
+        label: 'Leave requests',
+        fields,
+        includes: [
+          relation('user', 'Requester', { select: userSelect }),
+          relation('teamLead', 'Team lead', { select: userSelect }),
+          relation('hod', 'HOD', { select: userSelect }),
+          relation('hrApprover', 'HR approver', { select: userSelect }),
+          relation('decidedBy', 'Decided by', { select: userSelect }),
+        ],
+        searchFields: searchableFields(fields),
+        defaultSort: { field: 'createdAt', dir: 'desc' },
+        owner: { userField: 'userId', departmentVia: 'user' },
+        selfField: 'userId',
+        selfCanEdit: false,
+        directWritesDenied: true,
+        status: {
+          field: 'status',
+          values: [
+            'PENDING_TEAM_LEAD',
+            'PENDING_HR',
+            'APPROVED',
+            'REJECTED',
+            'CANCELLED',
+          ],
         },
         supportedScopes: ['TENANT', 'DEPARTMENT', 'TEAM', 'SELF'],
       });

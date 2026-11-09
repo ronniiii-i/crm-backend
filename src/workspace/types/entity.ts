@@ -19,6 +19,7 @@ export const ENTITY_KEYS = [
   'support_tickets',
   'tasks',
   'attendance_records',
+  'leave_requests',
 ] as const;
 
 export type EntityKey = (typeof ENTITY_KEYS)[number];
@@ -102,6 +103,11 @@ export interface EntityDescriptor extends EntitySelfMeta {
   readOnly?: boolean;
   /** Whether the record can be reassigned to another user. */
   reassignable?: boolean;
+  /**
+   * Generic create/update/delete routes are rejected for this entity; all
+   * mutations must go through a dedicated state-machine service.
+   */
+  directWritesDenied?: boolean;
 }
 
 /** Prisma where fragment; typed loosely because it is built per entity. */

@@ -67,6 +67,16 @@ const TASK_STATUS = ['Todo', 'In Progress', 'Review', 'Completed'];
 
 const ATTENDANCE_STATUS = ['Present', 'Absent', 'Late', 'Leave'];
 
+const LEAVE_TYPES = ['ANNUAL', 'SICK', 'CASUAL', 'UNPAID', 'PARENTAL', 'OTHER'];
+
+const LEAVE_STATUS = [
+  'PENDING_TEAM_LEAD',
+  'PENDING_HR',
+  'APPROVED',
+  'REJECTED',
+  'CANCELLED',
+];
+
 export const FIELDS: Record<EntityKey, FieldMeta[]> = {
   contacts: [
     ID,
@@ -509,6 +519,98 @@ export const FIELDS: Record<EntityKey, FieldMeta[]> = {
     }),
     CREATED,
     f('user', 'Employee', 'json', { relation: true, readOnly: true }),
+  ],
+
+  leave_requests: [
+    ID,
+    f('userId', 'Requester', 'text', {
+      filterable: true,
+      groupable: true,
+      readOnly: true,
+    }),
+    f('type', 'Leave type', 'enum', {
+      sortable: true,
+      filterable: true,
+      groupable: true,
+      writable: true,
+      required: true,
+      enumValues: LEAVE_TYPES,
+    }),
+    f('startDate', 'Start date', 'date', {
+      sortable: true,
+      filterable: true,
+      writable: true,
+      required: true,
+    }),
+    f('endDate', 'End date', 'date', {
+      sortable: true,
+      filterable: true,
+      writable: true,
+      required: true,
+    }),
+    f('days', 'Working days', 'number', {
+      sortable: true,
+      filterable: true,
+      readOnly: true,
+    }),
+    f('reason', 'Reason', 'text', {
+      searchable: true,
+      writable: true,
+      required: true,
+    }),
+    f('status', 'Status', 'enum', {
+      sortable: true,
+      filterable: true,
+      groupable: true,
+      readOnly: true,
+      enumValues: LEAVE_STATUS,
+    }),
+    f('currentStage', 'Stage', 'number', {
+      filterable: true,
+      readOnly: true,
+    }),
+    f('teamLeadId', 'Team lead', 'text', {
+      filterable: true,
+      readOnly: true,
+    }),
+    f('hodId', 'HOD', 'text', {
+      filterable: true,
+      readOnly: true,
+    }),
+    f('hrApproverId', 'HR approver', 'text', {
+      filterable: true,
+      readOnly: true,
+    }),
+    f('decidedById', 'Decided by', 'text', {
+      filterable: true,
+      readOnly: true,
+    }),
+    f('decidedAt', 'Decided at', 'date', {
+      sortable: true,
+      filterable: true,
+      readOnly: true,
+    }),
+    f('decisionNote', 'Decision note', 'text', {
+      searchable: true,
+      readOnly: true,
+    }),
+    f('submittedAt', 'Submitted at', 'date', {
+      sortable: true,
+      filterable: true,
+      readOnly: true,
+    }),
+    f('cancelledAt', 'Cancelled at', 'date', {
+      sortable: true,
+      filterable: true,
+      readOnly: true,
+    }),
+    CREATED,
+    UPDATED,
+    f('user', 'Requester', 'json', { relation: true, readOnly: true }),
+    f('teamLead', 'Team lead', 'json', { relation: true, readOnly: true }),
+    f('hod', 'HOD', 'json', { relation: true, readOnly: true }),
+    f('hrApprover', 'HR approver', 'json', { relation: true, readOnly: true }),
+    f('decidedBy', 'Decided by', 'json', { relation: true, readOnly: true }),
   ],
 };
 

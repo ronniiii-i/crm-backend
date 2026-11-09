@@ -13,6 +13,7 @@ import { randomUUID } from 'node:crypto';
 export type Row = Record<string, any>;
 
 export interface WorkspaceState {
+  tenants: Row[];
   users: Row[];
   modules: Row[];
   departments: Row[];
@@ -27,6 +28,9 @@ export interface WorkspaceState {
   supportTickets: Row[];
   tasks: Row[];
   attendanceRecords: Row[];
+  leaveRequests: Row[];
+  notifications: Row[];
+  notificationPreferences: Row[];
   documents: Row[];
   formSubmissions: Row[];
   projects: Row[];
@@ -34,6 +38,7 @@ export interface WorkspaceState {
 
 export function emptyWorkspaceState(): WorkspaceState {
   return {
+    tenants: [],
     users: [],
     modules: [],
     departments: [],
@@ -48,6 +53,9 @@ export function emptyWorkspaceState(): WorkspaceState {
     supportTickets: [],
     tasks: [],
     attendanceRecords: [],
+    leaveRequests: [],
+    notifications: [],
+    notificationPreferences: [],
     documents: [],
     formSubmissions: [],
     projects: [],
@@ -55,6 +63,7 @@ export function emptyWorkspaceState(): WorkspaceState {
 }
 
 const DELEGATES: Record<string, keyof WorkspaceState> = {
+  tenant: 'tenants',
   user: 'users',
   module: 'modules',
   department: 'departments',
@@ -69,6 +78,9 @@ const DELEGATES: Record<string, keyof WorkspaceState> = {
   supportTicket: 'supportTickets',
   task: 'tasks',
   attendanceRecord: 'attendanceRecords',
+  leaveRequest: 'leaveRequests',
+  notification: 'notifications',
+  notificationPreference: 'notificationPreferences',
   document: 'documents',
   formSubmission: 'formSubmissions',
   project: 'projects',
@@ -201,6 +213,12 @@ function createTx(tenantId: string | undefined, state: WorkspaceState) {
 
         // Emulate schema defaults that callers rely on but never send.
         if (key === 'documents' && row.version === undefined) row.version = 1;
+        if (key === 'notifications' && row.read === undefined) row.read = false;
+        if (key === 'leaveRequests') {
+          row.status ??= 'PENDING_TEAM_LEAD';
+          row.currentStage ??= 1;
+          row.submittedAt ??= now;
+        }
 
         state[key].push(row);
         return clone(row);
@@ -228,6 +246,31 @@ function createTx(tenantId: string | undefined, state: WorkspaceState) {
         return { count };
       },
 
+      upsert: async (args: any = {}) => {
+        const condition = normalizeCompoundWhere(args.where);
+        const index = state[key].findIndex(
+          (row) =>
+            (!tenantId || row.tenantId === tenantId) &&
+            matches(row, condition, state),
+        );
+
+        if (index !== -1) {
+          state[key][index] = applyData(state[key][index], args.update);
+          return clone(state[key][index]);
+        }
+
+        const now = new Date();
+        const row: Row = {
+          id: randomUUID(),
+          ...args.create,
+          createdAt: args.create?.createdAt ?? now,
+          updatedAt: args.create?.updatedAt ?? now,
+        };
+        if (tenantId && row.tenantId === undefined) row.tenantId = tenantId;
+        state[key].push(row);
+        return clone(row);
+      },
+
       delete: async (args: any = {}) => {
         const index = state[key].findIndex((row) =>
           matches(row, args.where, state),
@@ -245,7 +288,42 @@ function createTx(tenantId: string | undefined, state: WorkspaceState) {
 }
 
 function clone<T>(row: T): T {
-  return JSON.parse(JSON.stringify(row));
+  if (row instanceof Date) return new Date(row.getTime()) as T;
+  if (Array.isArray(row)) return row.map((entry) => clone(entry)) as T;
+  if (row && typeof row === 'object') {
+    const copy: Row = {};
+    for (const [key, value] of Object.entries(row as Row)) {
+      copy[key] = clone(value);
+    }
+    return copy as T;
+  }
+  return row;
+}
+
+/**
+ * Flatten Prisma compound-unique selectors (`tenantId_userId_type`) into the
+ * plain field predicates the in-memory matcher understands.
+ */
+function normalizeCompoundWhere(where: any): any {
+  if (!where || typeof where !== 'object') return where;
+  const normalized: Row = {};
+
+  for (const [key, value] of Object.entries(where)) {
+    if (
+      key.includes('_') &&
+      value &&
+      typeof value === 'object' &&
+      !Array.isArray(value) &&
+      !(value instanceof Date) &&
+      !Object.keys(value).some((part) => OPERATORS.has(part))
+    ) {
+      Object.assign(normalized, value);
+      continue;
+    }
+    normalized[key] = value;
+  }
+
+  return normalized;
 }
 
 function applyData(row: Row, data: Row): Row {
