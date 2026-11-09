@@ -33,8 +33,8 @@ import { PublicModule } from './public/public.module';
 import { BillingModule } from './billing/billing.module';
 import { WorkspaceModule } from './workspace/workspace.module';
 import { NotificationsModule } from './notifications/notifications.module';
-import { TenantSettingsController } from './tenant/tenant-settings.controller';
-import { TenantSettingsService } from './tenant/tenant-settings.service';
+import { StorageModule } from './storage/storage.module';
+import { TenantSettingsModule } from './tenant/tenant-settings.module';
 
 @Module({
   imports: [
@@ -62,12 +62,13 @@ import { TenantSettingsService } from './tenant/tenant-settings.service';
     BillingModule,
     WorkspaceModule,
     NotificationsModule,
+    StorageModule,
+    TenantSettingsModule,
   ],
-  controllers: [AppController, TenantSettingsController],
+  controllers: [AppController],
   providers: [
     AppService,
     PrismaService,
-    TenantSettingsService,
     {
       provide: APP_GUARD,
       useExisting: RateLimitGuard,

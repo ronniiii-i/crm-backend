@@ -9,6 +9,15 @@
 import { validateEnv } from '../../src/config/env.validation';
 import { requireEnv, optionalEnv } from '../../src/config/env';
 
+const R2_ENV = {
+  STORAGE_DRIVER: 'r2',
+  R2_ACCOUNT_ID: 'account-id',
+  R2_ACCESS_KEY_ID: 'access-key',
+  R2_SECRET_ACCESS_KEY: 'secret-key',
+  R2_BUCKET: 'clasp-uploads',
+  R2_PUBLIC_BASE_URL: 'https://cdn.claspworkspace.com',
+};
+
 const VALID_ENV = {
   NODE_ENV: 'test',
   PORT: '3030',
@@ -87,6 +96,7 @@ describe('env validation', () => {
   it('accepts a complete production email configuration', () => {
     const env = validateEnv({
       ...VALID_ENV,
+      ...R2_ENV,
       NODE_ENV: 'production',
       RESEND_API_KEY: 're_test_key',
       EMAIL_FROM: 'Clasp Workspace <notifications@claspworkspace.com>',
@@ -96,12 +106,44 @@ describe('env validation', () => {
     expect(env.NODE_ENV).toBe('production');
     expect(env.EMAIL_FROM).toContain('notifications@claspworkspace.com');
     expect(env.APP_URL).toBe('https://claspworkspace.com');
+    expect(env.STORAGE_DRIVER).toBe('r2');
+  });
+
+  it('rejects local storage in production', () => {
+    expect(() =>
+      validateEnv({
+        ...VALID_ENV,
+        NODE_ENV: 'production',
+        STORAGE_DRIVER: 'local',
+        RESEND_API_KEY: 're_test_key',
+        EMAIL_FROM: 'Clasp Workspace <notifications@claspworkspace.com>',
+        APP_URL: 'https://claspworkspace.com',
+      } as any),
+    ).toThrow(/STORAGE_DRIVER=local/);
+  });
+
+  it('requires the R2 credentials when R2 is selected', () => {
+    let message = '';
+    try {
+      validateEnv({
+        ...VALID_ENV,
+        STORAGE_DRIVER: 'r2',
+        R2_BUCKET: 'clasp-uploads',
+      } as any);
+    } catch (error) {
+      message = (error as Error).message;
+    }
+
+    expect(message).toContain('R2_ACCOUNT_ID');
+    expect(message).toContain('R2_ACCESS_KEY_ID');
+    expect(message).toContain('R2_SECRET_ACCESS_KEY');
+    expect(message).toContain('R2_PUBLIC_BASE_URL');
   });
 
   it('rejects production without Resend, sender or APP_URL', () => {
     let message = '';
     try {
-      validateEnv({ ...VALID_ENV, NODE_ENV: 'production' } as any);
+      validateEnv({ ...VALID_ENV, ...R2_ENV, NODE_ENV: 'production' } as any);
     } catch (error) {
       message = (error as Error).message;
     }

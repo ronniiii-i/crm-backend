@@ -11,6 +11,7 @@ import { CacheModule } from '../cache/cache.module';
 import { RouteRegistry } from './route-registry';
 import { FrontendAdapterService } from './frontend-adapter.service';
 import { TenantModule } from '../tenant/tenant.module';
+import { TenantSettingsModule } from '../tenant/tenant-settings.module';
 import { AclModule } from './acl.module';
 import { SystemPrismaModule } from '../prisma/system-prisma.module';
 import { requireEnv, optionalEnv } from '../config/env';
@@ -28,6 +29,7 @@ import { NewDeviceNotifier } from './services/new-device-notifier.service';
     }),
     CacheModule,
     TenantModule,
+    TenantSettingsModule,
     AclModule,
     SystemPrismaModule,
   ],

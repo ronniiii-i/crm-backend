@@ -6,6 +6,7 @@ import { createHash, randomBytes } from 'node:crypto';
 import { PrismaService } from '../../prisma/prisma.service';
 import { TenantResolverService } from '../../tenant/tenant-resolver.service';
 import { TenantStateService } from '../../tenant/tenant-state.service';
+import { TenantSettingsService } from '../../tenant/tenant-settings.service';
 import { EmailService } from '../../email/email.service';
 import { EmailLinkService } from '../../email/email-link.service';
 import { SessionStateService } from './session-state.service';
@@ -54,6 +55,7 @@ export class AuthService {
     private readonly emailLink: EmailLinkService,
     private readonly tenantResolver: TenantResolverService,
     private readonly tenantState: TenantStateService,
+    private readonly tenantSettings: TenantSettingsService,
     private readonly permissionResolution: PermissionResolutionService,
     private readonly frontendAdapter: FrontendAdapterService,
     private readonly cache: CacheService,
@@ -174,6 +176,7 @@ export class AuthService {
     const access =
       (await (this.frontendAdapter as any).getSessionAccess?.(refreshedUser)) ||
       {};
+    const settings = await this.tenantSettings.getSettings(workspace.id);
     const userPayload = {
       id: refreshedUser.id,
       email: refreshedUser.email,
@@ -208,6 +211,14 @@ export class AuthService {
       tenantSlug: workspace.slug,
       tenantName: workspace.name,
       tenantStatus: state.status,
+      settings,
+      tenant: {
+        id: workspace.id,
+        name: workspace.name,
+        slug: workspace.slug,
+        status: state.status,
+        settings,
+      },
       ...access,
     };
 
@@ -416,6 +427,7 @@ export class AuthService {
     const access =
       (await (this.frontendAdapter as any).getSessionAccess?.(sessionUser)) ||
       {};
+    const settings = await this.tenantSettings.getSettings(user.tenantId);
 
     return {
       success: true,
@@ -453,6 +465,14 @@ export class AuthService {
         tenantSlug: user.tenantSlug,
         tenantName: sessionUser.tenant?.name ?? user.tenantName ?? null,
         tenantStatus: state.status,
+        settings,
+        tenant: {
+          id: user.tenantId,
+          name: sessionUser.tenant?.name ?? user.tenantName ?? null,
+          slug: user.tenantSlug ?? null,
+          status: state.status,
+          settings,
+        },
         ...access,
       },
     };

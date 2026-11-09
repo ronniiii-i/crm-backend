@@ -156,6 +156,34 @@ const envSchema = z
     EXPORT_MAX_ROWS: z.coerce.number().int().positive().default(100_000),
   })
   .superRefine((env, ctx) => {
+    if (env.STORAGE_DRIVER === 'local' && env.NODE_ENV === 'production') {
+      ctx.addIssue({
+        code: 'custom',
+        path: ['STORAGE_DRIVER'],
+        message:
+          'STORAGE_DRIVER=local is not permitted in production; configure R2',
+      });
+    }
+
+    if (env.STORAGE_DRIVER === 'r2') {
+      const r2Required: Array<[string, string | undefined]> = [
+        ['R2_ACCOUNT_ID', env.R2_ACCOUNT_ID],
+        ['R2_ACCESS_KEY_ID', env.R2_ACCESS_KEY_ID],
+        ['R2_SECRET_ACCESS_KEY', env.R2_SECRET_ACCESS_KEY],
+        ['R2_BUCKET', env.R2_BUCKET],
+        ['R2_PUBLIC_BASE_URL', env.R2_PUBLIC_BASE_URL],
+      ];
+      for (const [name, value] of r2Required) {
+        if (!value || value.trim().length === 0) {
+          ctx.addIssue({
+            code: 'custom',
+            path: [name],
+            message: `${name} is required when STORAGE_DRIVER=r2`,
+          });
+        }
+      }
+    }
+
     if (env.NODE_ENV !== 'production') return;
 
     // Production must fail fast rather than starting with a half-configured

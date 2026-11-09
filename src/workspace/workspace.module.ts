@@ -60,6 +60,7 @@ import { WorkspaceController } from './workspace.controller';
     ModuleConfigService,
     EntityQueryService,
     EntityWriteService,
+    AuditService,
   ],
 })
 export class WorkspaceModule {}
