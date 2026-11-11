@@ -80,6 +80,10 @@ export class StorageService {
     return Number(process.env.STORAGE_MAX_ATTACHMENT_BYTES ?? 26_214_400);
   }
 
+  get attachmentsEnabled(): boolean {
+    return (process.env.ATTACHMENTS_ENABLED ?? 'true').trim() !== 'false';
+  }
+
   async presignUpload(input: PresignUploadInput): Promise<PresignUploadResult> {
     const contentType = input.contentType?.split(';')[0].trim().toLowerCase();
     if (!isAllowedMimeType(input.purpose, contentType)) {
@@ -134,6 +138,11 @@ export class StorageService {
     return this.driver.publicUrl(key);
   }
 
+  /** Short-lived download URL (local HMAC read URL or R2 signed GET). */
+  signedReadUrl(key: string): Promise<string> {
+    return this.driver.signedReadUrl(key);
+  }
+
   /** Reject a finalize request for a key owned by another user or tenant. */
   assertAvatarKey(tenantId: string, userId: string, key: string): void {
     const prefix = `tenants/${tenantId}/avatar/${userId}/`;
@@ -157,6 +166,39 @@ export class StorageService {
       head.contentLength > this.maxAvatarBytes
     ) {
       throw new BadRequestException('Uploaded avatar is too large');
+    }
+  }
+
+  /** Reject a finalize request for an attachment key owned by another user. */
+  assertAttachmentKey(tenantId: string, userId: string, key: string): void {
+    const prefix = `tenants/${tenantId}/attachment/${userId}/`;
+    if (!key || !key.startsWith(prefix) || key.includes('..')) {
+      throw new BadRequestException(
+        'Attachment key does not belong to this user',
+      );
+    }
+  }
+
+  /** Validate an uploaded attachment after HEAD-ing the object. */
+  assertAttachmentObject(
+    head: StorageHeadResult | null,
+  ): asserts head is StorageHeadResult {
+    if (!head) {
+      throw new BadRequestException('Uploaded attachment was not found');
+    }
+    if (
+      head.contentType &&
+      !isAllowedMimeType('attachment', head.contentType)
+    ) {
+      throw new BadRequestException(
+        'Uploaded file is not a supported attachment type',
+      );
+    }
+    if (
+      typeof head.contentLength === 'number' &&
+      head.contentLength > this.maxAttachmentBytes
+    ) {
+      throw new BadRequestException('Uploaded attachment is too large');
     }
   }
 

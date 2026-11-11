@@ -125,6 +125,7 @@ const envSchema = z
     ROOT_DOMAIN_MODE: z.enum(['path', 'subdomain']).default('path'),
 
     STORAGE_DRIVER: z.enum(['local', 'r2']).default('local'),
+    ATTACHMENTS_ENABLED: z.enum(['true', 'false']).default('true'),
     STORAGE_MAX_AVATAR_BYTES: z.coerce
       .number()
       .int()

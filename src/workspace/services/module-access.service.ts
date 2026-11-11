@@ -187,6 +187,10 @@ export class ModuleAccessService {
         : null,
       dataScope: access.scope,
       actions: access.actions,
+      features: {
+        attachments:
+          (process.env.ATTACHMENTS_ENABLED ?? 'true').trim() !== 'false',
+      },
       entityMeta: entity ? this.registry.describe(entity) : null,
     };
   }

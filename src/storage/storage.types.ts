@@ -45,6 +45,8 @@ export interface StorageDriver {
   head(key: string): Promise<StorageHeadResult | null>;
   delete(key: string): Promise<void>;
   publicUrl(key: string): string;
+  /** Short-lived GET URL. R2 attachments are never public. */
+  signedReadUrl(key: string, expiresInSeconds?: number): Promise<string>;
 }
 
 /** Images accepted for avatars. SVG is deliberately absent (stored XSS). */

@@ -1,14 +1,19 @@
 import { Module } from '@nestjs/common';
 import { AuthModule } from '../auth/auth.module';
 import { PrismaModule } from '../prisma/prisma.module';
+import { StorageModule } from '../storage/storage.module';
 import { AggregateController } from './controllers/aggregate.controller';
+import { AttachmentsController } from './controllers/attachments.controller';
 import { CatalogController } from './controllers/catalog.controller';
 import { DocumentsController } from './controllers/documents.controller';
 import { LeaveController } from './controllers/leave.controller';
+import { LookupsController } from './controllers/lookups.controller';
 import { RecordsController } from './controllers/records.controller';
 import { SubmissionsController } from './controllers/submissions.controller';
 import { ModulePermissionGuard } from './guards/module-permission.guard';
+import { LookupService } from './lookups/lookup.service';
 import { AggregationService } from './services/aggregation.service';
+import { AttachmentService } from './services/attachment.service';
 import { AuditService } from './services/audit.service';
 import { DocumentService } from './services/document.service';
 import { EntityQueryService } from './services/entity-query.service';
@@ -29,14 +34,16 @@ import { WorkspaceController } from './workspace.controller';
  * reachable through the server-side allowlist in `entities/entity-registry`.
  */
 @Module({
-  imports: [AuthModule, PrismaModule],
+  imports: [AuthModule, PrismaModule, StorageModule],
   controllers: [
     WorkspaceController,
     RecordsController,
+    AttachmentsController,
     AggregateController,
     DocumentsController,
     SubmissionsController,
     CatalogController,
+    LookupsController,
     LeaveController,
   ],
   providers: [
@@ -48,9 +55,11 @@ import { WorkspaceController } from './workspace.controller';
     EntityQueryService,
     EntityWriteService,
     AggregationService,
+    AttachmentService,
     DocumentService,
     FormSubmissionService,
     LeaveWorkflowService,
+    LookupService,
     ModulePermissionGuard,
   ],
   exports: [

@@ -60,7 +60,13 @@ export class EntityRegistryService {
         readOnly: field.readOnly === true,
         enumValues: field.enumValues,
         description: field.description,
+        reference: field.reference,
+        selfEditable: field.selfEditable === true,
+        sensitive: field.sensitive === true,
       })),
+      displayField: descriptor.displayField,
+      secondaryDisplayFields: descriptor.secondaryDisplayFields ?? [],
+      selfEditableFields: descriptor.selfEditableFields ?? [],
       defaultSort: descriptor.defaultSort,
       searchFields: descriptor.searchFields,
       statusField: descriptor.status?.field ?? null,
@@ -70,6 +76,7 @@ export class EntityRegistryService {
       groupableFields: descriptor.groupableFields,
       supportedScopes: descriptor.supportedScopes,
       readOnly: descriptor.readOnly === true,
+      softDelete: descriptor.softDelete === true,
       reassignable: descriptor.reassignable === true,
     };
   }

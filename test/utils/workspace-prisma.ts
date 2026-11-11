@@ -34,6 +34,7 @@ export interface WorkspaceState {
   documents: Row[];
   formSubmissions: Row[];
   projects: Row[];
+  attachments: Row[];
 }
 
 export function emptyWorkspaceState(): WorkspaceState {
@@ -59,6 +60,7 @@ export function emptyWorkspaceState(): WorkspaceState {
     documents: [],
     formSubmissions: [],
     projects: [],
+    attachments: [],
   };
 }
 
@@ -84,6 +86,7 @@ const DELEGATES: Record<string, keyof WorkspaceState> = {
   document: 'documents',
   formSubmission: 'formSubmissions',
   project: 'projects',
+  attachment: 'attachments',
 };
 
 const OPERATORS = new Set([

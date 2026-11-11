@@ -77,6 +77,14 @@ const LEAVE_STATUS = [
   'CANCELLED',
 ];
 
+const PROJECT_STATUS = [
+  'Planning',
+  'In Progress',
+  'On Hold',
+  'Completed',
+  'Cancelled',
+];
+
 export const FIELDS: Record<EntityKey, FieldMeta[]> = {
   contacts: [
     ID,
@@ -126,6 +134,12 @@ export const FIELDS: Record<EntityKey, FieldMeta[]> = {
       groupable: true,
       writable: true,
       description: 'Defaults to the signed-in user.',
+      reference: {
+        entity: 'users',
+        labelField: 'name',
+        secondaryFields: ['email'],
+        relationField: 'createdBy',
+      },
     }),
     CREATED,
     UPDATED,
@@ -152,6 +166,11 @@ export const FIELDS: Record<EntityKey, FieldMeta[]> = {
       filterable: true,
       writable: true,
       required: true,
+      reference: {
+        entity: 'contacts',
+        labelField: 'firstName',
+        secondaryFields: ['lastName', 'company', 'email'],
+      },
     }),
     f('amount', 'Amount', 'currency', {
       sortable: true,
@@ -220,12 +239,22 @@ export const FIELDS: Record<EntityKey, FieldMeta[]> = {
       groupable: true,
       writable: true,
       description: 'Defaults to the signed-in user department.',
+      reference: {
+        entity: 'departments',
+        labelField: 'name',
+        secondaryFields: ['key'],
+      },
     }),
     f('userId', 'Owner', 'text', {
       filterable: true,
       groupable: true,
       writable: true,
       description: 'Defaults to the signed-in user.',
+      reference: {
+        entity: 'users',
+        labelField: 'name',
+        secondaryFields: ['email'],
+      },
     }),
     CREATED,
     CUSTOM,
@@ -295,6 +324,12 @@ export const FIELDS: Record<EntityKey, FieldMeta[]> = {
       filterable: true,
       groupable: true,
       readOnly: true,
+      reference: {
+        entity: 'departments',
+        labelField: 'name',
+        secondaryFields: ['key'],
+        relationField: 'department',
+      },
     }),
     f('roleId', 'Role', 'text', { filterable: true, readOnly: true }),
     f('isVerified', 'Verified', 'boolean', { readOnly: true }),
@@ -325,18 +360,29 @@ export const FIELDS: Record<EntityKey, FieldMeta[]> = {
       filterable: true,
       searchable: true,
       readOnly: true,
+      sensitive: true,
     }),
-    f('actorId', 'Actor', 'text', { filterable: true, readOnly: true }),
+    f('actorId', 'Actor', 'text', {
+      filterable: true,
+      readOnly: true,
+      sensitive: true,
+    }),
     f('departmentId', 'Department', 'text', {
       filterable: true,
       groupable: true,
       readOnly: true,
+      reference: {
+        entity: 'departments',
+        labelField: 'name',
+        secondaryFields: ['key'],
+        relationField: 'department',
+      },
     }),
-    f('ip', 'IP address', 'text', { readOnly: true }),
+    f('ip', 'IP address', 'text', { readOnly: true, sensitive: true }),
     f('userAgent', 'User agent', 'text', { readOnly: true }),
     CREATED,
-    f('before', 'Before', 'json', { readOnly: true }),
-    f('after', 'After', 'json', { readOnly: true }),
+    f('before', 'Before', 'json', { readOnly: true, sensitive: true }),
+    f('after', 'After', 'json', { readOnly: true, sensitive: true }),
     f('actor', 'Actor', 'json', { relation: true, readOnly: true }),
     f('department', 'Department', 'json', { relation: true, readOnly: true }),
   ],
@@ -354,6 +400,11 @@ export const FIELDS: Record<EntityKey, FieldMeta[]> = {
       filterable: true,
       writable: true,
       required: true,
+      reference: {
+        entity: 'contacts',
+        labelField: 'firstName',
+        secondaryFields: ['lastName', 'company'],
+      },
     }),
     f('amount', 'Amount', 'currency', {
       sortable: true,
@@ -379,6 +430,12 @@ export const FIELDS: Record<EntityKey, FieldMeta[]> = {
       groupable: true,
       writable: true,
       description: 'Defaults to the signed-in user.',
+      reference: {
+        entity: 'users',
+        labelField: 'name',
+        secondaryFields: ['email'],
+        relationField: 'assignedTo',
+      },
     }),
     CREATED,
     UPDATED,
@@ -417,12 +474,24 @@ export const FIELDS: Record<EntityKey, FieldMeta[]> = {
       filterable: true,
       writable: true,
       required: true,
+      reference: {
+        entity: 'contacts',
+        labelField: 'firstName',
+        secondaryFields: ['lastName', 'company', 'email'],
+        relationField: 'createdBy',
+      },
     }),
     f('userId', 'Assignee', 'text', {
       filterable: true,
       groupable: true,
       writable: true,
       description: 'Defaults to the signed-in user.',
+      reference: {
+        entity: 'users',
+        labelField: 'name',
+        secondaryFields: ['email'],
+        relationField: 'assignedTo',
+      },
     }),
     f('slaDueDate', 'SLA due', 'date', {
       sortable: true,
@@ -481,12 +550,22 @@ export const FIELDS: Record<EntityKey, FieldMeta[]> = {
       filterable: true,
       writable: true,
       description: 'Defaults to the tenant default project.',
+      reference: {
+        entity: 'projects',
+        labelField: 'name',
+        secondaryFields: ['status'],
+      },
     }),
     f('assignedToId', 'Assignee', 'text', {
       filterable: true,
       groupable: true,
       writable: true,
       description: 'Defaults to the signed-in user.',
+      reference: {
+        entity: 'users',
+        labelField: 'name',
+        secondaryFields: ['email'],
+      },
     }),
     CREATED,
     UPDATED,
@@ -502,6 +581,11 @@ export const FIELDS: Record<EntityKey, FieldMeta[]> = {
       groupable: true,
       writable: true,
       required: true,
+      reference: {
+        entity: 'users',
+        labelField: 'name',
+        secondaryFields: ['email'],
+      },
     }),
     f('date', 'Date', 'date', {
       sortable: true,
@@ -527,6 +611,11 @@ export const FIELDS: Record<EntityKey, FieldMeta[]> = {
       filterable: true,
       groupable: true,
       readOnly: true,
+      reference: {
+        entity: 'users',
+        labelField: 'name',
+        secondaryFields: ['email'],
+      },
     }),
     f('type', 'Leave type', 'enum', {
       sortable: true,
@@ -611,6 +700,61 @@ export const FIELDS: Record<EntityKey, FieldMeta[]> = {
     f('hod', 'HOD', 'json', { relation: true, readOnly: true }),
     f('hrApprover', 'HR approver', 'json', { relation: true, readOnly: true }),
     f('decidedBy', 'Decided by', 'json', { relation: true, readOnly: true }),
+  ],
+
+  projects: [
+    ID,
+    f('name', 'Project', 'text', {
+      sortable: true,
+      filterable: true,
+      searchable: true,
+      readOnly: true,
+    }),
+    f('description', 'Description', 'text', {
+      searchable: true,
+      readOnly: true,
+    }),
+    f('status', 'Status', 'enum', {
+      sortable: true,
+      filterable: true,
+      groupable: true,
+      readOnly: true,
+      enumValues: PROJECT_STATUS,
+    }),
+    f('startDate', 'Start date', 'date', {
+      sortable: true,
+      filterable: true,
+      readOnly: true,
+    }),
+    f('endDate', 'End date', 'date', {
+      sortable: true,
+      filterable: true,
+      readOnly: true,
+    }),
+    CREATED,
+    UPDATED,
+  ],
+
+  departments: [
+    ID,
+    f('name', 'Department', 'text', {
+      sortable: true,
+      filterable: true,
+      searchable: true,
+      readOnly: true,
+    }),
+    f('key', 'Key', 'text', {
+      sortable: true,
+      filterable: true,
+      searchable: true,
+      readOnly: true,
+    }),
+    f('description', 'Description', 'text', {
+      searchable: true,
+      readOnly: true,
+    }),
+    CREATED,
+    UPDATED,
   ],
 };
 

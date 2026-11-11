@@ -15,7 +15,12 @@ import { FIELDS, scalarFields, searchableFields } from './field-catalog';
  * constants and are never accepted from a request.
  */
 
-const READ_ONLY: EntityKey[] = ['users', 'audit_logs'];
+const READ_ONLY: EntityKey[] = [
+  'users',
+  'audit_logs',
+  'projects',
+  'departments',
+];
 
 const relation = (
   name: string,
@@ -49,6 +54,8 @@ function build<T extends EntityKey>(
     delegate: string;
     label: string;
     fields: FieldMeta[];
+    displayField: string;
+    secondaryDisplayFields?: string[];
     includes: Array<{
       field: FieldMeta;
       include: Record<string, unknown>;
@@ -59,6 +66,7 @@ function build<T extends EntityKey>(
     status?: EntityDescriptor['status'];
     supportedScopes: ScopeName[];
     readOnly?: boolean;
+    softDelete?: boolean;
     nestedFields?: Record<string, string[]>;
     selfField?: string;
     selfCanEdit?: boolean;
@@ -78,6 +86,8 @@ function build<T extends EntityKey>(
     delegate: config.delegate,
     label: config.label,
     fields: allFields,
+    displayField: config.displayField,
+    secondaryDisplayFields: config.secondaryDisplayFields ?? [],
     select: scalarFields(config.fields),
     includeMap,
     nestedFields: config.nestedFields ?? {},
@@ -96,6 +106,7 @@ function build<T extends EntityKey>(
       .map((field) => field.name),
     supportedScopes: config.supportedScopes,
     readOnly: config.readOnly,
+    softDelete: config.softDelete ?? !config.readOnly,
     selfField: config.selfField,
     selfCanEdit: config.selfCanEdit,
     selfEditableFields: config.selfEditableFields,
@@ -117,6 +128,8 @@ function descriptor(key: EntityKey): EntityDescriptor {
         delegate: 'contact',
         nestedFields: { createdBy: ['name', 'email', 'departmentId'] },
         label: 'Contacts',
+        displayField: 'firstName',
+        secondaryDisplayFields: ['lastName', 'company', 'email'],
         fields,
         includes: [
           contacts,
@@ -149,6 +162,8 @@ function descriptor(key: EntityKey): EntityDescriptor {
           customer: ['firstName', 'lastName', 'company', 'email'],
         },
         label: 'Invoices',
+        displayField: 'invoiceNumber',
+        secondaryDisplayFields: ['amount', 'status'],
         fields,
         includes: [
           customer,
@@ -176,6 +191,8 @@ function descriptor(key: EntityKey): EntityDescriptor {
           createdBy: ['name', 'email'],
         },
         label: 'Expenses',
+        displayField: 'description',
+        secondaryDisplayFields: ['amount', 'category'],
         fields,
         includes: [
           relation('department', 'Department', {
@@ -195,6 +212,8 @@ function descriptor(key: EntityKey): EntityDescriptor {
         delegate: 'inventoryItem',
         nestedFields: {},
         label: 'Inventory',
+        displayField: 'name',
+        secondaryDisplayFields: ['sku', 'quantity'],
         fields,
         includes: [],
         searchFields: searchableFields(fields),
@@ -210,6 +229,8 @@ function descriptor(key: EntityKey): EntityDescriptor {
           department: ['name', 'key'],
         },
         label: 'Users',
+        displayField: 'name',
+        secondaryDisplayFields: ['email', 'status'],
         fields,
         includes: [
           relation('role', 'Role', {
@@ -237,6 +258,8 @@ function descriptor(key: EntityKey): EntityDescriptor {
           department: ['name', 'key'],
         },
         label: 'Audit log',
+        displayField: 'action',
+        secondaryDisplayFields: ['entity', 'createdAt'],
         fields,
         includes: [
           relation('actor', 'Actor', { select: userSelect }),
@@ -258,6 +281,8 @@ function descriptor(key: EntityKey): EntityDescriptor {
           assignedTo: ['name', 'email'],
         },
         label: 'Deals',
+        displayField: 'name',
+        secondaryDisplayFields: ['amount', 'status'],
         fields,
         includes: [
           relation('contact', 'Contact', { select: contactSelect }),
@@ -291,6 +316,8 @@ function descriptor(key: EntityKey): EntityDescriptor {
           assignedTo: ['name', 'email'],
         },
         label: 'Support tickets',
+        displayField: 'subject',
+        secondaryDisplayFields: ['status', 'priority'],
         fields,
         includes: [
           relation('createdBy', 'Customer', { select: contactSelect }),
@@ -323,6 +350,8 @@ function descriptor(key: EntityKey): EntityDescriptor {
           project: ['name', 'status'],
         },
         label: 'Tasks',
+        displayField: 'title',
+        secondaryDisplayFields: ['status', 'dueDate'],
         fields,
         includes: [
           relation('assignedTo', 'Assignee', { select: userSelect }),
@@ -355,6 +384,8 @@ function descriptor(key: EntityKey): EntityDescriptor {
         delegate: 'attendanceRecord',
         nestedFields: { user: ['name', 'email'] },
         label: 'Attendance',
+        displayField: 'user',
+        secondaryDisplayFields: ['date', 'status'],
         fields,
         includes: [relation('user', 'Employee', { select: userSelect })],
         searchFields: searchableFields(fields),
@@ -380,6 +411,8 @@ function descriptor(key: EntityKey): EntityDescriptor {
           decidedBy: ['name', 'email'],
         },
         label: 'Leave requests',
+        displayField: 'user',
+        secondaryDisplayFields: ['type', 'startDate'],
         fields,
         includes: [
           relation('user', 'Requester', { select: userSelect }),
@@ -405,6 +438,48 @@ function descriptor(key: EntityKey): EntityDescriptor {
           ],
         },
         supportedScopes: ['TENANT', 'DEPARTMENT', 'TEAM', 'SELF'],
+      });
+
+    case 'projects':
+      return build(key, {
+        delegate: 'project',
+        nestedFields: {},
+        label: 'Projects',
+        displayField: 'name',
+        secondaryDisplayFields: ['status', 'startDate'],
+        fields,
+        includes: [],
+        searchFields: searchableFields(fields),
+        defaultSort: { field: 'name', dir: 'asc' },
+        owner: { userField: 'userId' },
+        status: {
+          field: 'status',
+          values: [
+            'Planning',
+            'In Progress',
+            'On Hold',
+            'Completed',
+            'Cancelled',
+          ],
+        },
+        supportedScopes: ['TENANT'],
+        readOnly: true,
+      });
+
+    case 'departments':
+      return build(key, {
+        delegate: 'department',
+        nestedFields: {},
+        label: 'Departments',
+        displayField: 'name',
+        secondaryDisplayFields: ['key'],
+        fields,
+        includes: [],
+        searchFields: searchableFields(fields),
+        defaultSort: { field: 'name', dir: 'asc' },
+        owner: {},
+        supportedScopes: ['TENANT'],
+        readOnly: true,
       });
   }
 }

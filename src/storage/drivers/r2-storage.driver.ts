@@ -1,5 +1,6 @@
 import {
   DeleteObjectCommand,
+  GetObjectCommand,
   HeadObjectCommand,
   PutObjectCommand,
   S3Client,
@@ -85,5 +86,14 @@ export class R2StorageDriver implements StorageDriver {
 
   publicUrl(key: string): string {
     return `${this.publicBaseUrl}/${key.replace(/^\/+/, '')}`;
+  }
+
+  /** Attachments are private: hand out a short-lived signed GET URL. */
+  signedReadUrl(key: string, expiresInSeconds = 5 * 60): Promise<string> {
+    return getSignedUrl(
+      this.client,
+      new GetObjectCommand({ Bucket: this.bucket, Key: key }),
+      { expiresIn: expiresInSeconds },
+    );
   }
 }

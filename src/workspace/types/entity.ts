@@ -20,9 +20,35 @@ export const ENTITY_KEYS = [
   'tasks',
   'attendance_records',
   'leave_requests',
+  'projects',
+  'departments',
 ] as const;
 
 export type EntityKey = (typeof ENTITY_KEYS)[number];
+
+/** Entities that can back a lookup (relation dropdown) source. */
+export const LOOKUP_ENTITY_KEYS = [
+  'users',
+  'projects',
+  'departments',
+  'contacts',
+] as const;
+
+export type LookupEntityKey = (typeof LOOKUP_ENTITY_KEYS)[number];
+
+/**
+ * Relation metadata for a scalar foreign key. The frontend uses this to render
+ * a searchable relation picker instead of a free-text id input.
+ */
+export interface FieldReference {
+  entity: LookupEntityKey;
+  labelField: string;
+  secondaryFields?: string[];
+  /** Relation key carrying the included object (`userId` -> `assignedTo`). */
+  relationField?: string;
+  /** Server-side predicate always applied to the lookup source. */
+  filter?: Record<string, unknown>;
+}
 
 export type FieldType =
   | 'text'
@@ -54,6 +80,12 @@ export interface FieldMeta {
   readOnly?: boolean;
   enumValues?: string[];
   description?: string;
+  /** Scalar FK -> lookup source; drives relation pickers and hydration. */
+  reference?: FieldReference;
+  /** Writable when the record is in `SELF` scope. */
+  selfEditable?: boolean;
+  /** Never exported and only shown in the admin metadata panel. */
+  sensitive?: boolean;
 }
 
 export interface EntityOwnerMeta {
@@ -85,6 +117,10 @@ export interface EntityDescriptor extends EntitySelfMeta {
   delegate: string;
   label: string;
   fields: FieldMeta[];
+  /** Human label field used for links, pickers and the command palette. */
+  displayField: string;
+  /** Additional human-readable fields shown beside the display field. */
+  secondaryDisplayFields?: string[];
   /** Scalar columns returned by list/get. */
   select: string[];
   /** Relation includes allowed for this entity. */
@@ -101,6 +137,8 @@ export interface EntityDescriptor extends EntitySelfMeta {
   supportedScopes: ScopeName[];
   /** Entities exposed read-only through the workspace API. */
   readOnly?: boolean;
+  /** Uses `deletedAt`/`deletedById` instead of a hard delete. */
+  softDelete?: boolean;
   /** Whether the record can be reassigned to another user. */
   reassignable?: boolean;
   /**

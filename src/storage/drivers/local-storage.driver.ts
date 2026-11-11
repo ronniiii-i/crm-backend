@@ -94,6 +94,11 @@ export class LocalStorageDriver implements StorageDriver {
     return `${this.baseUrl}/storage/local?${query.toString()}`;
   }
 
+  /** Local files are served through the existing HMAC-signed read endpoint. */
+  signedReadUrl(key: string): Promise<string> {
+    return Promise.resolve(this.publicUrl(key));
+  }
+
   /** Validate the upload token before accepting bytes. */
   verifyUploadToken(token: string): UploadTokenPayload {
     const [encoded, signature] = (token ?? '').split('.');
