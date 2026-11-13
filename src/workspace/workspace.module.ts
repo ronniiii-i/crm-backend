@@ -9,6 +9,7 @@ import { DocumentsController } from './controllers/documents.controller';
 import { LeaveController } from './controllers/leave.controller';
 import { LookupsController } from './controllers/lookups.controller';
 import { RecordsController } from './controllers/records.controller';
+import { SearchController } from './controllers/search.controller';
 import { SubmissionsController } from './controllers/submissions.controller';
 import { ModulePermissionGuard } from './guards/module-permission.guard';
 import { LookupService } from './lookups/lookup.service';
@@ -24,6 +25,7 @@ import { LeaveWorkflowService } from './services/leave-workflow.service';
 import { ModuleAccessService } from './services/module-access.service';
 import { ModuleConfigService } from './services/module-config.service';
 import { ScopeFilterService } from './services/scope-filter.service';
+import { SearchService } from './services/search.service';
 import { WorkspaceController } from './workspace.controller';
 
 /**
@@ -45,6 +47,7 @@ import { WorkspaceController } from './workspace.controller';
     CatalogController,
     LookupsController,
     LeaveController,
+    SearchController,
   ],
   providers: [
     EntityRegistryService,
@@ -60,6 +63,7 @@ import { WorkspaceController } from './workspace.controller';
     FormSubmissionService,
     LeaveWorkflowService,
     LookupService,
+    SearchService,
     ModulePermissionGuard,
   ],
   exports: [

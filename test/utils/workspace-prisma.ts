@@ -532,23 +532,25 @@ function matchValue(
         if (!(toComparable(value) <= toComparable(operand))) return false;
         break;
       case 'contains': {
-        if (operand && typeof operand === 'object' && 'contains' in operand) {
-          const needle = String((operand as any).contains);
-          const insensitive = (operand as any).mode === 'insensitive';
-          if (
-            insensitive
-              ? !String(value ?? '')
-                  .toLowerCase()
-                  .includes(needle.toLowerCase())
-              : !String(value ?? '').includes(needle)
-          ) {
-            return false;
-          }
-          break;
-        }
+        const nested =
+          operand && typeof operand === 'object' && 'contains' in operand;
+        const needle = String(nested ? operand.contains : (operand ?? ''));
+        const insensitive =
+          condition.mode === 'insensitive' ||
+          (nested && (operand as any).mode === 'insensitive');
+
         if (Array.isArray(value)) {
           if (!value.includes(operand)) return false;
-        } else if (!String(value ?? '').includes(String(operand))) {
+          break;
+        }
+
+        if (
+          insensitive
+            ? !String(value ?? '')
+                .toLowerCase()
+                .includes(needle.toLowerCase())
+            : !String(value ?? '').includes(needle)
+        ) {
           return false;
         }
         break;
