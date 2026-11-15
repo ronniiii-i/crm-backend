@@ -186,6 +186,7 @@ interface TableColumnConfig {
   sortable?: boolean;
   filterable?: boolean;
   width?: number;
+  priority?: 'primary' | 'secondary' | 'optional';
 }
 
 interface FormFieldConfig {

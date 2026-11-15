@@ -77,6 +77,9 @@ export interface WidgetTask {
   dueDate: string;
   dueSoon: boolean;
   project?: string;
+  priority?: 'low' | 'medium' | 'high';
+  assigneeId?: string;
+  assigneeName?: string;
 }
 
 export interface WidgetAttendanceRecord {
@@ -180,6 +183,8 @@ export interface WidgetTicket {
   priority: 'low' | 'medium' | 'high';
   status: 'open' | 'pending' | 'resolved';
   createdAt: string;
+  assigneeId?: string;
+  assigneeName?: string;
 }
 
 export interface WidgetPersonalMetric {
@@ -1015,6 +1020,7 @@ export class DashboardWidgetsService {
           createdAt: true,
           resolvedAt: true,
           slaDueDate: true,
+          assignedTo: { select: { id: true, name: true } },
         },
       }),
       tx.notification.findMany({
@@ -1358,6 +1364,7 @@ export class DashboardWidgetsService {
           priority: true,
           createdAt: true,
           resolvedAt: true,
+          assignedTo: { select: { id: true, name: true } },
         },
       }),
       this.teamPerformance(tx, tenantId, departmentId),
@@ -1429,8 +1436,7 @@ export class DashboardWidgetsService {
       CLOSED: 'resolved',
     };
 
-    const priority =
-      ticket.priority >= 4 ? 'high' : ticket.priority >= 2 ? 'medium' : 'low';
+    const priority = this.priorityForNumber(ticket.priority);
 
     return {
       id: ticket.id,
@@ -1438,6 +1444,8 @@ export class DashboardWidgetsService {
       priority,
       status: statusMap[ticket.status] ?? 'open',
       createdAt: ticket.createdAt.toISOString(),
+      assigneeId: ticket.assignedTo?.id,
+      assigneeName: ticket.assignedTo?.name,
     };
   }
 
@@ -1593,7 +1601,9 @@ export class DashboardWidgetsService {
           id: true,
           title: true,
           status: true,
+          priority: true,
           dueDate: true,
+          assignedTo: { select: { id: true, name: true } },
           project: { select: { name: true } },
         },
       }),
@@ -1701,7 +1711,18 @@ export class DashboardWidgetsService {
       dueDate,
       dueSoon,
       project: task.project?.name,
+      priority: this.priorityForNumber(task.priority),
+      assigneeId: task.assignedTo?.id,
+      assigneeName: task.assignedTo?.name,
     };
+  }
+
+  /** Priority buckets shared by task and ticket widgets. */
+  private priorityForNumber(
+    value: number | null | undefined,
+  ): 'low' | 'medium' | 'high' {
+    if (typeof value !== 'number') return 'low';
+    return value >= 4 ? 'high' : value >= 2 ? 'medium' : 'low';
   }
 
   private toAttendanceStatus(
@@ -1726,7 +1747,7 @@ export class DashboardWidgetsService {
     tenantId: string,
     userId: string,
   ): Promise<DashboardWidgetPayload> {
-    const [taskRows, attendanceRows, projectCount, openTasks] =
+    const [taskRows, attendanceRows, projectCount, openTasks, ticketRows] =
       await Promise.all([
         tx.task.findMany({
           where: { tenantId, assignedToId: userId },
@@ -1736,7 +1757,9 @@ export class DashboardWidgetsService {
             id: true,
             title: true,
             status: true,
+            priority: true,
             dueDate: true,
+            assignedTo: { select: { id: true, name: true } },
             project: { select: { name: true } },
           },
         }),
@@ -1755,6 +1778,19 @@ export class DashboardWidgetsService {
             tenantId,
             assignedToId: userId,
             status: { notIn: ['Completed', 'Cancelled'] },
+          },
+        }),
+        tx.supportTicket.findMany({
+          where: { tenantId, userId, deletedAt: null },
+          take: 20,
+          orderBy: { createdAt: 'desc' },
+          select: {
+            id: true,
+            subject: true,
+            status: true,
+            priority: true,
+            createdAt: true,
+            assignedTo: { select: { id: true, name: true } },
           },
         }),
       ]);
@@ -1828,6 +1864,7 @@ export class DashboardWidgetsService {
         },
       ],
       tasks,
+      tickets: ticketRows.map((ticket: any) => this.toTicket(ticket)),
       attendance: attendanceRows.map((record: any) => ({
         id: record.id,
         userId,
