@@ -304,7 +304,9 @@ async function backfillTenant(
         where: { tenantId: tenant.id },
         select: { id: true, key: true, departmentId: true },
       });
-      const moduleByKey = new Map(modules.map((module) => [module.key, module]));
+      const moduleByKey = new Map(
+        modules.map((module) => [module.key, module]),
+      );
 
       // 4. Permission defaults ---------------------------------------------
       const existingGrants = await tx.roleModulePermission.findMany({
@@ -372,7 +374,8 @@ async function backfillTenant(
 
       // Staff can submit leave (VIEW + CREATE) without editing workflow state.
       const staffRole = roleBySlug.get('staff');
-      const leaveModuleId = leaveModule?.id ?? moduleByKey.get(LEAVE_MODULE_KEY)?.id;
+      const leaveModuleId =
+        leaveModule?.id ?? moduleByKey.get(LEAVE_MODULE_KEY)?.id;
       if (staffRole && leaveModuleId) {
         await ensureGrant(staffRole.id, leaveModuleId, PermissionType.VIEW);
         await ensureGrant(staffRole.id, leaveModuleId, PermissionType.CREATE);
@@ -462,7 +465,9 @@ async function backfillTenant(
       }
 
       // 6. Notification read timestamps -------------------------------------
-      const unreadTimestamped = await tx.$queryRawUnsafe<Array<{ count: bigint }>>(
+      const unreadTimestamped = await tx.$queryRawUnsafe<
+        Array<{ count: bigint }>
+      >(
         `SELECT count(*)::bigint AS count
            FROM "Notification"
           WHERE "tenantId" = $1
@@ -470,7 +475,9 @@ async function backfillTenant(
             AND "readAt" IS NULL`,
         tenant.id,
       );
-      summary.notificationsBackfilled = Number(unreadTimestamped[0]?.count ?? 0);
+      summary.notificationsBackfilled = Number(
+        unreadTimestamped[0]?.count ?? 0,
+      );
       if (summary.notificationsBackfilled > 0 && !dryRun) {
         await tx.$executeRawUnsafe(
           `UPDATE "Notification"
@@ -541,7 +548,9 @@ async function main(): Promise<void> {
   const normalizeEffects = args.includes('--normalize-effects');
   const tenantIndex = args.indexOf('--tenant');
   const tenant =
-    tenantIndex >= 0 && args[tenantIndex + 1] ? args[tenantIndex + 1] : undefined;
+    tenantIndex >= 0 && args[tenantIndex + 1]
+      ? args[tenantIndex + 1]
+      : undefined;
 
   const prisma = createPrismaClient();
 

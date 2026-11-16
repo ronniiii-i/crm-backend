@@ -41,16 +41,40 @@ const MODULE_MAP: Record<string, ModuleMapping> = {
   // Finance
   invoices: { type: ModuleType.DATA_TABLE, targetEntity: 'invoices' },
   payments: { type: ModuleType.DATA_TABLE, targetEntity: 'invoices' },
-  'expense-tracking': { type: ModuleType.FORM_BUILDER, targetEntity: 'expenses' },
-  'budget-management': { type: ModuleType.DASHBOARD_VIEW, targetEntity: 'expenses' },
-  'financial-reports': { type: ModuleType.DASHBOARD_VIEW, targetEntity: 'invoices' },
+  'expense-tracking': {
+    type: ModuleType.FORM_BUILDER,
+    targetEntity: 'expenses',
+  },
+  'budget-management': {
+    type: ModuleType.DASHBOARD_VIEW,
+    targetEntity: 'expenses',
+  },
+  'financial-reports': {
+    type: ModuleType.DASHBOARD_VIEW,
+    targetEntity: 'invoices',
+  },
 
   // Information Technology
-  'asset-management': { type: ModuleType.DATA_TABLE, targetEntity: 'inventory_items' },
-  'ticketing-issue-tracking': { type: ModuleType.KANBAN_BOARD, targetEntity: 'support_tickets' },
-  'system-monitoring': { type: ModuleType.DASHBOARD_VIEW, targetEntity: 'support_tickets' },
-  'software-licenses': { type: ModuleType.DATA_TABLE, targetEntity: 'inventory_items' },
-  'support-requests': { type: ModuleType.FORM_BUILDER, targetEntity: 'support_tickets' },
+  'asset-management': {
+    type: ModuleType.DATA_TABLE,
+    targetEntity: 'inventory_items',
+  },
+  'ticketing-issue-tracking': {
+    type: ModuleType.KANBAN_BOARD,
+    targetEntity: 'support_tickets',
+  },
+  'system-monitoring': {
+    type: ModuleType.DASHBOARD_VIEW,
+    targetEntity: 'support_tickets',
+  },
+  'software-licenses': {
+    type: ModuleType.DATA_TABLE,
+    targetEntity: 'inventory_items',
+  },
+  'support-requests': {
+    type: ModuleType.FORM_BUILDER,
+    targetEntity: 'support_tickets',
+  },
 
   // Sales
   'leads-management': { type: ModuleType.DATA_TABLE, targetEntity: 'contacts' },
@@ -61,32 +85,59 @@ const MODULE_MAP: Record<string, ModuleMapping> = {
   'sales-reports': { type: ModuleType.DASHBOARD_VIEW, targetEntity: 'deals' },
 
   // Customer Support
-  'support-tickets': { type: ModuleType.KANBAN_BOARD, targetEntity: 'support_tickets' },
+  'support-tickets': {
+    type: ModuleType.KANBAN_BOARD,
+    targetEntity: 'support_tickets',
+  },
   'knowledge-base': { type: ModuleType.DOCUMENT_HUB, targetEntity: null },
   'customer-feedback': { type: ModuleType.FORM_BUILDER, targetEntity: null },
   'sla-management': { type: ModuleType.DOCUMENT_HUB, targetEntity: null },
-  'live-chat-communication': { type: ModuleType.FORM_BUILDER, targetEntity: null },
+  'live-chat-communication': {
+    type: ModuleType.FORM_BUILDER,
+    targetEntity: null,
+  },
 
   // Human Resources
   'employee-records': { type: ModuleType.DATA_TABLE, targetEntity: 'users' },
-  'attendance-leave-management': { type: ModuleType.DATA_TABLE, targetEntity: 'attendance_records' },
-  'recruitment-job-postings': { type: ModuleType.FORM_BUILDER, targetEntity: null },
+  'attendance-leave-management': {
+    type: ModuleType.DATA_TABLE,
+    targetEntity: 'attendance_records',
+  },
+  'recruitment-job-postings': {
+    type: ModuleType.FORM_BUILDER,
+    targetEntity: null,
+  },
   'performance-reviews': { type: ModuleType.FORM_BUILDER, targetEntity: null },
   payroll: { type: ModuleType.DASHBOARD_VIEW, targetEntity: 'expenses' },
 
   // Administration
   'document-management': { type: ModuleType.DOCUMENT_HUB, targetEntity: null },
   'meeting-scheduler': { type: ModuleType.FORM_BUILDER, targetEntity: null },
-  'company-announcements': { type: ModuleType.DOCUMENT_HUB, targetEntity: null },
+  'company-announcements': {
+    type: ModuleType.DOCUMENT_HUB,
+    targetEntity: null,
+  },
   'compliance-policies': { type: ModuleType.DOCUMENT_HUB, targetEntity: null },
-  'vendor-management': { type: ModuleType.DATA_TABLE, targetEntity: 'contacts' },
+  'vendor-management': {
+    type: ModuleType.DATA_TABLE,
+    targetEntity: 'contacts',
+  },
 
   // Operations
-  'project-management': { type: ModuleType.KANBAN_BOARD, targetEntity: 'tasks' },
-  'inventory-management': { type: ModuleType.DATA_TABLE, targetEntity: 'inventory_items' },
+  'project-management': {
+    type: ModuleType.KANBAN_BOARD,
+    targetEntity: 'tasks',
+  },
+  'inventory-management': {
+    type: ModuleType.DATA_TABLE,
+    targetEntity: 'inventory_items',
+  },
   'workflow-automation': { type: ModuleType.FORM_BUILDER, targetEntity: null },
   'resource-allocation': { type: ModuleType.DATA_TABLE, targetEntity: 'users' },
-  'reporting-analytics': { type: ModuleType.DASHBOARD_VIEW, targetEntity: 'deals' },
+  'reporting-analytics': {
+    type: ModuleType.DASHBOARD_VIEW,
+    targetEntity: 'deals',
+  },
 };
 
 function createPrismaClient(): PrismaClient {
