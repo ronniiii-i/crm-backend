@@ -77,6 +77,7 @@ export class EntityRegistryService {
       supportedScopes: descriptor.supportedScopes,
       readOnly: descriptor.readOnly === true,
       softDelete: descriptor.softDelete === true,
+      exportable: descriptor.exportable === true,
       reassignable: descriptor.reassignable === true,
     };
   }

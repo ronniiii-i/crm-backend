@@ -17,6 +17,15 @@ export type ModuleAction = 'VIEW' | 'CREATE' | 'EDIT' | 'DELETE';
 
 const ALL_ACTIONS: ModuleAction[] = ['VIEW', 'CREATE', 'EDIT', 'DELETE'];
 
+/**
+ * Reserved department key for tenant-wide modules (`departmentId = null`).
+ *
+ * Global modules such as the administration audit log have no department, but
+ * the workspace routes are addressed by `:deptKey/:moduleKey`. This pseudo-key
+ * lets the renderer load them without inventing a real department.
+ */
+export const WORKSPACE_DEPT_KEY = 'workspace';
+
 export interface ResolvedModuleAccess {
   actor: WorkspaceActor;
   module: Module & { department: Department | null };
@@ -65,6 +74,7 @@ export class ModuleAccessService {
     moduleKey: string,
   ): Promise<ResolvedModuleAccess> {
     const actor = toWorkspaceActor(user);
+    const global = deptKey === WORKSPACE_DEPT_KEY;
 
     const module = await this.prisma.withTenant(actor.tenantId, (tx) =>
       tx.module.findFirst({
@@ -72,7 +82,9 @@ export class ModuleAccessService {
           tenantId: actor.tenantId,
           key: moduleKey,
           isActive: true,
-          department: { key: deptKey },
+          ...(global
+            ? { departmentId: null }
+            : { department: { key: deptKey } }),
         },
         include: { department: true },
       }),

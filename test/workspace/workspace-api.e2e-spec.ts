@@ -60,6 +60,7 @@ const MODULE_DASHBOARD = 'cccccccc-0000-4000-8000-000000000003';
 const MODULE_DOCS = 'cccccccc-0000-4000-8000-000000000004';
 const MODULE_FORMS = 'cccccccc-0000-4000-8000-000000000005';
 const MODULE_USERS = 'cccccccc-0000-4000-8000-000000000006';
+const MODULE_AUDIT = 'cccccccc-0000-4000-8000-000000000007';
 const MODULE_CONTACTS_B = 'dddddddd-0000-4000-8000-000000000001';
 
 const CONTACT_FINANCE = 'eeeeeeee-0000-4000-8000-000000000001';
@@ -377,6 +378,33 @@ function buildState(): WorkspaceState {
         type: 'DATA_TABLE',
         targetEntity: 'users',
       }),
+      {
+        id: MODULE_AUDIT,
+        tenantId: TENANT_A,
+        key: 'audit-log',
+        name: 'Audit Log',
+        path: '/audit-log',
+        icon: 'ScrollText',
+        group: 'Administration',
+        order: 950,
+        isNavigable: true,
+        description: 'Tenant-wide audit trail',
+        type: 'DATA_TABLE',
+        targetEntity: 'audit_logs',
+        config: {
+          version: 1,
+          entity: 'audit_logs',
+          columns: [],
+          createEnabled: false,
+          defaultSort: { field: 'createdAt', dir: 'desc' },
+        },
+        dataScope: 'TENANT',
+        isActive: true,
+        departmentId: null,
+        department: null,
+        createdAt: daysAgo(30),
+        updatedAt: daysAgo(1),
+      },
       moduleRow({
         id: MODULE_CONTACTS_B,
         tenantId: TENANT_B,
@@ -550,7 +578,31 @@ function buildState(): WorkspaceState {
       },
     ],
 
-    auditLogs: [],
+    auditLogs: [
+      {
+        id: 'abababab-0000-4000-8000-000000000001',
+        tenantId: TENANT_A,
+        actorId: 'user-admin',
+        departmentId: DEPT_FINANCE,
+        action: 'SEED',
+        entity: 'audit_logs',
+        entityId: 'abababab-0000-4000-8000-000000000001',
+        moduleKey: 'audit-log',
+        requestId: 'req-audit-1',
+        before: null,
+        after: { seeded: true },
+        ip: '127.0.0.1',
+        userAgent: 'jest',
+        createdAt: daysAgo(1),
+        actor: {
+          id: 'user-admin',
+          name: 'Ada Admin',
+          email: 'admin@acme.test',
+          departmentId: DEPT_FINANCE,
+        },
+        department: { id: DEPT_FINANCE, key: 'finance', name: 'Finance' },
+      },
+    ],
     invoices: [],
     inventoryItems: [],
     supportTickets: [],
@@ -663,6 +715,48 @@ describe('Workspace API (Stage 3)', () => {
       );
       expect(response.status).toBe(404);
       expect(response.body.code).toBe('MODULE_NOT_FOUND');
+    });
+
+    it('resolves tenant-wide modules through the reserved workspace key', async () => {
+      const response = await as(
+        request(server()).get('/workspace/modules/workspace/audit-log'),
+      );
+
+      expect(response.status).toBe(200);
+      expect(response.body.key).toBe('audit-log');
+      expect(response.body.department).toBeNull();
+      expect(response.body.dataScope).toBe('TENANT');
+      expect(response.body.actions).toEqual(['VIEW']);
+      expect(response.body.entityMeta.readOnly).toBe(true);
+      expect(response.body.entityMeta.exportable).toBe(true);
+    });
+
+    it('does not expose tenant-wide modules under a real department key', async () => {
+      const response = await as(
+        request(server()).get('/workspace/modules/finance/audit-log'),
+      );
+      expect(response.status).toBe(404);
+      expect(response.body.code).toBe('MODULE_NOT_FOUND');
+    });
+
+    it('denies tenant-wide modules without an explicit grant', async () => {
+      const response = await as(
+        request(server()).get('/workspace/modules/workspace/audit-log'),
+        ACTOR_STAFF,
+      );
+      expect(response.status).toBe(403);
+      expect(response.body.code).toBe('MODULE_FORBIDDEN');
+    });
+
+    it('serves tenant-wide records through the reserved workspace key', async () => {
+      const response = await as(
+        request(server()).get('/workspace/modules/workspace/audit-log/records'),
+      );
+
+      expect(response.status).toBe(200);
+      expect(response.body.data).toHaveLength(1);
+      expect(response.body.data[0].moduleKey).toBe('audit-log');
+      expect(response.body.data[0].after).toEqual({ seeded: true });
     });
 
     it('denies a module the caller has no permission on', async () => {
