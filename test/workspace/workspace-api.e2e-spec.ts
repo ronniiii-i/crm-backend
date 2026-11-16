@@ -36,6 +36,10 @@ import { FormSubmissionService } from '../../src/workspace/services/form-submiss
 import { ModuleAccessService } from '../../src/workspace/services/module-access.service';
 import { ModuleConfigService } from '../../src/workspace/services/module-config.service';
 import { ScopeFilterService } from '../../src/workspace/services/scope-filter.service';
+import { TrashService } from '../../src/workspace/services/trash.service';
+import { TrashController } from '../../src/workspace/controllers/trash.controller';
+import { ExportService } from '../../src/workspace/export/export.service';
+import { ExportController } from '../../src/workspace/export/export.controller';
 import {
   WorkspaceState,
   createFakeWorkspacePrisma,
@@ -592,6 +596,8 @@ describe('Workspace API (Stage 3)', () => {
         DocumentsController,
         SubmissionsController,
         CatalogController,
+        TrashController,
+        ExportController,
       ],
       providers: [
         EntityRegistryService,
@@ -604,10 +610,15 @@ describe('Workspace API (Stage 3)', () => {
         AggregationService,
         DocumentService,
         FormSubmissionService,
+        TrashService,
+        ExportService,
         ModulePermissionGuard,
         { provide: PrismaService, useValue: prisma },
         { provide: PermissionResolutionService, useValue: permissions },
-        { provide: CacheService, useValue: { flushTenant: jest.fn() } },
+        {
+          provide: CacheService,
+          useValue: { flushTenant: jest.fn(), invalidatePattern: jest.fn() },
+        },
       ],
     }).compile();
 
@@ -837,7 +848,33 @@ describe('Workspace API (Stage 3)', () => {
         ),
       );
       expect(removed.status).toBe(200);
-      expect(removed.body).toEqual({ id: created.body.id, deleted: true });
+      expect(removed.body).toEqual({
+        id: created.body.id,
+        deleted: true,
+        softDeleted: true,
+      });
+
+      const readDeleted = await as(
+        request(server()).get(
+          `/workspace/modules/finance/contacts/records/${created.body.id}`,
+        ),
+      );
+      expect(readDeleted.status).toBe(404);
+
+      const listed = await as(
+        request(server()).get(
+          '/workspace/modules/finance/contacts/records?pageSize=50',
+        ),
+      );
+      expect(
+        listed.body.data.some((row: any) => row.id === created.body.id),
+      ).toBe(false);
+
+      const deleteAudit = state.auditLogs.find(
+        (row) => row.action === 'DELETE' && row.entityId === created.body.id,
+      );
+      expect(deleteAudit?.moduleKey).toBe('contacts');
+      expect(deleteAudit?.after).toEqual({ softDelete: true });
     });
 
     it('rejects unknown and immutable write fields', async () => {
@@ -889,6 +926,192 @@ describe('Workspace API (Stage 3)', () => {
       );
       expect(invalid.status).toBe(400);
       expect(invalid.body.code).toBe('INVALID_STATUS');
+    });
+  });
+
+  describe('soft delete and trash', () => {
+    it('soft deletes, lists in trash, restores and purges', async () => {
+      const removed = await as(
+        request(server()).delete(
+          `/workspace/modules/finance/contacts/records/${CONTACT_FINANCE}`,
+        ),
+      );
+      expect(removed.status).toBe(200);
+      expect(removed.body).toEqual({
+        id: CONTACT_FINANCE,
+        deleted: true,
+        softDeleted: true,
+      });
+      expect(
+        state.contacts.find((row) => row.id === CONTACT_FINANCE)?.deletedAt,
+      ).toBeInstanceOf(Date);
+
+      const missing = await as(
+        request(server()).get(
+          `/workspace/modules/finance/contacts/records/${CONTACT_FINANCE}`,
+        ),
+      );
+      expect(missing.status).toBe(404);
+
+      const listed = await as(
+        request(server()).get(
+          '/workspace/modules/finance/contacts/records?pageSize=50',
+        ),
+      );
+      expect(
+        listed.body.data.some((row: any) => row.id === CONTACT_FINANCE),
+      ).toBe(false);
+
+      const trash = await as(
+        request(server()).get('/workspace/trash?entity=contacts'),
+      );
+      expect(trash.status).toBe(200);
+      expect(trash.body.counts.contacts).toBe(1);
+      expect(trash.body.data).toHaveLength(1);
+      expect(trash.body.data[0]).toMatchObject({
+        entity: 'contacts',
+        id: CONTACT_FINANCE,
+        label: 'Fiona Finance',
+        modulePath: '/dept/finance/contacts',
+        deletedBy: { id: 'user-admin', name: 'Ada Admin' },
+      });
+
+      const restored = await as(
+        request(server()).post(
+          `/workspace/trash/contacts/${CONTACT_FINANCE}/restore`,
+        ),
+      );
+      expect(restored.status).toBe(201);
+
+      const read = await as(
+        request(server()).get(
+          `/workspace/modules/finance/contacts/records/${CONTACT_FINANCE}`,
+        ),
+      );
+      expect(read.status).toBe(200);
+      expect(read.body.email).toBe('fiona@acme.test');
+      expect(
+        state.contacts.find((row) => row.id === CONTACT_FINANCE)?.deletedAt,
+      ).toBeNull();
+      expect(
+        state.auditLogs.find(
+          (row) => row.action === 'RESTORE' && row.entityId === CONTACT_FINANCE,
+        ),
+      ).toBeTruthy();
+
+      await as(
+        request(server()).delete(
+          `/workspace/modules/finance/contacts/records/${CONTACT_FINANCE}`,
+        ),
+      );
+      const purged = await as(
+        request(server()).delete(
+          `/workspace/trash/contacts/${CONTACT_FINANCE}`,
+        ),
+      );
+      expect(purged.status).toBe(200);
+      expect(state.contacts.some((row) => row.id === CONTACT_FINANCE)).toBe(
+        false,
+      );
+      expect(
+        state.auditLogs.find(
+          (row) => row.action === 'PURGE' && row.entityId === CONTACT_FINANCE,
+        ),
+      ).toBeTruthy();
+    });
+
+    it('rejects trash entities outside the soft-delete allowlist', async () => {
+      const response = await as(
+        request(server()).get('/workspace/trash?entity=users'),
+      );
+      expect(response.status).toBe(400);
+      expect(response.body.code).toBe('UNKNOWN_ENTITY');
+    });
+  });
+
+  describe('CSV export', () => {
+    it('streams the scoped set with BOM, headers and relation labels', async () => {
+      const response = await as(
+        request(server()).get('/workspace/modules/finance/contacts/export'),
+      );
+
+      expect(response.status).toBe(200);
+      expect(response.headers['content-type']).toContain('text/csv');
+      expect(response.headers['content-disposition']).toMatch(
+        /^attachment; filename="contacts-\d{8}-\d{4}\.csv"$/,
+      );
+
+      const text = response.text;
+      expect(text.charCodeAt(0)).toBe(0xfeff);
+      expect(text).toContain('\r\n');
+      expect(text).toContain('Fiona');
+      expect(text).toContain('Acme Finance');
+      expect(text).not.toContain(CONTACT_FINANCE);
+      expect(
+        state.auditLogs.find((row) => row.action === 'EXPORT'),
+      ).toMatchObject({ entity: 'contacts', moduleKey: 'contacts' });
+    });
+
+    it('applies scope filters and excludes soft-deleted rows', async () => {
+      await as(
+        request(server()).delete(
+          `/workspace/modules/finance/contacts/records/${CONTACT_FINANCE}`,
+        ),
+      );
+
+      const admin = await as(
+        request(server()).get('/workspace/modules/finance/contacts/export'),
+      );
+      expect(admin.text).not.toContain('Fiona');
+
+      const staff = await as(
+        request(server()).get('/workspace/modules/finance/contacts/export'),
+        ACTOR_STAFF,
+      );
+      expect(staff.status).toBe(200);
+      expect(staff.text).toContain('Sam');
+      expect(staff.text).not.toContain('Fiona');
+    });
+
+    it('guards formula-shaped cells and honours filters', async () => {
+      await as(
+        request(server())
+          .post('/workspace/modules/finance/contacts/records')
+          .send({
+            firstName: 'Eve',
+            lastName: 'Formula',
+            email: 'eve@acme.test',
+            company: '=HYPERLINK("http://evil.test")',
+            status: 'Lead',
+          }),
+      );
+
+      const response = await as(
+        request(server()).get(
+          '/workspace/modules/finance/contacts/export?filter[status]=Lead',
+        ),
+      );
+      expect(response.status).toBe(200);
+      expect(response.text).toContain("'=HYPERLINK");
+      expect(response.text).toContain('Eve');
+      // `Fiona` is a Customer, so the status filter excludes her.
+      expect(response.text).not.toContain('Fiona');
+    });
+
+    it('rejects exports over EXPORT_MAX_ROWS before streaming', async () => {
+      const previous = process.env.EXPORT_MAX_ROWS;
+      process.env.EXPORT_MAX_ROWS = '1';
+      try {
+        const response = await as(
+          request(server()).get('/workspace/modules/finance/contacts/export'),
+        );
+        expect(response.status).toBe(413);
+        expect(response.body.code).toBe('EXPORT_TOO_LARGE');
+        expect(response.body.limit).toBe(1);
+      } finally {
+        if (previous === undefined) delete process.env.EXPORT_MAX_ROWS;
+        else process.env.EXPORT_MAX_ROWS = previous;
+      }
     });
   });
 

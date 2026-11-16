@@ -146,6 +146,7 @@ export class UsersService {
       await this.cache.invalidateUser(id, user.tenantId);
     }
 
+    await this.invalidateOverview(user.tenantId);
     return updated;
   }
 
@@ -161,6 +162,14 @@ export class UsersService {
     );
     await this.sessionState.flushUser(user.tenantId, id);
     await this.cache.invalidateUser(id, user.tenantId);
+    await this.invalidateOverview(user.tenantId);
     return deleted;
+  }
+
+  /** Department overview cards embed member counts. */
+  private async invalidateOverview(tenantId: string): Promise<void> {
+    await this.cache.invalidatePattern(
+      `tenant:${tenantId}:departments:overview:*`,
+    );
   }
 }

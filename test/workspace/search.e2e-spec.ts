@@ -395,6 +395,7 @@ describe('Workspace search (Stage 8)', () => {
       get: async () => null,
       set: async () => undefined,
       invalidateUser: async () => undefined,
+      invalidatePattern: async () => undefined,
       flushTenant: async () => undefined,
     };
 

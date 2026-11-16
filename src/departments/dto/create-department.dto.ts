@@ -1,4 +1,4 @@
-import { IsOptional, IsString, IsNotEmpty } from 'class-validator';
+import { IsArray, IsNotEmpty, IsOptional, IsString } from 'class-validator';
 
 export class CreateDepartmentDto {
   @IsString()
@@ -23,4 +23,13 @@ export class CreateDepartmentDto {
 
   @IsOptional()
   sortOrder?: number;
+
+  /**
+   * Department module templates provisioned in the same transaction as the
+   * department. Unknown keys are rejected with `400 UNKNOWN_MODULE_TEMPLATE`.
+   */
+  @IsOptional()
+  @IsArray()
+  @IsString({ each: true })
+  moduleTemplates?: string[];
 }

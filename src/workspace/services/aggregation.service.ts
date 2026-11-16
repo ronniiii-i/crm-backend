@@ -18,6 +18,7 @@ import { buildFilterCondition } from './entity-query.service';
 import { EntityRegistryService } from './entity-registry.service';
 import { ResolvedModuleAccess } from './module-access.service';
 import { ScopeFilterService } from './scope-filter.service';
+import { notDeleted, withNotDeleted } from './soft-delete';
 
 export interface WidgetResult {
   id: string;
@@ -165,7 +166,12 @@ export class AggregationService {
     );
 
     return {
-      AND: [scope.where, ...clauseFilters, ...(timeFilter ? [timeFilter] : [])],
+      AND: [
+        withNotDeleted(descriptor.key, scope.where),
+        ...clauseFilters,
+        ...(timeFilter ? [timeFilter] : []),
+        notDeleted(descriptor.key),
+      ],
     };
   }
 

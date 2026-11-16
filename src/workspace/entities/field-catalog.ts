@@ -362,6 +362,17 @@ export const FIELDS: Record<EntityKey, FieldMeta[]> = {
       readOnly: true,
       sensitive: true,
     }),
+    f('moduleKey', 'Module', 'text', {
+      filterable: true,
+      groupable: true,
+      searchable: true,
+      readOnly: true,
+    }),
+    f('requestId', 'Request id', 'text', {
+      filterable: true,
+      readOnly: true,
+      sensitive: true,
+    }),
     f('actorId', 'Actor', 'text', {
       filterable: true,
       readOnly: true,

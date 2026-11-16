@@ -67,6 +67,7 @@ function build<T extends EntityKey>(
     supportedScopes: ScopeName[];
     readOnly?: boolean;
     softDelete?: boolean;
+    exportable?: boolean;
     nestedFields?: Record<string, string[]>;
     selfField?: string;
     selfCanEdit?: boolean;
@@ -107,6 +108,7 @@ function build<T extends EntityKey>(
     supportedScopes: config.supportedScopes,
     readOnly: config.readOnly,
     softDelete: config.softDelete ?? !config.readOnly,
+    exportable: config.exportable ?? !config.readOnly,
     selfField: config.selfField,
     selfCanEdit: config.selfCanEdit,
     selfEditableFields: config.selfEditableFields,
@@ -271,6 +273,7 @@ function descriptor(key: EntityKey): EntityDescriptor {
         owner: { userField: 'actorId', departmentField: 'departmentId' },
         supportedScopes: ['TENANT', 'DEPARTMENT'],
         readOnly: true,
+        exportable: true,
       });
 
     case 'deals':

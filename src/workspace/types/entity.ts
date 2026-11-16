@@ -139,6 +139,8 @@ export interface EntityDescriptor extends EntitySelfMeta {
   readOnly?: boolean;
   /** Uses `deletedAt`/`deletedById` instead of a hard delete. */
   softDelete?: boolean;
+  /** Whether the generic CSV export endpoint accepts this entity. */
+  exportable?: boolean;
   /** Whether the record can be reassigned to another user. */
   reassignable?: boolean;
   /**

@@ -7,6 +7,7 @@ import {
 import { Document, DocumentStatus, ModuleType, Prisma } from '@prisma/client';
 import { randomBytes } from 'node:crypto';
 import { PrismaService } from '../../prisma/prisma.service';
+import { CacheService } from '../../cache/cache.service';
 import { DocumentConfig } from '../types/module-config';
 import { WhereInput } from '../types/entity';
 import {
@@ -36,6 +37,7 @@ const LIST_SELECT = {
 export interface DocumentWriteContext {
   ip?: string | null;
   userAgent?: string | null;
+  requestId?: string | null;
 }
 
 /**
@@ -51,6 +53,7 @@ export class DocumentService {
   constructor(
     private readonly prisma: PrismaService,
     private readonly audit: AuditService,
+    private readonly cache: CacheService,
   ) {}
 
   async list(access: ResolvedModuleAccess, rawQuery: Record<string, unknown>) {
@@ -87,7 +90,10 @@ export class DocumentService {
     const row = await this.prisma.withTenant(access.actor.tenantId, (tx) =>
       tx.document.findFirst({
         where: {
-          AND: [this.scope(access), { moduleId: access.module.id, id }],
+          AND: [
+            this.scope(access),
+            { moduleId: access.module.id, id, deletedAt: null },
+          ],
         },
       }),
     );
@@ -108,24 +114,32 @@ export class DocumentService {
       allowRichText: config.allowRichText,
     });
 
-    return this.prisma.withTenant(access.actor.tenantId, async (tx) => {
-      const row = await this.createWithUniqueSlug(tx, access, input);
+    const result = await this.prisma.withTenant(
+      access.actor.tenantId,
+      async (tx) => {
+        const row = await this.createWithUniqueSlug(tx, access, input);
 
-      await this.audit.record(tx, null, {
-        tenantId: access.actor.tenantId,
-        departmentId: row.departmentId,
-        actorId: access.actor.id,
-        action: 'CREATE',
-        entity: 'documents',
-        entityId: row.id,
-        before: null,
-        after: row as unknown as Record<string, unknown>,
-        ip: context.ip,
-        userAgent: context.userAgent,
-      });
+        await this.audit.record(tx, null, {
+          tenantId: access.actor.tenantId,
+          departmentId: row.departmentId,
+          actorId: access.actor.id,
+          action: 'CREATE',
+          entity: 'documents',
+          entityId: row.id,
+          moduleKey: access.module.key,
+          requestId: context.requestId ?? null,
+          before: null,
+          after: row as unknown as Record<string, unknown>,
+          ip: context.ip,
+          userAgent: context.userAgent,
+        });
 
-      return row;
-    });
+        return row;
+      },
+    );
+
+    await this.invalidateOverview(access.actor.tenantId);
+    return result;
   }
 
   async update(
@@ -142,39 +156,50 @@ export class DocumentService {
       allowRichText: config.allowRichText,
     });
 
-    return this.prisma.withTenant(access.actor.tenantId, async (tx) => {
-      const before = await tx.document.findFirst({
-        where: {
-          AND: [this.scope(access), { moduleId: access.module.id, id }],
-        },
-      });
+    const result = await this.prisma.withTenant(
+      access.actor.tenantId,
+      async (tx) => {
+        const before = await tx.document.findFirst({
+          where: {
+            AND: [
+              this.scope(access),
+              { moduleId: access.module.id, id, deletedAt: null },
+            ],
+          },
+        });
 
-      if (!before) throw this.notFound();
+        if (!before) throw this.notFound();
 
-      const row = await tx.document.update({
-        where: { id: before.id },
-        data: {
-          ...patch,
-          version: { increment: 1 },
-          updatedById: access.actor.id,
-        },
-      });
+        const row = await tx.document.update({
+          where: { id: before.id },
+          data: {
+            ...patch,
+            version: { increment: 1 },
+            updatedById: access.actor.id,
+          },
+        });
 
-      await this.audit.record(tx, null, {
-        tenantId: access.actor.tenantId,
-        departmentId: row.departmentId,
-        actorId: access.actor.id,
-        action: 'UPDATE',
-        entity: 'documents',
-        entityId: row.id,
-        before: before as unknown as Record<string, unknown>,
-        after: row as unknown as Record<string, unknown>,
-        ip: context.ip,
-        userAgent: context.userAgent,
-      });
+        await this.audit.record(tx, null, {
+          tenantId: access.actor.tenantId,
+          departmentId: row.departmentId,
+          actorId: access.actor.id,
+          action: 'UPDATE',
+          entity: 'documents',
+          entityId: row.id,
+          moduleKey: access.module.key,
+          requestId: context.requestId ?? null,
+          before: before as unknown as Record<string, unknown>,
+          after: row as unknown as Record<string, unknown>,
+          ip: context.ip,
+          userAgent: context.userAgent,
+        });
 
-      return row;
-    });
+        return row;
+      },
+    );
+
+    await this.invalidateOverview(access.actor.tenantId);
+    return result;
   }
 
   async remove(
@@ -194,49 +219,67 @@ export class DocumentService {
       });
     }
 
-    return this.prisma.withTenant(access.actor.tenantId, async (tx) => {
-      const before = await tx.document.findFirst({
-        where: {
-          AND: [this.scope(access), { moduleId: access.module.id, id }],
-        },
-      });
-
-      if (!before) throw this.notFound();
-
-      let after: Document | null = null;
-
-      if (options.hard) {
-        await tx.document.delete({ where: { id: before.id } });
-      } else {
-        after = await tx.document.update({
-          where: { id: before.id },
-          data: {
-            status: DocumentStatus.ARCHIVED,
-            updatedById: access.actor.id,
-            version: { increment: 1 },
+    const result = await this.prisma.withTenant(
+      access.actor.tenantId,
+      async (tx) => {
+        const before = await tx.document.findFirst({
+          where: {
+            AND: [
+              this.scope(access),
+              { moduleId: access.module.id, id, deletedAt: null },
+            ],
           },
         });
-      }
 
-      await this.audit.record(tx, null, {
-        tenantId: access.actor.tenantId,
-        departmentId: before.departmentId,
-        actorId: access.actor.id,
-        action: options.hard ? 'DELETE' : 'ARCHIVE',
-        entity: 'documents',
-        entityId: before.id,
-        before: before as unknown as Record<string, unknown>,
-        after: after as unknown as Record<string, unknown> | null,
-        ip: context.ip,
-        userAgent: context.userAgent,
-      });
+        if (!before) throw this.notFound();
 
-      return {
-        id: before.id,
-        archived: !options.hard,
-        deleted: options.hard,
-      };
-    });
+        let after: Document | null = null;
+
+        if (options.hard) {
+          await tx.document.delete({ where: { id: before.id } });
+        } else {
+          after = await tx.document.update({
+            where: { id: before.id },
+            data: {
+              status: DocumentStatus.ARCHIVED,
+              updatedById: access.actor.id,
+              version: { increment: 1 },
+            },
+          });
+        }
+
+        await this.audit.record(tx, null, {
+          tenantId: access.actor.tenantId,
+          departmentId: before.departmentId,
+          actorId: access.actor.id,
+          action: options.hard ? 'DELETE' : 'ARCHIVE',
+          entity: 'documents',
+          entityId: before.id,
+          moduleKey: access.module.key,
+          requestId: context.requestId ?? null,
+          before: before as unknown as Record<string, unknown>,
+          after: after as unknown as Record<string, unknown> | null,
+          ip: context.ip,
+          userAgent: context.userAgent,
+        });
+
+        return {
+          id: before.id,
+          archived: !options.hard,
+          deleted: options.hard,
+        };
+      },
+    );
+
+    await this.invalidateOverview(access.actor.tenantId);
+    return result;
+  }
+
+  /** Document counts feed the department overview cards. */
+  private async invalidateOverview(tenantId: string): Promise<void> {
+    await this.cache.invalidatePattern(
+      `tenant:${tenantId}:departments:overview:*`,
+    );
   }
 
   private async createWithUniqueSlug(
@@ -292,6 +335,7 @@ export class DocumentService {
     const filters: WhereInput[] = [
       this.scope(access),
       { moduleId: access.module.id },
+      { deletedAt: null },
     ];
 
     if (query.status) {

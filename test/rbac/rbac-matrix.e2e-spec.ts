@@ -104,6 +104,11 @@ describe('RBAC matrix', () => {
       for (const route of ALL_ROUTES) {
         const perms = route.permissions[Role.ADMIN];
         expect(perms).toContain(Permission.VIEW);
+        // The Tenant-Admin audit log is intentionally read-only.
+        if (route.id === 'audit-log') {
+          expect(perms).toEqual([Permission.VIEW]);
+          continue;
+        }
         expect(perms).toContain(Permission.EDIT);
         expect(perms).toContain(Permission.DELETE);
       }

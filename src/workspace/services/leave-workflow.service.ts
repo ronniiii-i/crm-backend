@@ -17,6 +17,7 @@ import type {
 import { NotificationsService } from '../../notifications/notifications.service';
 import type { CreateNotificationInput } from '../../notifications/notification.types';
 import { PrismaService } from '../../prisma/prisma.service';
+import { CacheService } from '../../cache/cache.service';
 import { WorkflowConfig } from '../types/module-config';
 import {
   eachWorkingDay,
@@ -65,6 +66,7 @@ const LEAVE_INCLUDE = {
 export interface LeaveWriteContext {
   ip?: string | null;
   userAgent?: string | null;
+  requestId?: string | null;
 }
 
 interface LeaveUser {
@@ -116,6 +118,7 @@ export class LeaveWorkflowService {
     @Optional() private readonly notifications?: NotificationsService,
     @Optional() private readonly email?: EmailService,
     @Optional() private readonly emailLink?: EmailLinkService,
+    @Optional() private readonly cache?: CacheService,
   ) {}
 
   async create(
@@ -190,6 +193,8 @@ export class LeaveWorkflowService {
           action: 'SUBMIT',
           entity: 'leave_requests',
           entityId: created.id,
+          moduleKey: access.module.key,
+          requestId: context.requestId ?? null,
           before: null,
           after: created as unknown as Record<string, unknown>,
           ip: context.ip,
@@ -221,6 +226,7 @@ export class LeaveWorkflowService {
     );
 
     await this.dispatch(result.plans);
+    await this.invalidateOverview(access.actor.tenantId);
     return result.row;
   }
 
@@ -351,6 +357,7 @@ export class LeaveWorkflowService {
             tx,
             record,
             access.actor.id,
+            access.module.key,
             context,
           );
         }
@@ -372,6 +379,8 @@ export class LeaveWorkflowService {
           action,
           entity: 'leave_requests',
           entityId: id,
+          moduleKey: access.module.key,
+          requestId: context.requestId ?? null,
           before: record as unknown as Record<string, unknown>,
           after: afterSnapshot,
           ip: context.ip,
@@ -411,7 +420,15 @@ export class LeaveWorkflowService {
     );
 
     await this.dispatch(result.plans);
+    await this.invalidateOverview(access.actor.tenantId);
     return result.row;
+  }
+
+  /** Leave counts feed the department overview cards. */
+  private async invalidateOverview(tenantId: string): Promise<void> {
+    await this.cache?.invalidatePattern(
+      `tenant:${tenantId}:departments:overview:*`,
+    );
   }
 
   async timeline(access: ResolvedModuleAccess, id: string): Promise<unknown> {
@@ -613,6 +630,7 @@ export class LeaveWorkflowService {
     tx: Prisma.TransactionClient,
     record: Record<string, any>,
     actorId: string,
+    moduleKey: string,
     context: LeaveWriteContext,
   ): Promise<void> {
     const descriptor = this.registry.get('attendance_records') ?? null;
@@ -654,6 +672,8 @@ export class LeaveWorkflowService {
           action: 'UPDATE',
           entity: 'attendance_records',
           entityId: existing.id,
+          moduleKey,
+          requestId: context.requestId ?? null,
           before: existing,
           after: updated,
           ip: context.ip,
@@ -679,6 +699,8 @@ export class LeaveWorkflowService {
         action: 'CREATE',
         entity: 'attendance_records',
         entityId: created.id,
+        moduleKey,
+        requestId: context.requestId ?? null,
         before: null,
         after: created,
         ip: context.ip,

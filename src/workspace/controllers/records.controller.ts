@@ -59,8 +59,13 @@ export class RecordsController {
     @Body() body: Record<string, unknown>,
     @Ip() ip: string,
     @Headers('user-agent') userAgent?: string,
+    @Headers('x-request-id') requestId?: string,
   ) {
-    return this.writes.reassign(access, id, body, { ip, userAgent });
+    return this.writes.reassign(access, id, body, {
+      ip,
+      userAgent,
+      requestId,
+    });
   }
 
   @Post()
@@ -70,8 +75,9 @@ export class RecordsController {
     @Body() body: Record<string, unknown>,
     @Ip() ip: string,
     @Headers('user-agent') userAgent?: string,
+    @Headers('x-request-id') requestId?: string,
   ) {
-    return this.writes.create(access, body, { ip, userAgent });
+    return this.writes.create(access, body, { ip, userAgent, requestId });
   }
 
   @Patch(':id')
@@ -82,8 +88,9 @@ export class RecordsController {
     @Body() body: Record<string, unknown>,
     @Ip() ip: string,
     @Headers('user-agent') userAgent?: string,
+    @Headers('x-request-id') requestId?: string,
   ) {
-    return this.writes.update(access, id, body, { ip, userAgent });
+    return this.writes.update(access, id, body, { ip, userAgent, requestId });
   }
 
   @Delete(':id')
@@ -91,10 +98,17 @@ export class RecordsController {
   remove(
     @CurrentModuleAccess() access: ResolvedModuleAccess,
     @Param('id') id: string,
-    @Ip() ip: string,
+    @Query('hard') hard?: string,
+    @Ip() ip?: string,
     @Headers('user-agent') userAgent?: string,
+    @Headers('x-request-id') requestId?: string,
   ) {
-    return this.writes.remove(access, id, { ip, userAgent });
+    return this.writes.remove(
+      access,
+      id,
+      { ip, userAgent, requestId },
+      { hard: hard === 'true' || hard === '1' },
+    );
   }
 
   @Post(':id/transition')
@@ -105,7 +119,12 @@ export class RecordsController {
     @Body() body: Record<string, unknown>,
     @Ip() ip: string,
     @Headers('user-agent') userAgent?: string,
+    @Headers('x-request-id') requestId?: string,
   ) {
-    return this.writes.transition(access, id, body, { ip, userAgent });
+    return this.writes.transition(access, id, body, {
+      ip,
+      userAgent,
+      requestId,
+    });
   }
 }

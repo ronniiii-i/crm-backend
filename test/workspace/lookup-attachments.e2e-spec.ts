@@ -327,7 +327,10 @@ describe('Lookups and attachments (Stage 7)', () => {
         { provide: PrismaService, useValue: prisma },
         { provide: StorageService, useValue: storage },
         { provide: PermissionResolutionService, useValue: permissions },
-        { provide: CacheService, useValue: { flushTenant: jest.fn() } },
+        {
+          provide: CacheService,
+          useValue: { flushTenant: jest.fn(), invalidatePattern: jest.fn() },
+        },
       ],
     }).compile();
 

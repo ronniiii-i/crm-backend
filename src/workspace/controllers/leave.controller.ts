@@ -33,10 +33,12 @@ export class LeaveController {
     @Body() body: unknown,
     @Ip() ip: string,
     @Headers('user-agent') userAgent?: string,
+    @Headers('x-request-id') requestId?: string,
   ) {
     return this.leave.create(access, (body ?? {}) as Record<string, unknown>, {
       ip,
       userAgent,
+      requestId,
     });
   }
 
@@ -48,12 +50,13 @@ export class LeaveController {
     @Body() body: unknown,
     @Ip() ip: string,
     @Headers('user-agent') userAgent?: string,
+    @Headers('x-request-id') requestId?: string,
   ) {
     return this.leave.transition(
       access,
       id,
       (body ?? {}) as Record<string, unknown>,
-      { ip, userAgent },
+      { ip, userAgent, requestId },
     );
   }
 

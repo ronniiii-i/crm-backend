@@ -351,12 +351,19 @@ export class DashboardWidgetsService {
       securityAlertCount,
     ] = await Promise.all([
       tx.payment.aggregate({ _sum: { amount: true }, where: { tenantId } }),
-      tx.expense.aggregate({ _sum: { amount: true }, where: { tenantId } }),
-      tx.supportTicket.count({ where: { tenantId } }),
-      tx.supportTicket.count({
-        where: { tenantId, status: { notIn: ['CLOSED', 'RESOLVED'] } },
+      tx.expense.aggregate({
+        _sum: { amount: true },
+        where: { tenantId, deletedAt: null },
       }),
-      tx.project.count({ where: { tenantId } }),
+      tx.supportTicket.count({ where: { tenantId, deletedAt: null } }),
+      tx.supportTicket.count({
+        where: {
+          tenantId,
+          deletedAt: null,
+          status: { notIn: ['CLOSED', 'RESOLVED'] },
+        },
+      }),
+      tx.project.count({ where: { tenantId, deletedAt: null } }),
       tx.notification.count({
         where: { tenantId, type: 'security', read: false },
       }),
@@ -508,7 +515,7 @@ export class DashboardWidgetsService {
         },
       }),
       tx.expense.findMany({
-        where: { tenantId },
+        where: { tenantId, deletedAt: null },
         take: limit,
         orderBy: { createdAt: 'desc' },
         select: {
@@ -521,7 +528,7 @@ export class DashboardWidgetsService {
         },
       }),
       tx.invoice.findMany({
-        where: { tenantId },
+        where: { tenantId, deletedAt: null },
         take: limit,
         orderBy: { updatedAt: 'desc' },
         select: {
@@ -534,7 +541,7 @@ export class DashboardWidgetsService {
         },
       }),
       tx.project.findMany({
-        where: { tenantId },
+        where: { tenantId, deletedAt: null },
         take: limit,
         orderBy: { updatedAt: 'desc' },
         select: {
@@ -546,7 +553,7 @@ export class DashboardWidgetsService {
         },
       }),
       tx.task.findMany({
-        where: { tenantId },
+        where: { tenantId, deletedAt: null },
         take: limit,
         orderBy: { updatedAt: 'desc' },
         select: {
@@ -678,7 +685,7 @@ export class DashboardWidgetsService {
   ): Promise<WidgetApproval[]> {
     const [invoices, tasks] = await Promise.all([
       tx.invoice.findMany({
-        where: { tenantId, status: 'Pending' },
+        where: { tenantId, deletedAt: null, status: 'Pending' },
         take: 20,
         orderBy: { dueDate: 'asc' },
         select: {
@@ -690,7 +697,7 @@ export class DashboardWidgetsService {
         },
       }),
       tx.task.findMany({
-        where: { tenantId, status: 'Pending Approval' },
+        where: { tenantId, deletedAt: null, status: 'Pending Approval' },
         take: 20,
         orderBy: { createdAt: 'desc' },
         select: {
@@ -787,17 +794,22 @@ export class DashboardWidgetsService {
         }),
         tx.expense.aggregate({
           _sum: { amount: true },
-          where: { tenantId, departmentId },
+          where: { tenantId, departmentId, deletedAt: null },
         }),
         tx.supportTicket.count({
           where: {
             tenantId,
+            deletedAt: null,
             assignedTo: { departmentId },
             status: { notIn: ['CLOSED', 'RESOLVED'] },
           },
         }),
-        tx.invoice.count({ where: { tenantId, ...invoiceCustomerScope } }),
-        tx.expense.count({ where: { tenantId, departmentId } }),
+        tx.invoice.count({
+          where: { tenantId, deletedAt: null, ...invoiceCustomerScope },
+        }),
+        tx.expense.count({
+          where: { tenantId, departmentId, deletedAt: null },
+        }),
       ]);
 
     const [revenueData, budgetData, auditLog] = await Promise.all([
@@ -905,7 +917,12 @@ export class DashboardWidgetsService {
 
     const [invoices, payments] = await Promise.all([
       tx.invoice.findMany({
-        where: { tenantId, createdAt: { gte: since }, ...invoiceCustomerScope },
+        where: {
+          tenantId,
+          deletedAt: null,
+          createdAt: { gte: since },
+          ...invoiceCustomerScope,
+        },
         select: { amount: true, createdAt: true },
       }),
       tx.payment.findMany({
@@ -934,7 +951,7 @@ export class DashboardWidgetsService {
   ): Promise<WidgetAuditEntry[]> {
     const [expenses, projects] = await Promise.all([
       tx.expense.findMany({
-        where: { tenantId, departmentId },
+        where: { tenantId, departmentId, deletedAt: null },
         take: limit,
         orderBy: { createdAt: 'desc' },
         select: {
@@ -947,7 +964,7 @@ export class DashboardWidgetsService {
         },
       }),
       tx.project.findMany({
-        where: { tenantId, createdBy: { departmentId } },
+        where: { tenantId, deletedAt: null, createdBy: { departmentId } },
         take: limit,
         orderBy: { updatedAt: 'desc' },
         select: {
@@ -994,7 +1011,7 @@ export class DashboardWidgetsService {
   ): Promise<DashboardWidgetPayload> {
     const [inventoryRows, tickets, notifications, members] = await Promise.all([
       tx.inventoryItem.findMany({
-        where: { tenantId },
+        where: { tenantId, deletedAt: null },
         take: 100,
         orderBy: { name: 'asc' },
         select: {
@@ -1009,7 +1026,7 @@ export class DashboardWidgetsService {
         },
       }),
       tx.supportTicket.findMany({
-        where: { tenantId, assignedTo: { departmentId } },
+        where: { tenantId, deletedAt: null, assignedTo: { departmentId } },
         take: 50,
         orderBy: { createdAt: 'desc' },
         select: {
@@ -1255,7 +1272,7 @@ export class DashboardWidgetsService {
   ): Promise<DashboardWidgetPayload> {
     const [deals, teamMetrics] = await Promise.all([
       tx.deal.findMany({
-        where: { tenantId, assignedTo: { departmentId } },
+        where: { tenantId, deletedAt: null, assignedTo: { departmentId } },
         take: 50,
         orderBy: { createdAt: 'desc' },
         select: {
@@ -1354,7 +1371,7 @@ export class DashboardWidgetsService {
   ): Promise<DashboardWidgetPayload> {
     const [tickets, teamMetrics] = await Promise.all([
       tx.supportTicket.findMany({
-        where: { tenantId, assignedTo: { departmentId } },
+        where: { tenantId, deletedAt: null, assignedTo: { departmentId } },
         take: 50,
         orderBy: { createdAt: 'desc' },
         select: {
@@ -1522,7 +1539,7 @@ export class DashboardWidgetsService {
     ];
 
     const tasks = await tx.task.findMany({
-      where: { tenantId, assignedToId: { in: memberIds } },
+      where: { tenantId, deletedAt: null, assignedToId: { in: memberIds } },
       select: { assignedToId: true, status: true },
     });
 
@@ -1590,6 +1607,7 @@ export class DashboardWidgetsService {
       tx.task.findMany({
         where: {
           tenantId,
+          deletedAt: null,
           assignedToId: { in: memberIds },
           ...(departmentId
             ? { assignedTo: { departmentId } }
@@ -1610,6 +1628,7 @@ export class DashboardWidgetsService {
       tx.attendanceRecord.findMany({
         where: {
           tenantId,
+          deletedAt: null,
           userId: { in: memberIds },
           date: { gte: new Date(Date.now() - 30 * DAY_MS) },
         },
@@ -1750,7 +1769,7 @@ export class DashboardWidgetsService {
     const [taskRows, attendanceRows, projectCount, openTasks, ticketRows] =
       await Promise.all([
         tx.task.findMany({
-          where: { tenantId, assignedToId: userId },
+          where: { tenantId, deletedAt: null, assignedToId: userId },
           take: 100,
           orderBy: { dueDate: 'asc' },
           select: {
@@ -1766,6 +1785,7 @@ export class DashboardWidgetsService {
         tx.attendanceRecord.findMany({
           where: {
             tenantId,
+            deletedAt: null,
             userId,
             date: { gte: new Date(Date.now() - 30 * DAY_MS) },
           },
@@ -1776,6 +1796,7 @@ export class DashboardWidgetsService {
         tx.task.count({
           where: {
             tenantId,
+            deletedAt: null,
             assignedToId: userId,
             status: { notIn: ['Completed', 'Cancelled'] },
           },

@@ -11,9 +11,14 @@ import {
   WhereInput,
 } from '../types/entity';
 import { resolveField } from '../entities/field-resolver';
-import { FilterClause, parseRecordsQuery } from '../dto/records-query';
+import {
+  FilterClause,
+  RecordsQuery,
+  parseRecordsQuery,
+} from '../dto/records-query';
 import { ScopeFilterService } from './scope-filter.service';
 import { ResolvedModuleAccess } from './module-access.service';
+import { notDeleted, withNotDeleted } from './soft-delete';
 
 const UUID_PATTERN =
   /^[0-9a-f]{8}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{12}$/i;
@@ -27,6 +32,22 @@ export interface ListResult {
     totalPages: number;
   };
   scope: ScopeName;
+}
+
+/**
+ * Everything the list and CSV export share: descriptor, parsed query,
+ * effective scope, where/orderBy/select and the allowlisted delegate.
+ */
+export interface PlannedQuery {
+  descriptor: EntityDescriptor;
+  query: RecordsQuery;
+  scope: { scope: ScopeName; where: WhereInput };
+  where: WhereInput;
+  orderBy: Record<string, unknown>;
+  select: Record<string, unknown>;
+  includes: Record<string, unknown>;
+  include: string[];
+  delegate: string;
 }
 
 /**
@@ -46,38 +67,8 @@ export class EntityQueryService {
     access: ResolvedModuleAccess,
     rawQuery: Record<string, unknown>,
   ): Promise<ListResult> {
-    const descriptor = this.requireEntity(access);
-    const query = parseRecordsQuery(rawQuery);
-    const scope = await this.scopes.build(
-      descriptor,
-      access.actor,
-      access.module.dataScope,
-    );
-
-    const filterClauses = query.filters.map((clause) =>
-      this.buildClause(descriptor, clause),
-    );
-
-    const searchWhere = this.buildSearch(descriptor, query.search);
-    const where: WhereInput = {
-      AND: [
-        scope.where,
-        ...filterClauses,
-        ...(searchWhere ? [searchWhere] : []),
-      ],
-    };
-
-    const includes = this.buildIncludes(descriptor, query.include);
-    const select = {
-      ...Object.fromEntries(descriptor.select.map((field) => [field, true])),
-      ...includes,
-    };
-
-    const orderBy = query.sort
-      ? this.buildOrderBy(descriptor, query.sort.field, query.sort.dir)
-      : { [descriptor.defaultSort.field]: descriptor.defaultSort.dir };
-
-    const delegate = this.delegate(access, descriptor);
+    const planned = await this.plan(access, rawQuery);
+    const { query, where, select, orderBy, delegate } = planned;
 
     return this.prisma.withTenant(access.actor.tenantId, async (tx) => {
       const total = await (tx as any)[delegate].count({ where });
@@ -97,9 +88,61 @@ export class EntityQueryService {
           total,
           totalPages: Math.max(1, Math.ceil(total / query.pageSize)),
         },
-        scope: scope.scope,
+        scope: planned.scope.scope,
       };
     });
+  }
+
+  /**
+   * Build the shared read plan. List and export both use this so filters,
+   * scope, sorting and the soft-delete predicate can never diverge.
+   */
+  async plan(
+    access: ResolvedModuleAccess,
+    rawQuery: Record<string, unknown>,
+  ): Promise<PlannedQuery> {
+    const descriptor = this.requireEntity(access);
+    const query = parseRecordsQuery(rawQuery);
+    const scope = await this.scopes.build(
+      descriptor,
+      access.actor,
+      access.module.dataScope,
+    );
+
+    const filterClauses = query.filters.map((clause) =>
+      this.buildClause(descriptor, clause),
+    );
+
+    const searchWhere = this.buildSearch(descriptor, query.search);
+    const where: WhereInput = {
+      AND: [
+        withNotDeleted(descriptor.key, scope.where),
+        ...filterClauses,
+        ...(searchWhere ? [searchWhere] : []),
+      ],
+    };
+
+    const includes = this.buildIncludes(descriptor, query.include);
+    const select = {
+      ...Object.fromEntries(descriptor.select.map((field) => [field, true])),
+      ...includes,
+    };
+
+    const orderBy = query.sort
+      ? this.buildOrderBy(descriptor, query.sort.field, query.sort.dir)
+      : { [descriptor.defaultSort.field]: descriptor.defaultSort.dir };
+
+    return {
+      descriptor,
+      query,
+      scope,
+      where,
+      orderBy,
+      select,
+      includes,
+      include: query.include,
+      delegate: this.delegate(access, descriptor),
+    };
   }
 
   async getOne(access: ResolvedModuleAccess, id: string): Promise<unknown> {
@@ -126,7 +169,13 @@ export class EntityQueryService {
 
     const row = await this.prisma.withTenant(access.actor.tenantId, (tx) =>
       (tx as any)[delegate].findFirst({
-        where: { AND: [scope.where, { id }] },
+        where: {
+          AND: [
+            withNotDeleted(descriptor.key, scope.where),
+            { id },
+            notDeleted(descriptor.key),
+          ],
+        },
         select,
       }),
     );

@@ -11,8 +11,11 @@ import { LookupsController } from './controllers/lookups.controller';
 import { RecordsController } from './controllers/records.controller';
 import { SearchController } from './controllers/search.controller';
 import { SubmissionsController } from './controllers/submissions.controller';
+import { TrashController } from './controllers/trash.controller';
 import { ModulePermissionGuard } from './guards/module-permission.guard';
 import { LookupService } from './lookups/lookup.service';
+import { ExportController } from './export/export.controller';
+import { ExportService } from './export/export.service';
 import { AggregationService } from './services/aggregation.service';
 import { AttachmentService } from './services/attachment.service';
 import { AuditService } from './services/audit.service';
@@ -26,6 +29,7 @@ import { ModuleAccessService } from './services/module-access.service';
 import { ModuleConfigService } from './services/module-config.service';
 import { ScopeFilterService } from './services/scope-filter.service';
 import { SearchService } from './services/search.service';
+import { TrashService } from './services/trash.service';
 import { WorkspaceController } from './workspace.controller';
 
 /**
@@ -48,6 +52,8 @@ import { WorkspaceController } from './workspace.controller';
     LookupsController,
     LeaveController,
     SearchController,
+    TrashController,
+    ExportController,
   ],
   providers: [
     EntityRegistryService,
@@ -64,6 +70,8 @@ import { WorkspaceController } from './workspace.controller';
     LeaveWorkflowService,
     LookupService,
     SearchService,
+    TrashService,
+    ExportService,
     ModulePermissionGuard,
   ],
   exports: [

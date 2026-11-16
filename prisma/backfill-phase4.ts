@@ -67,7 +67,34 @@ const AUDIT_MODULE = {
   isNavigable: true,
   type: ModuleType.DATA_TABLE,
   targetEntity: 'audit_logs',
-  config: { version: 1 },
+  config: {
+    version: 1,
+    entity: 'audit_logs',
+    columns: [
+      { field: 'createdAt', label: 'When', type: 'date', sortable: true },
+      { field: 'actor.name', label: 'Actor', filterable: true },
+      {
+        field: 'action',
+        label: 'Action',
+        type: 'badge',
+        sortable: true,
+        filterable: true,
+      },
+      {
+        field: 'entity',
+        label: 'Entity',
+        sortable: true,
+        filterable: true,
+      },
+      { field: 'moduleKey', label: 'Module', filterable: true },
+      { field: 'department.name', label: 'Department' },
+    ],
+    defaultSort: { field: 'createdAt', dir: 'desc' },
+    pageSize: 25,
+    searchFields: ['actor.name', 'action', 'entity'],
+    createEnabled: false,
+    filters: [],
+  },
 };
 
 export interface TenantBackfillSummary {
@@ -369,6 +396,36 @@ async function backfillTenant(
         } else if (tenantAdminRole) {
           // The Tenant Admin VIEW grant cannot be probed without a module id.
           summary.grantsCreated += 1;
+        }
+      } else if (!dryRun) {
+        const current = await tx.module.findUnique({
+          where: { id: auditModule.id },
+          select: {
+            name: true,
+            path: true,
+            group: true,
+            order: true,
+            isNavigable: true,
+            type: true,
+            targetEntity: true,
+            config: true,
+          },
+        });
+        const changed =
+          current?.name !== AUDIT_MODULE.name ||
+          current?.path !== AUDIT_MODULE.path ||
+          current?.group !== AUDIT_MODULE.group ||
+          current?.order !== AUDIT_MODULE.order ||
+          current?.isNavigable !== AUDIT_MODULE.isNavigable ||
+          current?.type !== AUDIT_MODULE.type ||
+          current?.targetEntity !== AUDIT_MODULE.targetEntity ||
+          canonicalJson(current?.config) !== canonicalJson(AUDIT_MODULE.config);
+
+        if (changed) {
+          await tx.module.update({
+            where: { id: auditModule.id },
+            data: AUDIT_MODULE,
+          });
         }
       }
 

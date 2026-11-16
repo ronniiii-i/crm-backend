@@ -471,6 +471,25 @@ const TABLE_COLUMNS: Record<string, TableColumnConfig[]> = {
     },
     { field: 'user.name', label: 'Employee' },
   ],
+  audit_logs: [
+    { field: 'createdAt', label: 'When', type: 'date', sortable: true },
+    { field: 'actor.name', label: 'Actor', filterable: true },
+    {
+      field: 'action',
+      label: 'Action',
+      type: 'badge',
+      sortable: true,
+      filterable: true,
+    },
+    {
+      field: 'entity',
+      label: 'Entity',
+      sortable: true,
+      filterable: true,
+    },
+    { field: 'moduleKey', label: 'Module', filterable: true },
+    { field: 'department.name', label: 'Department' },
+  ],
 };
 
 const DEAL_STAGES: KanbanColumnConfig[] = [
@@ -526,6 +545,14 @@ const MODULE_RENDERERS: Record<string, ModuleRenderer> = {
   dashboard: {
     type: ModuleType.DASHBOARD_VIEW,
     targetEntity: null,
+  },
+  'audit-log': {
+    type: ModuleType.DATA_TABLE,
+    targetEntity: 'audit_logs',
+    config: tableConfig('audit_logs', TABLE_COLUMNS.audit_logs, {
+      createEnabled: false,
+      defaultSort: { field: 'createdAt', dir: 'desc' },
+    }),
   },
 
   // Finance
@@ -1774,6 +1801,18 @@ export const DEFAULT_MODULES: DefaultModule[] = [
     80,
     { icon: 'BookOpenCheck', departmentKey: 'accounting' },
   ),
+
+  // Administration (workspace-level) ---------------------------------------
+  module('audit-log', 'Audit Log', '/audit-log', 'Administration', 950, {
+    icon: 'ScrollText',
+    isNavigable: true,
+    overrides: {
+      tenant_admin: [PermissionType.VIEW],
+      department_head: [],
+      team_lead: [],
+      staff: [],
+    },
+  }),
 ];
 
 export const DEFAULT_TRIAL_DAYS = 14;

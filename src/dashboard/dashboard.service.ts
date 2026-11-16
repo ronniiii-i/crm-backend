@@ -133,26 +133,29 @@ export class DashboardService {
         }),
         tx.expense.aggregate({
           _sum: { amount: true },
-          where: { tenantId: resolved },
+          where: { tenantId: resolved, deletedAt: null },
         }),
         tx.deal.groupBy({
           by: ['status'],
           _sum: { amount: true },
           _count: { id: true },
-          where: { tenantId: resolved },
+          where: { tenantId: resolved, deletedAt: null },
           orderBy: { _sum: { amount: 'desc' } },
         }),
-        tx.supportTicket.count({ where: { tenantId: resolved } }),
+        tx.supportTicket.count({
+          where: { tenantId: resolved, deletedAt: null },
+        }),
         tx.supportTicket.count({
           where: {
             tenantId: resolved,
+            deletedAt: null,
             status: { notIn: ['CLOSED', 'RESOLVED'] },
           },
         }),
         tx.project.groupBy({
           by: ['status'],
           _count: { id: true },
-          where: { tenantId: resolved },
+          where: { tenantId: resolved, deletedAt: null },
           orderBy: { _count: { id: 'desc' } },
         }),
         tx.notification.count({
@@ -224,11 +227,12 @@ export class DashboardService {
           }),
           tx.expense.aggregate({
             _sum: { amount: true },
-            where: { tenantId: resolved, departmentId },
+            where: { tenantId: resolved, departmentId, deletedAt: null },
           }),
           tx.supportTicket.count({
             where: {
               tenantId: resolved,
+              deletedAt: null,
               assignedTo: { departmentId },
               status: { notIn: ['CLOSED', 'RESOLVED'] },
             },
@@ -236,7 +240,11 @@ export class DashboardService {
           tx.project.groupBy({
             by: ['status'],
             _count: { id: true },
-            where: { tenantId: resolved, createdBy: { departmentId } },
+            where: {
+              tenantId: resolved,
+              deletedAt: null,
+              createdBy: { departmentId },
+            },
           }),
         ]);
 
@@ -303,15 +311,21 @@ export class DashboardService {
             _count: { id: true },
             where: {
               tenantId: resolved,
+              deletedAt: null,
               OR: [{ userId }, { assignedTo: { departmentId } }],
             },
           }),
           tx.task.count({
-            where: { tenantId: resolved, assignedTo: { departmentId } },
+            where: {
+              tenantId: resolved,
+              deletedAt: null,
+              assignedTo: { departmentId },
+            },
           }),
           tx.task.count({
             where: {
               tenantId: resolved,
+              deletedAt: null,
               assignedTo: { departmentId },
               status: 'Completed',
             },
@@ -319,6 +333,7 @@ export class DashboardService {
           tx.task.count({
             where: {
               tenantId: resolved,
+              deletedAt: null,
               assignedToId: userId,
               status: { notIn: ['Completed', 'Cancelled'] },
               dueDate: { lte: today },
@@ -385,6 +400,7 @@ export class DashboardService {
               _count: { id: true },
               where: {
                 tenantId: resolved,
+                deletedAt: null,
                 userId,
                 date: { gte: thirtyDaysAgo },
               },
@@ -392,6 +408,7 @@ export class DashboardService {
             tx.supportTicket.findMany({
               where: {
                 tenantId: resolved,
+                deletedAt: null,
                 userId,
                 status: { notIn: ['CLOSED', 'RESOLVED'] },
               },
@@ -403,6 +420,7 @@ export class DashboardService {
               _count: { id: true },
               where: {
                 tenantId: resolved,
+                deletedAt: null,
                 teamMembers: { some: { id: userId } },
               },
             }),
@@ -439,7 +457,7 @@ export class DashboardService {
     const result = await this.scoped(tenantId, (db) =>
       db.expense.aggregate({
         _sum: { amount: true },
-        where: { ...(tenantId ? { tenantId } : {}) },
+        where: { ...(tenantId ? { tenantId } : {}), deletedAt: null },
       }),
     );
     return result._sum.amount || 0;
@@ -451,7 +469,7 @@ export class DashboardService {
         by: ['status'],
         _sum: { amount: true },
         _count: { id: true },
-        where: { ...(tenantId ? { tenantId } : {}) },
+        where: { ...(tenantId ? { tenantId } : {}), deletedAt: null },
         orderBy: {
           _sum: {
             amount: 'desc',
@@ -464,7 +482,7 @@ export class DashboardService {
   async getTotalTickets(tenantId?: string): Promise<number> {
     return this.scoped(tenantId, (db) =>
       db.supportTicket.count({
-        where: { ...(tenantId ? { tenantId } : {}) },
+        where: { ...(tenantId ? { tenantId } : {}), deletedAt: null },
       }),
     );
   }
@@ -474,6 +492,7 @@ export class DashboardService {
       db.supportTicket.count({
         where: {
           ...(tenantId ? { tenantId } : {}),
+          deletedAt: null,
           status: { notIn: ['CLOSED', 'RESOLVED'] },
         },
       }),
@@ -485,7 +504,7 @@ export class DashboardService {
       db.project.groupBy({
         by: ['status'],
         _count: { id: true },
-        where: { ...(tenantId ? { tenantId } : {}) },
+        where: { ...(tenantId ? { tenantId } : {}), deletedAt: null },
         orderBy: {
           _count: {
             id: 'desc',
@@ -548,6 +567,7 @@ export class DashboardService {
         where: {
           ...(tenantId ? { tenantId } : {}),
           departmentId: departmentId, // Assuming Expense model has a departmentId
+          deletedAt: null,
         },
       }),
     );
@@ -562,6 +582,7 @@ export class DashboardService {
       db.supportTicket.count({
         where: {
           ...(tenantId ? { tenantId } : {}),
+          deletedAt: null,
           assignedTo: {
             departmentId: departmentId, // Assuming User model has a departmentId
           },
@@ -579,6 +600,7 @@ export class DashboardService {
         _count: { id: true },
         where: {
           ...(tenantId ? { tenantId } : {}),
+          deletedAt: null,
           createdBy: {
             departmentId: departmentId,
           },
@@ -601,6 +623,7 @@ export class DashboardService {
         _count: { id: true },
         where: {
           ...(tenantId ? { tenantId } : {}),
+          deletedAt: null,
           OR: [
             { userId: leadId }, // Deals directly assigned to the lead
             // Add logic for deals in the lead's team/department if applicable
@@ -624,12 +647,14 @@ export class DashboardService {
       const totalTasks = await db.task.count({
         where: {
           ...(tenantId ? { tenantId } : {}),
+          deletedAt: null,
           assignedTo: { departmentId: departmentId },
         },
       });
       const completedTasks = await db.task.count({
         where: {
           ...(tenantId ? { tenantId } : {}),
+          deletedAt: null,
           assignedTo: { departmentId: departmentId },
           status: 'Completed',
         },
@@ -646,6 +671,7 @@ export class DashboardService {
       db.task.count({
         where: {
           ...(tenantId ? { tenantId } : {}),
+          deletedAt: null,
           assignedToId: userId,
           status: { notIn: ['Completed', 'Cancelled'] },
           dueDate: { lte: today }, // Tasks due today or overdue
@@ -665,6 +691,7 @@ export class DashboardService {
         _count: { id: true },
         where: {
           ...(tenantId ? { tenantId } : {}),
+          deletedAt: null,
           userId: userId,
           date: { gte: thirtyDaysAgo },
         },
@@ -678,6 +705,7 @@ export class DashboardService {
       db.supportTicket.findMany({
         where: {
           ...(tenantId ? { tenantId } : {}),
+          deletedAt: null,
           userId: userId,
           status: { notIn: ['CLOSED', 'RESOLVED'] },
         },
@@ -695,6 +723,7 @@ export class DashboardService {
         _count: { id: true },
         where: {
           ...(tenantId ? { tenantId } : {}),
+          deletedAt: null,
           // Assuming Project model has a relation to users or a list of assigned users
           // This might need adjustment based on your Project-User relationship
           teamMembers: {
@@ -741,6 +770,7 @@ export class DashboardService {
 
     const whereClause: Record<string, any> = {
       date: { gte: startDate },
+      deletedAt: null,
     };
 
     if (user.tenantId) {

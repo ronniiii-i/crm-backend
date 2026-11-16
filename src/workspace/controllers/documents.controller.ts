@@ -48,8 +48,9 @@ export class DocumentsController {
     @Body() body: unknown,
     @Ip() ip: string,
     @Headers('user-agent') userAgent?: string,
+    @Headers('x-request-id') requestId?: string,
   ) {
-    return this.documents.create(access, body, { ip, userAgent });
+    return this.documents.create(access, body, { ip, userAgent, requestId });
   }
 
   @Patch(':id')
@@ -60,8 +61,13 @@ export class DocumentsController {
     @Body() body: unknown,
     @Ip() ip: string,
     @Headers('user-agent') userAgent?: string,
+    @Headers('x-request-id') requestId?: string,
   ) {
-    return this.documents.update(access, id, body, { ip, userAgent });
+    return this.documents.update(access, id, body, {
+      ip,
+      userAgent,
+      requestId,
+    });
   }
 
   @Delete(':id')
@@ -72,12 +78,13 @@ export class DocumentsController {
     @Query('hard') hard: string | undefined,
     @Ip() ip: string,
     @Headers('user-agent') userAgent?: string,
+    @Headers('x-request-id') requestId?: string,
   ) {
     return this.documents.remove(
       access,
       id,
       { hard: hard === 'true' || hard === '1' },
-      { ip, userAgent },
+      { ip, userAgent, requestId },
     );
   }
 }

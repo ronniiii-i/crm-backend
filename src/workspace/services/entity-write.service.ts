@@ -8,6 +8,7 @@ import {
 } from '@nestjs/common';
 import { Prisma, PermissionType } from '@prisma/client';
 import { PrismaService } from '../../prisma/prisma.service';
+import { CacheService } from '../../cache/cache.service';
 import { PermissionResolutionService } from '../../auth/services/permission-resolution.service';
 import { EmailLinkService } from '../../email/email-link.service';
 import { EmailService } from '../../email/email.service';
@@ -17,6 +18,12 @@ import { AuditService } from './audit.service';
 import { EntityQueryService } from './entity-query.service';
 import { ResolvedModuleAccess } from './module-access.service';
 import { ScopeFilterService } from './scope-filter.service';
+import {
+  notDeleted,
+  softDeleteEnforced,
+  supportsSoftDelete,
+  withNotDeleted,
+} from './soft-delete';
 
 const UUID_PATTERN =
   /^[0-9a-f]{8}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{12}$/i;
@@ -33,6 +40,7 @@ const IMMUTABLE_KEYS = new Set([
 export interface WriteContext {
   ip?: string | null;
   userAgent?: string | null;
+  requestId?: string | null;
 }
 
 /**
@@ -52,6 +60,7 @@ export class EntityWriteService {
     @Optional() private readonly notifications?: NotificationsService,
     @Optional() private readonly email?: EmailService,
     @Optional() private readonly emailLink?: EmailLinkService,
+    @Optional() private readonly cache?: CacheService,
   ) {}
 
   async create(
@@ -93,6 +102,8 @@ export class EntityWriteService {
           after: row,
           ip: context.ip,
           userAgent: context.userAgent,
+          moduleKey: access.module.key,
+          requestId: context.requestId,
         });
 
         return row;
@@ -100,6 +111,7 @@ export class EntityWriteService {
     );
 
     await this.notifyTaskAssignment(access, descriptor, row, 'assigned');
+    await this.invalidateOverview(access.actor.tenantId);
     return row;
   }
 
@@ -130,7 +142,13 @@ export class EntityWriteService {
       access.actor.tenantId,
       async (tx) => {
         const before = await (tx as any)[descriptor.delegate].findFirst({
-          where: { AND: [scope, { id }] },
+          where: {
+            AND: [
+              withNotDeleted(descriptor.key, scope),
+              { id },
+              notDeleted(descriptor.key),
+            ],
+          },
           select: this.fullSelect(descriptor),
         });
 
@@ -157,6 +175,8 @@ export class EntityWriteService {
           after: row,
           ip: context.ip,
           userAgent: context.userAgent,
+          moduleKey: access.module.key,
+          requestId: context.requestId,
         });
 
         return { row, before };
@@ -172,6 +192,7 @@ export class EntityWriteService {
       );
     }
 
+    await this.invalidateOverview(access.actor.tenantId);
     return result.row;
   }
 
@@ -179,16 +200,39 @@ export class EntityWriteService {
     access: ResolvedModuleAccess,
     id: string,
     context: WriteContext = {},
-  ): Promise<{ id: string; deleted: true }> {
+    options: { hard?: boolean } = {},
+  ): Promise<{ id: string; deleted: true; softDeleted?: boolean }> {
     const descriptor = this.queries.requireEntity(access);
     this.assertWritable(descriptor);
     this.assertId(descriptor, id);
 
+    const requestedHard = options.hard === true;
+    if (requestedHard && !access.actor.isTenantAdmin) {
+      throw new ForbiddenException({
+        code: 'TENANT_ADMIN_REQUIRED',
+        message: 'Only a workspace administrator can purge a record.',
+      });
+    }
+
+    const soft =
+      supportsSoftDelete(descriptor.key) &&
+      softDeleteEnforced() &&
+      !requestedHard;
     const scope = await this.scopes(access, descriptor);
 
-    return this.prisma.withTenant(access.actor.tenantId, async (tx) => {
+    const result = await this.prisma.withTenant<{
+      id: string;
+      deleted: true;
+      softDeleted?: boolean;
+    }>(access.actor.tenantId, async (tx) => {
       const before = await (tx as any)[descriptor.delegate].findFirst({
-        where: { AND: [scope, { id }] },
+        where: {
+          AND: [
+            withNotDeleted(descriptor.key, scope),
+            { id },
+            notDeleted(descriptor.key),
+          ],
+        },
         select: this.fullSelect(descriptor),
       });
 
@@ -204,36 +248,54 @@ export class EntityWriteService {
         });
       }
 
-      try {
-        await (tx as any)[descriptor.delegate].delete({ where: { id } });
-      } catch (error) {
-        if (
-          error instanceof Prisma.PrismaClientKnownRequestError &&
-          error.code === 'P2003'
-        ) {
-          throw new ConflictException({
-            code: 'RECORD_IN_USE',
-            message: `${descriptor.label} record is referenced by other records and cannot be deleted.`,
-          });
+      if (soft) {
+        await (tx as any)[descriptor.delegate].update({
+          where: { id },
+          data: {
+            deletedAt: new Date(),
+            deletedById: access.actor.id,
+          },
+        });
+      } else {
+        try {
+          await (tx as any)[descriptor.delegate].delete({ where: { id } });
+        } catch (error) {
+          if (
+            error instanceof Prisma.PrismaClientKnownRequestError &&
+            error.code === 'P2003'
+          ) {
+            throw new ConflictException({
+              code: 'RECORD_IN_USE',
+              message: `${descriptor.label} record is referenced by other records and cannot be deleted.`,
+            });
+          }
+          throw error;
         }
-        throw error;
       }
 
       await this.audit.record(tx, descriptor, {
         tenantId: access.actor.tenantId,
         departmentId: this.auditDepartment(descriptor, before),
         actorId: access.actor.id,
-        action: 'DELETE',
+        action: soft ? 'DELETE' : 'PURGE',
         entity: descriptor.key,
         entityId: id,
+        moduleKey: access.module.key,
+        requestId: context.requestId,
+        softDelete: soft,
         before,
         after: null,
         ip: context.ip,
         userAgent: context.userAgent,
       });
 
-      return { id, deleted: true };
+      return soft
+        ? { id, deleted: true, softDeleted: true }
+        : { id, deleted: true };
     });
+
+    await this.invalidateOverview(access.actor.tenantId);
+    return result;
   }
 
   async transition(
@@ -346,7 +408,13 @@ export class EntityWriteService {
 
     const result = await this.prisma.withTenant(actor.tenantId, async (tx) => {
       const before = await (tx as any)[descriptor.delegate].findFirst({
-        where: { AND: [scope, { id }] },
+        where: {
+          AND: [
+            withNotDeleted(descriptor.key, scope),
+            { id },
+            notDeleted(descriptor.key),
+          ],
+        },
         select: this.fullSelect(descriptor),
       });
       if (!before) throw this.notFound(descriptor);
@@ -411,6 +479,8 @@ export class EntityWriteService {
         after: row,
         ip: context.ip,
         userAgent: context.userAgent,
+        moduleKey: access.module.key,
+        requestId: context.requestId,
       });
 
       return { row, before };
@@ -425,6 +495,7 @@ export class EntityWriteService {
       );
     }
 
+    await this.invalidateOverview(access.actor.tenantId);
     return result.row;
   }
 
@@ -987,6 +1058,17 @@ export class EntityWriteService {
       emailPlan
         ? () => this.email!.send('task-assigned', emailPlan.input)
         : undefined,
+    );
+  }
+
+  /**
+   * Department overview cards embed task, leave and document counts, so any
+   * write in a workspace invalidates the cached cards. The pattern invalidation
+   * is cheap relative to a write and runs after the transaction commits.
+   */
+  private async invalidateOverview(tenantId: string): Promise<void> {
+    await this.cache?.invalidatePattern(
+      `tenant:${tenantId}:departments:overview:*`,
     );
   }
 

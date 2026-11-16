@@ -35,6 +35,9 @@ export interface WorkspaceState {
   formSubmissions: Row[];
   projects: Row[];
   attachments: Row[];
+  roles: Row[];
+  permissions: Row[];
+  roleModulePermissions: Row[];
 }
 
 export function emptyWorkspaceState(): WorkspaceState {
@@ -61,6 +64,9 @@ export function emptyWorkspaceState(): WorkspaceState {
     formSubmissions: [],
     projects: [],
     attachments: [],
+    roles: [],
+    permissions: [],
+    roleModulePermissions: [],
   };
 }
 
@@ -87,6 +93,9 @@ const DELEGATES: Record<string, keyof WorkspaceState> = {
   formSubmission: 'formSubmissions',
   project: 'projects',
   attachment: 'attachments',
+  role: 'roles',
+  permission: 'permissions',
+  roleModulePermission: 'roleModulePermissions',
 };
 
 const OPERATORS = new Set([
@@ -128,15 +137,20 @@ export function createFakeWorkspacePrisma(state: WorkspaceState) {
 }
 
 function createTx(tenantId: string | undefined, state: WorkspaceState) {
-  const visible = (rows: Row[]): Row[] =>
-    tenantId ? rows.filter((row) => row.tenantId === tenantId) : [];
+  // `tenant` and `permission` are global catalogues, not RLS-scoped rows.
+  const GLOBAL_KEYS = new Set<keyof WorkspaceState>(['tenants', 'permissions']);
+
+  const visible = (rows: Row[], key?: keyof WorkspaceState): Row[] => {
+    if (key && GLOBAL_KEYS.has(key)) return rows;
+    return tenantId ? rows.filter((row) => row.tenantId === tenantId) : [];
+  };
 
   const tx: any = {};
 
   for (const [delegate, key] of Object.entries(DELEGATES)) {
     tx[delegate] = {
       findMany: async (args: any = {}) => {
-        const rows = visible(state[key]).filter((row) =>
+        const rows = visible(state[key], key).filter((row) =>
           matches(row, args.where, state),
         );
         const sorted = sortRows(rows, args.orderBy);
@@ -150,7 +164,7 @@ function createTx(tenantId: string | undefined, state: WorkspaceState) {
       },
 
       findFirst: async (args: any = {}) => {
-        const rows = visible(state[key]).filter((row) =>
+        const rows = visible(state[key], key).filter((row) =>
           matches(row, args.where, state),
         );
         const sorted = sortRows(rows, args.orderBy);
@@ -158,25 +172,26 @@ function createTx(tenantId: string | undefined, state: WorkspaceState) {
       },
 
       findUnique: async (args: any = {}) => {
-        const rows = visible(state[key]).filter((row) =>
+        const rows = visible(state[key], key).filter((row) =>
           matches(row, args.where, state),
         );
         return rows[0] ? clone(rows[0]) : null;
       },
 
       count: async (args: any = {}) =>
-        visible(state[key]).filter((row) => matches(row, args.where, state))
-          .length,
+        visible(state[key], key).filter((row) =>
+          matches(row, args.where, state),
+        ).length,
 
       aggregate: async (args: any = {}) => {
-        const rows = visible(state[key]).filter((row) =>
+        const rows = visible(state[key], key).filter((row) =>
           matches(row, args.where, state),
         );
         return aggregateRows(rows, args);
       },
 
       groupBy: async (args: any = {}) => {
-        const rows = visible(state[key]).filter((row) =>
+        const rows = visible(state[key], key).filter((row) =>
           matches(row, args.where, state),
         );
         const by = Array.isArray(args.by) ? args.by : [args.by];
@@ -225,6 +240,38 @@ function createTx(tenantId: string | undefined, state: WorkspaceState) {
 
         state[key].push(row);
         return clone(row);
+      },
+
+      createMany: async (args: any = {}) => {
+        const entries = Array.isArray(args.data) ? args.data : [args.data];
+        const now = new Date();
+        let count = 0;
+
+        for (const entry of entries) {
+          if (!entry) continue;
+          if (
+            args.skipDuplicates &&
+            state[key].some((row) =>
+              Object.entries(entry).every(
+                ([field, value]) => row[field] === value,
+              ),
+            )
+          ) {
+            continue;
+          }
+
+          const row: Row = {
+            id: randomUUID(),
+            ...entry,
+            createdAt: entry.createdAt ?? now,
+            updatedAt: entry.updatedAt ?? now,
+          };
+          if (tenantId && row.tenantId === undefined) row.tenantId = tenantId;
+          state[key].push(row);
+          count += 1;
+        }
+
+        return { count };
       },
 
       update: async (args: any = {}) => {

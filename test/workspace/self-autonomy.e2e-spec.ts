@@ -450,7 +450,10 @@ describe('Workspace self autonomy and reassignment (Stage 4)', () => {
         ModulePermissionGuard,
         { provide: PrismaService, useValue: prisma },
         { provide: PermissionResolutionService, useValue: permissions },
-        { provide: CacheService, useValue: { flushTenant: jest.fn() } },
+        {
+          provide: CacheService,
+          useValue: { flushTenant: jest.fn(), invalidatePattern: jest.fn() },
+        },
       ],
     }).compile();
 
