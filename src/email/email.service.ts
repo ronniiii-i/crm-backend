@@ -80,7 +80,9 @@ export class ResendTransport implements EmailTransport {
     );
 
     if (error) {
-      throw new Error(`Resend rejected the message: ${error.name}`);
+      throw new Error(
+        `Resend rejected the message (${error.statusCode ?? 'unknown'} ${error.name}): ${error.message}`,
+      );
     }
     if (!data?.id) {
       throw new Error('Resend returned no message id');
