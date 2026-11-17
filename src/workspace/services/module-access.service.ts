@@ -7,7 +7,7 @@ import { Department, Module, PermissionType } from '@prisma/client';
 import { PrismaService } from '../../prisma/prisma.service';
 import { PermissionResolutionService } from '../../auth/services/permission-resolution.service';
 import { EntityDescriptor, ScopeName } from '../types/entity';
-import { ModuleConfig } from '../types/module-config';
+import { ModuleConfig, moduleDisplayName } from '../types/module-config';
 import { WorkspaceActor, toWorkspaceActor } from '../types/actor';
 import { EntityRegistryService } from './entity-registry.service';
 import { ModuleConfigService } from './module-config.service';
@@ -180,7 +180,7 @@ export class ModuleAccessService {
       id: module.id,
       key: module.key,
       path: module.path,
-      name: module.name,
+      name: moduleDisplayName(module.name, access.config),
       icon: module.icon,
       group: module.group,
       order: module.order,

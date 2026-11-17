@@ -4,6 +4,7 @@ import { PrismaService } from '../prisma/prisma.service';
 import { CacheService } from '../cache/cache.service';
 import { AccessibleModule, Permission, UserForAcl } from './permission-types';
 import { PermissionResolutionService } from './services/permission-resolution.service';
+import { moduleDisplayName } from '../workspace/types/module-config';
 
 /** Canonical action order used by the navigation/sidebar payload. */
 const ACTION_ORDER: Permission[] = [
@@ -117,6 +118,7 @@ export class FrontendAdapterService {
       id: true,
       key: true,
       name: true,
+      config: true,
       path: true,
       icon: true,
       group: true,
@@ -146,7 +148,7 @@ export class FrontendAdapterService {
         return {
           id: row.id,
           key: row.key,
-          name: row.name,
+          name: moduleDisplayName(row.name, row.config),
           path: row.path,
           icon: row.icon,
           group: row.group,

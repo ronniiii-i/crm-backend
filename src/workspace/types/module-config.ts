@@ -17,6 +17,8 @@ export interface TableColumnConfig {
   sortable?: boolean;
   filterable?: boolean;
   width?: number;
+  /** Responsive visibility hint; passed through validation unchanged. */
+  priority?: 'primary' | 'secondary' | 'optional';
 }
 
 export interface TableFilterConfig {
@@ -163,4 +165,17 @@ export interface ModuleConfigByType {
   [ModuleType.DOCUMENT_HUB]: DocumentConfig;
   [ModuleType.FORM_BUILDER]: FormConfig;
   [ModuleType.WORKFLOW]: WorkflowConfig;
+}
+
+/**
+ * Optional display-name override stored on `modules.config`. The persisted
+ * `name` (used by routes and audit trails) stays stable while admins can rename
+ * the label shown in navigation and module headers.
+ */
+export function moduleDisplayName(name: string, config: unknown): string {
+  if (config && typeof config === 'object' && !Array.isArray(config)) {
+    const title = (config as Record<string, unknown>).title;
+    if (typeof title === 'string' && title.trim()) return title.trim();
+  }
+  return name;
 }
