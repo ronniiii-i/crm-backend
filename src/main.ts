@@ -98,6 +98,24 @@ async function bootstrap() {
         return callback(null, true);
       }
 
+      // Tenant apps are served on subdomains of the configured frontend origin
+      // (for example acme.claspworkspace.work.gd). Accept any subdomain of an
+      // explicitly allowed origin instead of maintaining a per-TLD allowlist.
+      const isTenantSubdomain = allowed.some((allowedOrigin) => {
+        if (!allowedOrigin) return false;
+        try {
+          const allowedHost = new URL(allowedOrigin).hostname.toLowerCase();
+          const requestHost = new URL(origin).hostname.toLowerCase();
+          return requestHost.endsWith(`.${allowedHost}`);
+        } catch {
+          return false;
+        }
+      });
+
+      if (isTenantSubdomain) {
+        return callback(null, true);
+      }
+
       return callback(new Error('Not allowed by CORS'));
     },
     credentials: true,
